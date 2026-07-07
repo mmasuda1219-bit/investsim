@@ -7,15 +7,17 @@ import { RealtimeQuote } from '@/components/RealtimeQuote'
 import { TradeButton } from '@/components/TradeButton'
 
 interface Props {
-  params: { symbol: string }
-  searchParams: { period?: string }
+  params: Promise<{ symbol: string }>
+  searchParams: Promise<{ period?: string }>
 }
 
 const VALID_PERIODS = ['1m', '5m', '15m', '30m', '1h', '1d', '5d', '1mo', '3mo', '6mo', '1y', '2y']
 
 export default async function StockPage({ params, searchParams }: Props) {
-  const symbol = params.symbol.toUpperCase()
-  const period = VALID_PERIODS.includes(searchParams.period ?? '') ? searchParams.period! : '3mo'
+  const { symbol: rawSymbol } = await params
+  const symbol = rawSymbol.toUpperCase()
+  const { period: rawPeriod } = await searchParams
+  const period = VALID_PERIODS.includes(rawPeriod ?? '') ? rawPeriod! : '3mo'
 
   try {
     const quote = await getQuote(symbol)
@@ -69,7 +71,8 @@ export default async function StockPage({ params, searchParams }: Props) {
 }
 
 export async function generateMetadata({ params }: Props) {
+  const { symbol } = await params
   return {
-    title: `${params.symbol.toUpperCase()} — InvestSim`,
+    title: `${symbol.toUpperCase()} — InvestSim`,
   }
 }

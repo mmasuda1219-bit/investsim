@@ -124,9 +124,11 @@ export async function yfDirectGetFundamentals(symbol: string): Promise<Fundament
       week52High:     sd.fiftyTwoWeekHigh?.raw      ?? undefined,
       week52Low:      sd.fiftyTwoWeekLow?.raw       ?? undefined,
     }
-  } catch {
-    const { mockGetFundamentals } = await import('./mock')
-    return mockGetFundamentals(symbol)
+  } catch (err) {
+    // 原則9: 実データ取得失敗時にモック（架空PER/ROE）を返すと、AI投資家がニセ指標で
+    // 売買判断してしまう。フォールバックせず空を返し「データなし」として扱わせる。
+    console.warn(`[yahoodirect] fundamentals unavailable for ${symbol}:`, String(err))
+    return {}
   }
 }
 

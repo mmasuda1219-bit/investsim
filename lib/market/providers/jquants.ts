@@ -120,10 +120,10 @@ export async function jqGetHistory(symbol: string, period: string): Promise<Hist
   }))
 }
 
-export async function jqGetFundamentals(symbol: string): Promise<FundamentalsData> {
-  // Fundamentals endpoint requires higher plan; use mock fundamentals
-  const { mockGetFundamentals } = await import('./mock')
-  return mockGetFundamentals(symbol)
+export async function jqGetFundamentals(_symbol: string): Promise<FundamentalsData> {
+  // J-Quantsのファンダメンタルズは上位プランが必要。原則9によりモック（架空値）は返さず、
+  // 空を返して「データなし」として扱わせる（ニセ指標でのAI判断を防ぐ）。
+  return {}
 }
 
 const JP_SEARCH: SearchResult[] = [
