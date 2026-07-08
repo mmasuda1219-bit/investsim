@@ -24,13 +24,11 @@ function avatarUrl(user: User): string | undefined {
 export function AuthMenu() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
-  const [ready, setReady] = useState(false)
+  // 未設定なら最初からready=true（effect内の同期setStateを避ける）
+  const [ready, setReady] = useState(!isConfigured)
 
   useEffect(() => {
-    if (!isConfigured) {
-      setReady(true)
-      return
-    }
+    if (!isConfigured) return
     const supabase = createClient()
 
     supabase.auth.getUser().then(({ data }) => {
