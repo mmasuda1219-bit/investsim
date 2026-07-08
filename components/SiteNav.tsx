@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { StockSearch } from './StockSearch'
+import { AuthMenu } from './AuthMenu'
 
 const NAV = [
   { href: '/',            label: '投資家シミュレーション' },
@@ -47,6 +48,7 @@ export function SiteNav() {
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
           <StockSearch />
+          <AuthMenu />
         </div>
       </div>
     </header>
