@@ -195,13 +195,18 @@ async function selectCandidates(n = 8): Promise<string[]> {
   const chunks = [UNIVERSE.slice(0, 20), UNIVERSE.slice(20)]
   const results: Array<{ symbol: string; changeAbs: number }> = []
 
-  for (const chunk of chunks) {
-    const quotes = await Promise.allSettled(
-      chunk.map(async (sym) => {
-        const q = await getQuote(sym)
-        return { symbol: sym, changeAbs: Math.abs(q.changePercent) }
-      })
+  // 2チャンクを逐次awaitせず並列に走らせる（Vercelの関数タイムアウト対策で待ち時間短縮）。
+  const chunkResults = await Promise.all(
+    chunks.map((chunk) =>
+      Promise.allSettled(
+        chunk.map(async (sym) => {
+          const q = await getQuote(sym)
+          return { symbol: sym, changeAbs: Math.abs(q.changePercent) }
+        })
+      )
     )
+  )
+  for (const quotes of chunkResults) {
     for (const r of quotes) {
       if (r.status === 'fulfilled') results.push(r.value)
     }
@@ -676,7 +681,7 @@ export async function runTick(sessionId: string): Promise<AISession> {
   if (!session.holdings)  session.holdings = {}
   if (!session.watchlist) session.watchlist = []
 
-  const candidates = await selectCandidates(8)
+  const candidates = await selectCandidates(6)
   const combined = Array.from(new Set([...candidates, ...Object.keys(session.holdings)]))
   session.watchlist = combined
 
@@ -734,8 +739,12 @@ export async function runTick(sessionId: string): Promise<AISession> {
   if (!session.stats) session.stats = emptyStats()
   updateStats(session)
 
-  // Generate full learning every tick (when closed trades exist)
-  if (shouldLearnNow(session.learning, session.tickCount)) {
+  // 学習生成は 2回目の Claude 呼び出しになり、tick を Vercel の関数タイムアウト(60s)超えに
+  // 追い込む主因。売買判断(1回目)は毎tick必須なので、学習は数tickに1回へ間引いて hot path を
+  // 1呼び出しに抑える。tickCount ベースの判定なので、Vercel でセッション状態が永続化されず
+  // tickCount がスナップショット値に戻る場合でも決定的にスキップされる（大半のtickで学習を回さない）。
+  const LEARN_EVERY_N_TICKS = 5
+  if (session.tickCount % LEARN_EVERY_N_TICKS === 0 && shouldLearnNow(session.learning, session.tickCount)) {
     try {
       const fl = await generateFullLearning(session.learning, session)
       if (fl.lessons.length > 0 || fl.fundamentalInsights.length > 0) {
