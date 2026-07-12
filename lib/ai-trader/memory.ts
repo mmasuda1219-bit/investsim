@@ -83,6 +83,22 @@ export function createLearningMemory(): LearningMemory {
   }
 }
 
+// 旧フォーマットで永続化されたセッションは learning の入れ子フィールド
+// （fundamentalInsights / newsInsights / causalChains / tradingBiases /
+//  strategyNotes / allDecisions 等）を欠くことがある。createLearningMemory() の
+// デフォルトで欠損分を補完し、buildLearningContext などの .length / .slice を安全にする。
+export function normalizeLearningMemory(
+  m: Partial<LearningMemory> | undefined | null,
+): LearningMemory {
+  const base = createLearningMemory()
+  if (!m) return base
+  return {
+    ...base,
+    ...m,
+    stats: { ...base.stats, ...(m.stats ?? {}) },
+  }
+}
+
 // ── Record a closed trade ─────────────────────────────────────────────────
 export function recordClosedTrade(
   memory: LearningMemory,
@@ -203,7 +219,7 @@ export function buildLearningContext(memory: LearningMemory): string {
   const recent = memory.closedTrades.slice(0, 8)
   if (recent.length > 0) {
     const lines = recent.map(t =>
-      `${t.outcome === 'profit' ? '✓' : '✗'} ${t.symbol} ${t.pnlPct >= 0 ? '+' : ''}${t.pnlPct.toFixed(1)}% 保有${t.holdingHours}h | 理由:${t.entryReasoning.slice(0, 50)} | 売:${t.exitReasoning.slice(0, 40)}`
+      `${t.outcome === 'profit' ? '✓' : '✗'} ${t.symbol} ${t.pnlPct >= 0 ? '+' : ''}${t.pnlPct.toFixed(1)}% 保有${t.holdingHours}h | 理由:${(t.entryReasoning ?? '').slice(0, 50)} | 売:${(t.exitReasoning ?? '').slice(0, 40)}`
     )
     parts.push('■ 直近クローズ取引（生データ）\n' + lines.join('\n'))
   }
@@ -213,7 +229,7 @@ export function buildLearningContext(memory: LearningMemory): string {
   const watchHold = recentDecisions.filter(d => d.action === 'watch' || d.action === 'hold')
   if (watchHold.length > 0) {
     const lines = watchHold.slice(0, 5).map(d =>
-      `${d.action.toUpperCase()} ${d.symbol} @${d.price.toFixed(0)} | ${d.reasoning.slice(0, 60)}`
+      `${d.action.toUpperCase()} ${d.symbol} @${d.price.toFixed(0)} | ${(d.reasoning ?? '').slice(0, 60)}`
     )
     parts.push('■ 直近の監視・ホールド判断（見送った銘柄の追跡用）\n' + lines.join('\n'))
   }

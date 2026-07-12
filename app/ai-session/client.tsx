@@ -7,6 +7,7 @@ import type { Trade, TradeReference } from '@/components/TradingChart'
 import ReferencePanel from '@/components/ReferencePanel'
 import type { AISession, AIDecision, AITrade, Holding, EquityPoint } from '@/lib/ai-trader/engine'
 import type { ClosedTrade } from '@/lib/ai-trader/memory'
+import { normalizeLearningMemory } from '@/lib/ai-trader/memory'
 
 const TradingChart = dynamic(() => import('@/components/TradingChart'), {
   ssr: false,
@@ -351,7 +352,13 @@ export function AISessionClient() {
     </div>
   )
 
-  const { pnl, pnlPct, totalValue, cash, capital, holdings, decisions, trades, tickCount, lastTickAt, learning } = session
+  const {
+    pnl, pnlPct, totalValue, cash, capital, tickCount, lastTickAt,
+    holdings = {},
+    decisions = [],
+    trades = [],
+  } = session
+  const learning = normalizeLearningMemory(session.learning)
   const holdingSymbols = Object.keys(holdings)
   const allSymbols = Array.from(new Set([...holdingSymbols, ...(session.watchlist ?? [])].slice(0, 8)))
 

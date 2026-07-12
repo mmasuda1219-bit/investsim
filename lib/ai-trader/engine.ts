@@ -6,6 +6,7 @@ import { calcMA, calcRSI, calcMACD, calcBB } from '@/lib/technicals'
 import { fetchNews } from './news'
 import {
   createLearningMemory,
+  normalizeLearningMemory,
   recordClosedTrade,
   recordDecisions,
   buildLearningContext,
@@ -19,13 +20,12 @@ import type { StockQuote, FundamentalsData } from '@/types'
 // AIモデルID（環境変数で上書き可）。デフォルトはコスト重視でSonnet。
 const AI_MODEL = process.env.AI_MODEL || 'claude-sonnet-4-6'
 
-// Claude呼び出し。ANTHROPIC_API_KEYがあればAnthropic APIを使う（Vercel等の本番向け・課金制）。
-// なければローカルのclaude CLIにフォールバック（開発中・サブスク利用で無料）。
+// Claude呼び出し。ANTHROPIC_API_KEYがあればAnthropic APIを使う（公開サイト/本番・従量課金）。
+// キーはオーナー自身のAnthropicアカウントで購入したAPIクレジットで課金される（Claude Codeサブスクとは別系統）。
+// キーが無ければローカルのclaude CLIにフォールバック（ローカル開発専用。Vercel等にclaudeバイナリは無い）。
+// 公開サイトで全AI（tick分析・仮想取引・学習）を動かすには、VercelのEnvにANTHROPIC_API_KEYを設定する。
 function callClaude(prompt: string): Promise<string> {
-  if (process.env.ANTHROPIC_API_KEY) {
-    return callClaudeApi(prompt)
-  }
-  return callClaudeCli(prompt)
+  return process.env.ANTHROPIC_API_KEY ? callClaudeApi(prompt) : callClaudeCli(prompt)
 }
 
 async function callClaudeApi(prompt: string): Promise<string> {
@@ -668,6 +668,13 @@ export async function runTick(sessionId: string): Promise<AISession> {
   if (!session.equityHistory) session.equityHistory = []
   if (!session.stats)         session.stats = emptyStats()
   if (session.benchmarkStart === undefined) session.benchmarkStart = null
+  // 古い/部分的な永続セッションが後続フィールドを欠いていても tick が落ちないよう補完する。
+  // learning は「存在するが入れ子配列が欠損」の旧フォーマットもあるため、正規化でマージ補完する。
+  session.learning = normalizeLearningMemory(session.learning)
+  if (!session.decisions) session.decisions = []
+  if (!session.trades)    session.trades = []
+  if (!session.holdings)  session.holdings = {}
+  if (!session.watchlist) session.watchlist = []
 
   const candidates = await selectCandidates(8)
   const combined = Array.from(new Set([...candidates, ...Object.keys(session.holdings)]))
