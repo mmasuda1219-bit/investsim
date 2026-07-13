@@ -17,8 +17,12 @@ import {
 } from './memory'
 import type { StockQuote, FundamentalsData } from '@/types'
 
-// AIモデルID（環境変数で上書き可）。デフォルトはコスト重視でSonnet。
-const AI_MODEL = process.env.AI_MODEL || 'claude-sonnet-4-6'
+// AIモデルID（環境変数で上書き可）。tickは頻繁・高速・低コストが要件なので Haiku を既定に。
+// sonnet-4-6 だと1呼び出し+データ取得で約55秒かかり Vercel の60秒関数タイムアウトを不定期に
+// 超えて 504（画面上「分析に失敗しました」）になる。Haiku は生成が2〜3倍速く合計35秒前後で
+// 安定し、$1/$5 と安価。深い分析が要るレポート機能は別途 Opus を使う。
+// より賢いモデルで運用したい場合は Vercel Pro で maxDuration を伸ばし AI_MODEL で上書きする。
+const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-4-5'
 
 // Claude呼び出し。ANTHROPIC_API_KEYがあればAnthropic APIを使う（公開サイト/本番・従量課金）。
 // キーはオーナー自身のAnthropicアカウントで購入したAPIクレジットで課金される（Claude Codeサブスクとは別系統）。
