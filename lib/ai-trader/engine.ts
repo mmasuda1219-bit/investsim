@@ -1,6 +1,4 @@
 import { spawn } from 'child_process'
-import fs from 'fs'
-import path from 'path'
 import { getQuote, getHistory, getFundamentals } from '@/lib/market'
 import { calcMA, calcRSI, calcMACD, calcBB } from '@/lib/technicals'
 import { fetchNews } from './news'
@@ -155,45 +153,12 @@ export interface AISession {
   }
 }
 
-const STORE_PATH = path.join(process.cwd(), 'data', 'sessions.json')
-
-function loadStore(): Map<string, AISession> {
-  try {
-    if (!fs.existsSync(STORE_PATH)) return new Map()
-    const raw = fs.readFileSync(STORE_PATH, 'utf8')
-    const arr: AISession[] = JSON.parse(raw)
-    return new Map(arr.map(s => [s.id, s]))
-  } catch {
-    return new Map()
-  }
-}
-
-function saveStore(map: Map<string, AISession>) {
-  try {
-    fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true })
-    fs.writeFileSync(STORE_PATH, JSON.stringify(Array.from(map.values()), null, 0))
-  } catch { /* non-critical */ }
-}
-
-declare global { var __aiSessions: Map<string, AISession> | undefined }
-if (!global.__aiSessions) global.__aiSessions = loadStore()
-const sessions = global.__aiSessions
-
-export function getSession(id: string): AISession | undefined {
-  if (!sessions.has(id)) {
-    const fresh = loadStore()
-    fresh.forEach((s, k) => sessions.set(k, s))
-  }
-  return sessions.get(id)
-}
-
-export function listSessions(): AISession[] {
-  const fresh = loadStore()
-  fresh.forEach((s, k) => sessions.set(k, s))
-  return Array.from(sessions.values()).sort((a, b) =>
-    b.startedAt.localeCompare(a.startedAt)
-  )
-}
+// 永続化はstore.tsに集約（Supabase JSONB blob / キー未設定ローカルはファイルにフォールバック）。
+// 旧実装のグローバルMapキャッシュ（global.__aiSessions）は、Vercelサーバーレスで
+// staleなスナップショットに巻き戻る学習消失事故の原因だったため完全撤去。
+// 毎リクエスト read→write の素直な形にする。
+export { getSession, listSessions } from './store'
+import { getSession, upsertSession } from './store'
 
 async function selectCandidates(n = 8): Promise<string[]> {
   const chunks = [UNIVERSE.slice(0, 20), UNIVERSE.slice(20)]
@@ -665,13 +630,12 @@ export async function startSession(capital = 100000): Promise<AISession> {
     benchmarkStart,
     stats:          emptyStats(),
   }
-  sessions.set(id, session)
-  saveStore(sessions)
+  await upsertSession(session)
   return session
 }
 
 export async function runTick(sessionId: string): Promise<AISession> {
-  const session = sessions.get(sessionId)
+  const session = await getSession(sessionId)
   if (!session) throw new Error('Session not found')
 
   if (!session.equityHistory) session.equityHistory = []
@@ -745,8 +709,7 @@ export async function runTick(sessionId: string): Promise<AISession> {
 
   // 学習生成は 2回目の Claude 呼び出しになり、tick を Vercel の関数タイムアウト(60s)超えに
   // 追い込む主因。売買判断(1回目)は毎tick必須なので、学習は数tickに1回へ間引いて hot path を
-  // 1呼び出しに抑える。tickCount ベースの判定なので、Vercel でセッション状態が永続化されず
-  // tickCount がスナップショット値に戻る場合でも決定的にスキップされる（大半のtickで学習を回さない）。
+  // 1呼び出しに抑える（tickCount ベースの決定的な判定）。
   const LEARN_EVERY_N_TICKS = 5
   if (session.tickCount % LEARN_EVERY_N_TICKS === 0 && shouldLearnNow(session.learning, session.tickCount)) {
     try {
@@ -764,6 +727,8 @@ export async function runTick(sessionId: string): Promise<AISession> {
     } catch { /* non-critical — learning failure doesn't break tick */ }
   }
 
-  saveStore(sessions)
+  // runTickで読み込んだセッションは、変更の有無に関わらず最後に必ず明示保存する
+  // （tickを跨いだ学習の積み上げ＝原則11の学習ループを保証）。
+  await upsertSession(session)
   return session
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { startSession, listSessions } from '@/lib/ai-trader/engine'
 
 export async function GET() {
-  const sessions = listSessions()
+  const sessions = await listSessions()
   return NextResponse.json(sessions)
 }
 
