@@ -80,3 +80,10 @@
 - 背景: 銘柄×ユーザー理論のバックテストと根拠・引用元つき未来予想をワンプッシュで出す新機能。Opus生成遅延がVercel 60秒制限と衝突
 - 決定: prepare(Haiku解釈+実データバックテスト+学習メモリ収集)とgenerate(claude-opus-4-8固定・1回・ストリーミング・maxDuration=300)に分離。lib/backtestを共有拡張(rsi/macd/bb追加・ma_cross不変)。engine.tsのtick経路は不変。解釈失敗はエラーで止めサイレント既定値化しない(原則9)。AI呼び出しはHaiku1+Opus1(約$0.1-0.2/回)。保存なし(将来Supabase)
 - 影響: app/report/page.tsx, app/api/report/{prepare,generate}/route.ts, lib/report/{types,interpret,prompt,claude}.ts, lib/backtest/{types,rules}.ts, components/SiteNav.tsx, .env.example
+
+## 2026-07-15: YahooのVercel恒常429対策 — Twelve DataをUS株の第一フェイルオーバーに追加
+- 背景: Yahoo Finance DirectがVercelのegress IPを恒常的にHTTP 429でブロックし、/report（allowMock:falseの実データ必須パス）が実データを取得できなかった（実測0/3成功）。market-data-conventionsの規約どおり別プロバイダへのフェイルオーバーが必要
+- 決定: getQuote/getHistoryのチェーンを Yahoo → Twelve Data → (allowMock ? Mock : throw) に変更。allowMock:falseパスは Yahoo→Twelve Data→throw でMockには決して落ちない（原則9）。TWELVE_DATA_API_KEY未設定時はTwelve Data段をスキップし従来どおりYahoo→Mock（後方互換・動的import）。プロバイダは無料枠(8/分・800/日)節約のためrevalidate:300キャッシュ＋429は最大2回の短リトライ(計~1.2s)後にthrow（無限リトライ禁止・tick共有のため）
+- スコープ: 今回はUS株のみ（オーナー選択）。日本株(.T)はTwelve Data無料枠非対応のためプロバイダ内で即throwしAPI枠を消費しない（従来どおりYahoo→Mock・フェイルオーバーは別スライス）。getFundamentalsも対象外（無料枠のファンダは限定的・従来どおりYahoo→失敗時は空{}）
+- 副次効果: tick（selectCandidates等）もgetQuote/getHistory共有経由で自動的に実データフェイルオーバーの恩恵を受ける。tickが40銘柄で8/分を超過し得るがtickはMock許可で失敗吸収するため許容。tick用キャッシュ最適化は別スライス
+- 影響ファイル: lib/market/providers/twelvedata.ts（仕様準拠に全面書換・旧実装はJP→ADR変換とmockファンダを含み未参照だった）, lib/market/index.ts, .env.example

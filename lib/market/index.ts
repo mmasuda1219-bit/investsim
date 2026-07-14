@@ -4,6 +4,21 @@ type Period = '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y'
 
 const PROVIDER = process.env.NEXT_PUBLIC_DATA_PROVIDER ?? 'yahoo'
 
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err))
+}
+
+// ── Real-data failover: Yahoo Direct → Twelve Data (US stocks) ─────────────
+// Yahoo persistently blocks Vercel's egress IPs with HTTP 429, so allowMock:false
+// paths (e.g. /report) need a second real-data provider (COMPANY.md 原則9).
+// The Twelve Data stage is skipped entirely when TWELVE_DATA_API_KEY is unset
+// (keyless environments keep the legacy Yahoo→Mock behaviour), and its module
+// is only loaded on demand. JP (.T) symbols throw inside the provider without
+// consuming API quota (free tier is US-only; JP failover is a separate slice).
+function twelveDataEnabled(): boolean {
+  return Boolean(process.env.TWELVE_DATA_API_KEY)
+}
+
 export async function getQuote(
   symbol: string,
   opts: { allowMock?: boolean } = {},
@@ -13,11 +28,25 @@ export async function getQuote(
     try {
       const { yfDirectGetQuote } = await import('./providers/yahoodirect')
       return await yfDirectGetQuote(symbol)
-    } catch (err) {
-      // Real-data-required callers (e.g. /report — COMPANY.md 原則9) pass
-      // allowMock:false so a fake "current price" never reaches the user.
-      if (!allowMock) throw err instanceof Error ? err : new Error(String(err))
-      /* else fall through to mock */
+    } catch (yahooErr) {
+      if (twelveDataEnabled()) {
+        try {
+          const { twelveDataGetQuote } = await import('./providers/twelvedata')
+          return await twelveDataGetQuote(symbol)
+        } catch (tdErr) {
+          // Real-data-required callers (e.g. /report — COMPANY.md 原則9) pass
+          // allowMock:false so a fake "current price" never reaches the user.
+          if (!allowMock) {
+            throw new Error(
+              `Real quote unavailable for ${symbol} — yahoo: ${toError(yahooErr).message} / twelvedata: ${toError(tdErr).message}`,
+            )
+          }
+          /* else fall through to mock */
+        }
+      } else {
+        if (!allowMock) throw toError(yahooErr)
+        /* else fall through to mock */
+      }
     }
   }
   if (!allowMock) {
@@ -37,11 +66,25 @@ export async function getHistory(
     try {
       const { yfDirectGetHistory } = await import('./providers/yahoodirect')
       return await yfDirectGetHistory(symbol, period)
-    } catch (err) {
-      // Callers that require real data (e.g. backtests, COMPANY.md 原則9) pass
-      // allowMock:false so we surface the error instead of silently returning mock data.
-      if (!allowMock) throw err instanceof Error ? err : new Error(String(err))
-      /* else fall through to mock */
+    } catch (yahooErr) {
+      if (twelveDataEnabled()) {
+        try {
+          const { twelveDataGetHistory } = await import('./providers/twelvedata')
+          return await twelveDataGetHistory(symbol, period)
+        } catch (tdErr) {
+          // Callers that require real data (e.g. backtests, COMPANY.md 原則9) pass
+          // allowMock:false so we surface the error instead of silently returning mock data.
+          if (!allowMock) {
+            throw new Error(
+              `Real market data unavailable for ${symbol} — yahoo: ${toError(yahooErr).message} / twelvedata: ${toError(tdErr).message}`,
+            )
+          }
+          /* else fall through to mock */
+        }
+      } else {
+        if (!allowMock) throw toError(yahooErr)
+        /* else fall through to mock */
+      }
     }
   }
   if (!allowMock) {

@@ -1,117 +1,134 @@
-// Twelve Data provider — real market data for US stocks + major JP ADRs
+// Twelve Data provider — real-data failover for US stocks when Yahoo Direct
+// is blocked (Vercel IPs get persistent HTTP 429 from Yahoo).
 // Docs: https://twelvedata.com/docs
-import type { StockQuote, HistoricalBar, FundamentalsData, SearchResult } from '@/types'
+//
+// Free tier limits: 8 requests/min, 800 requests/day. To conserve quota:
+//  - responses are cached via Next data cache (revalidate: 300s)
+//  - rate limits (429) get at most 2 short retries, then throw — the caller
+//    chain in lib/market/index.ts decides what happens next. No long waits:
+//    this path is shared with the AI-session tick under Vercel's time limit.
+//  - JP symbols (.T) are rejected immediately (unsupported on free tier) so
+//    they don't burn API calls; the caller falls through to its next option.
+import type { StockQuote, HistoricalBar } from '@/types'
 
-const API_KEY = process.env.TWELVE_DATA_API_KEY!
 const BASE = 'https://api.twelvedata.com'
 
-// Twelve Data returns data newest-first; we need oldest-first for charts
-async function tdFetch(path: string): Promise<any> {
-  const res = await fetch(`${BASE}${path}`, { next: { revalidate: 60 } })
-  if (!res.ok) throw new Error(`Twelve Data HTTP ${res.status}`)
-  const json = await res.json()
-  if (json.code && json.code !== 200) throw new Error(json.message ?? 'Twelve Data error')
-  return json
+const MAX_ATTEMPTS = 3 // 1 initial try + up to 2 retries on rate limit
+const BACKOFF_MS = [400, 800] // wait before retry #1, #2 (total <= 1.2s)
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-// Map our period to Twelve Data interval + outputsize
-function periodToParams(period: string): { interval: string; outputsize: number } {
-  const map: Record<string, { interval: string; outputsize: number }> = {
-    '1d':  { interval: '5min',  outputsize: 78 },
-    '5d':  { interval: '30min', outputsize: 80 },
-    '1mo': { interval: '1day',  outputsize: 22 },
-    '3mo': { interval: '1day',  outputsize: 65 },
-    '6mo': { interval: '1day',  outputsize: 130 },
-    '1y':  { interval: '1day',  outputsize: 260 },
-    '2y':  { interval: '1week', outputsize: 104 },
+function apiKey(): string {
+  const key = process.env.TWELVE_DATA_API_KEY
+  if (!key) throw new Error('twelvedata: TWELVE_DATA_API_KEY is not set')
+  return key
+}
+
+/** Free tier does not cover Tokyo Stock Exchange — fail fast, no API call. */
+function assertNotJpSymbol(symbol: string): void {
+  if (symbol.toUpperCase().endsWith('.T')) {
+    throw new Error('twelvedata: JP symbols unsupported on free tier')
   }
-  return map[period] ?? { interval: '1day', outputsize: 65 }
 }
 
+// Same heuristic as yahoodirect's detectMarket (JP never reaches here).
 function detectMarket(symbol: string): StockQuote['market'] {
   if (symbol.endsWith('.T')) return 'JP'
   if (/^[A-Z]{1,5}$/.test(symbol)) return 'US'
   return 'OTHER'
 }
 
-// Convert .T suffix to TM (ADR) or drop for unsupported JP stocks
-function normalizeSymbol(symbol: string): string {
-  // Twelve Data basic plan supports US stocks natively
-  // For known JP stocks, use their US ADR ticker
-  const jpToAdr: Record<string, string> = {
-    '7203.T': 'TM',     // Toyota → TM (NYSE)
-    '6758.T': 'SONY',   // Sony → SONY (NYSE)
-    '9984.T': 'SFTBY',  // SoftBank → SFTBY (OTC)
-    '6861.T': 'KYCCF',  // Keyence → OTC
-    '8306.T': 'MUFG',   // MUFG → NYSE
+/**
+ * Fetch a Twelve Data endpoint. Twelve Data signals errors two ways:
+ *  - normal HTTP errors (incl. 429 rate limit)
+ *  - HTTP 200 with body { status: "error", code, message } (incl. code 429)
+ * Both throw. Rate limits are retried at most twice with short backoff.
+ */
+async function tdFetch(path: string): Promise<any> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(
+      `${BASE}${path}`,
+      // Retries bypass the data cache so a cached error body is not replayed.
+      attempt === 1 ? { next: { revalidate: 300 } } : { cache: 'no-store' },
+    )
+
+    let json: any = null
+    if (res.ok) json = await res.json().catch(() => null)
+
+    const rateLimited = res.status === 429 || Number(json?.code) === 429
+    if (rateLimited && attempt < MAX_ATTEMPTS) {
+      if (!res.ok) void res.body?.cancel().catch(() => {})
+      await sleep(BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)])
+      continue
+    }
+
+    if (!res.ok) throw new Error(`Twelve Data HTTP ${res.status}`)
+    if (!json) throw new Error('Twelve Data: invalid JSON response')
+    if (json.status === 'error' || (json.code !== undefined && Number(json.code) !== 200)) {
+      throw new Error(`Twelve Data error ${json.code ?? ''}: ${json.message ?? 'unknown error'}`)
+    }
+    return json
   }
-  return jpToAdr[symbol] ?? symbol.replace('.T', '')
 }
 
-export async function tdGetQuote(symbol: string): Promise<StockQuote> {
-  const sym = normalizeSymbol(symbol)
-  const data = await tdFetch(`/quote?symbol=${sym}&apikey=${API_KEY}`)
+export async function twelveDataGetQuote(symbol: string): Promise<StockQuote> {
+  assertNotJpSymbol(symbol)
+  const data = await tdFetch(`/quote?symbol=${encodeURIComponent(symbol)}&apikey=${apiKey()}`)
+
+  // Numeric fields arrive as strings — convert explicitly.
+  const price = Number(data.close)
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error(`Twelve Data: no valid price for ${symbol}`)
+  }
 
   return {
     symbol,
-    name:          data.name ?? sym,
-    price:         parseFloat(data.close ?? data.price ?? '0'),
-    change:        parseFloat(data.change ?? '0'),
-    changePercent: parseFloat(data.percent_change ?? '0'),
-    volume:        parseInt(data.volume ?? '0', 10),
-    currency:      data.currency ?? (symbol.endsWith('.T') ? 'JPY' : 'USD'),
+    name:          data.name ?? symbol,
+    price,
+    change:        Number(data.change) || 0,
+    changePercent: Number(data.percent_change) || 0,
+    volume:        Number(data.volume) || 0,
+    currency:      data.currency ?? 'USD',
     market:        detectMarket(symbol),
-    isMarketOpen:  data.is_market_open ?? false,
+    isMarketOpen:  data.is_market_open === true,
     lastUpdated:   new Date().toISOString(),
   }
 }
 
-export async function tdGetHistory(symbol: string, period: string): Promise<HistoricalBar[]> {
-  const sym = normalizeSymbol(symbol)
-  const { interval, outputsize } = periodToParams(period)
+// Daily bars only (free tier failover). Bar count sized to the period.
+function periodToOutputSize(period: string): number {
+  const map: Record<string, number> = {
+    '1d':  5,
+    '5d':  7,
+    '1mo': 25,
+    '3mo': 70,
+    '6mo': 135,
+    '1y':  300,
+    '2y':  520,
+  }
+  return map[period] ?? 70
+}
+
+export async function twelveDataGetHistory(symbol: string, period: string): Promise<HistoricalBar[]> {
+  assertNotJpSymbol(symbol)
+  const outputsize = periodToOutputSize(period)
   const data = await tdFetch(
-    `/time_series?symbol=${sym}&interval=${interval}&outputsize=${outputsize}&apikey=${API_KEY}`
+    `/time_series?symbol=${encodeURIComponent(symbol)}&interval=1day&outputsize=${outputsize}&order=ASC&apikey=${apiKey()}`,
   )
 
-  const values: any[] = data.values ?? []
+  const values: any[] = Array.isArray(data.values) ? data.values : []
   return values
-    .reverse()
     .map((v: any) => ({
       time:   Math.floor(new Date(v.datetime).getTime() / 1000),
-      open:   parseFloat(v.open),
-      high:   parseFloat(v.high),
-      low:    parseFloat(v.low),
-      close:  parseFloat(v.close),
-      volume: parseInt(v.volume ?? '0', 10),
+      open:   Number(v.open),
+      high:   Number(v.high),
+      low:    Number(v.low),
+      close:  Number(v.close),
+      volume: Number(v.volume) || 0,
     }))
-}
-
-export async function tdGetFundamentals(symbol: string): Promise<FundamentalsData> {
-  // Fundamentals require Grow plan ($29/mo) on Twelve Data.
-  // Fall back to mock fundamentals for known symbols so Buffett/Lynch signals work.
-  const { mockGetFundamentals } = await import('./mock')
-  return mockGetFundamentals(symbol)
-}
-
-export async function tdSearch(query: string): Promise<SearchResult[]> {
-  try {
-    const data = await tdFetch(`/symbol_search?symbol=${encodeURIComponent(query)}&outputsize=20&apikey=${API_KEY}`)
-    const seen = new Set<string>()
-    return (data.data ?? [])
-      .filter((s: any) => s.instrument_type === 'Common Stock' || s.instrument_type === 'ETF')
-      .filter((s: any) => {
-        if (seen.has(s.symbol)) return false
-        seen.add(s.symbol)
-        return true
-      })
-      .map((s: any) => ({
-        symbol: s.symbol,
-        name:   s.instrument_name ?? s.symbol,
-        type:   s.instrument_type ?? 'EQUITY',
-        market: detectMarket(s.symbol),
-      }))
-      .slice(0, 8)
-  } catch {
-    return []
-  }
+    .filter(b => Number.isFinite(b.time) && b.close > 0)
+    // order=ASC is requested, but sort defensively in case it is ignored.
+    .sort((a, b) => a.time - b.time)
 }
