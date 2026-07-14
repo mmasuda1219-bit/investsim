@@ -15,12 +15,25 @@ export async function getQuote(symbol: string): Promise<StockQuote> {
   return mockGetQuote(symbol)
 }
 
-export async function getHistory(symbol: string, period: Period = '3mo'): Promise<HistoricalBar[]> {
+export async function getHistory(
+  symbol: string,
+  period: Period = '3mo',
+  opts: { allowMock?: boolean } = {},
+): Promise<HistoricalBar[]> {
+  const { allowMock = true } = opts
   if (PROVIDER !== 'mock') {
     try {
       const { yfDirectGetHistory } = await import('./providers/yahoodirect')
       return await yfDirectGetHistory(symbol, period)
-    } catch { /* fall through */ }
+    } catch (err) {
+      // Callers that require real data (e.g. backtests, COMPANY.md 原則9) pass
+      // allowMock:false so we surface the error instead of silently returning mock data.
+      if (!allowMock) throw err instanceof Error ? err : new Error(String(err))
+      /* else fall through to mock */
+    }
+  }
+  if (!allowMock) {
+    throw new Error(`Real market data unavailable for ${symbol} (mock fallback disabled)`)
   }
   const { mockGetHistory } = await import('./providers/mock')
   return mockGetHistory(symbol, period)
