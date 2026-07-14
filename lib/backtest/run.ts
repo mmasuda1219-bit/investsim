@@ -13,7 +13,34 @@ import type {
   BacktestResult,
   EquityPoint,
   BacktestTrade,
+  TechnicalCondition,
 } from './types'
+
+/**
+ * Thrown when the symbol's real history is empty or too short for the chosen
+ * rule (delisted / brand-new listing / bad ticker). Distinguishable from a
+ * data-FETCH failure so API routes can answer 422 instead of 502.
+ */
+export class BacktestDataError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BacktestDataError'
+  }
+}
+
+/**
+ * Minimum daily bars needed for the rule's indicator warm-up plus at least one
+ * bar where a cross can actually be detected. Guard only — signal behaviour
+ * for sufficient data is unchanged.
+ */
+function minBarsFor(condition: TechnicalCondition): number {
+  switch (condition.indicator) {
+    case 'ma_cross':     return condition.period + 2
+    case 'rsi_reversal': return condition.period + 2
+    case 'bb_break':     return condition.period + 2
+    case 'macd_cross':   return 26 + 9 + 2 // slow EMA + signal EMA warm-up
+  }
+}
 
 /** Native currency of the instrument, derived like the Yahoo provider does. */
 function currencyOf(symbol: string): string {
@@ -42,7 +69,15 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
   // into share sizing, the equity curve, or the metrics.
   const bars = rawBars.filter(b => Number.isFinite(b.close) && b.close > 0)
   if (bars.length === 0) {
-    throw new Error(`No historical data available for ${symbol}`)
+    throw new BacktestDataError(
+      `銘柄「${symbol}」の価格履歴を取得できませんでした。ティッカーシンボル（例: AAPL, 7203.T）が正しいか確認してください。`,
+    )
+  }
+  const minBars = minBarsFor(condition)
+  if (bars.length < minBars) {
+    throw new BacktestDataError(
+      `銘柄「${symbol}」は履歴データが不足しています（${bars.length}本 / このルールには${minBars}本以上必要）。上場して間もない銘柄の可能性があります。`,
+    )
   }
 
   const signals = evaluateTechnical(bars, condition)

@@ -10,6 +10,63 @@ const HEADERS = {
   'Accept': 'application/json',
 }
 
+// ── Shared fetch retry (rate limits / transient server errors) ─────────────
+// Retries ONLY on 429 + 5xx (500/502/503/504/529) with short exponential
+// backoff + jitter. Everything else (404 etc.) returns immediately so callers
+// keep their existing throw behaviour.
+//
+// IMPORTANT: this fetch layer is shared with the AI-session tick (engine.ts),
+// which runs ~6 symbols × multiple fetches in parallel under Vercel's 60s
+// function limit. Backoff is therefore deliberately small and hard-capped:
+// max 3 attempts, waits ~300ms → ~800ms (+ up to 40% jitter), Retry-After
+// honoured but clamped, total added wait per request <= ~3s worst case.
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504, 529])
+const MAX_ATTEMPTS = 3
+const BACKOFF_BASE_MS = [300, 800] // wait before retry #1, #2
+const MAX_WAIT_PER_RETRY_MS = 1500
+const MAX_TOTAL_WAIT_MS = 3000
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/** Parse a Retry-After header (seconds or HTTP-date) into milliseconds. */
+function parseRetryAfterMs(res: Response): number | undefined {
+  const raw = res.headers.get('retry-after')
+  if (!raw) return undefined
+  const secs = Number(raw)
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000)
+  const at = Date.parse(raw)
+  if (!Number.isNaN(at)) return Math.max(0, at - Date.now())
+  return undefined
+}
+
+/**
+ * fetch with bounded retry on 429/5xx. Returns the final Response (ok or not);
+ * callers decide how to throw — behaviour is backward compatible.
+ */
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  let totalWaitMs = 0
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, init)
+    if (res.ok || !RETRYABLE_STATUS.has(res.status) || attempt >= MAX_ATTEMPTS) {
+      return res
+    }
+
+    const base = BACKOFF_BASE_MS[Math.min(attempt - 1, BACKOFF_BASE_MS.length - 1)]
+    const jittered = base + Math.random() * base * 0.4
+    const retryAfter = parseRetryAfterMs(res)
+    let waitMs = retryAfter !== undefined ? Math.max(jittered, retryAfter) : jittered
+    waitMs = Math.min(waitMs, MAX_WAIT_PER_RETRY_MS, MAX_TOTAL_WAIT_MS - totalWaitMs)
+    if (waitMs <= 0) return res // wait budget exhausted — surface the response
+
+    // Release the failed response body before retrying (frees the socket).
+    void res.body?.cancel().catch(() => {})
+    totalWaitMs += waitMs
+    await sleep(waitMs)
+  }
+}
+
 function periodToParams(period: string): { range: string; interval: string } {
   const map: Record<string, { range: string; interval: string }> = {
     '1m':   { range: '1d',  interval: '1m' },
@@ -35,7 +92,7 @@ function detectMarket(symbol: string): StockQuote['market'] {
 }
 
 async function yfFetch(url: string): Promise<any> {
-  const res = await fetch(url, { headers: HEADERS, next: { revalidate: 60 } })
+  const res = await fetchWithRetry(url, { headers: HEADERS, next: { revalidate: 60 } })
   if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status}`)
   const json = await res.json()
   const result = json?.chart?.result?.[0]
@@ -93,7 +150,7 @@ export async function yfDirectGetHistory(symbol: string, period: string): Promis
 export async function yfDirectGetFundamentals(symbol: string): Promise<FundamentalsData> {
   try {
     const url = `${QUOTE_SUMMARY_BASE}/${encodeURIComponent(symbol)}?modules=summaryDetail,defaultKeyStatistics,financialData`
-    const res = await fetch(url, { headers: HEADERS, next: { revalidate: 3600 } })
+    const res = await fetchWithRetry(url, { headers: HEADERS, next: { revalidate: 3600 } })
     if (!res.ok) throw new Error(`Yahoo Finance quoteSummary HTTP ${res.status}`)
     const json = await res.json()
     const result = json?.quoteSummary?.result?.[0]
@@ -134,7 +191,7 @@ export async function yfDirectGetFundamentals(symbol: string): Promise<Fundament
 
 export async function yfDirectSearch(query: string): Promise<SearchResult[]> {
   try {
-    const res = await fetch(
+    const res = await fetchWithRetry(
       `${SEARCH_BASE}?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0`,
       { headers: HEADERS, next: { revalidate: 300 } }
     )

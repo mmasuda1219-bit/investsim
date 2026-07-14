@@ -117,18 +117,42 @@ export default function ReportPage() {
 
       const reader = genRes.body.getReader()
       const decoder = new TextDecoder()
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        if (chunk) setReport(prev => prev + chunk)
+      let received = 0 // ローカル計測（state更新は非同期のため）
+      try {
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const chunk = decoder.decode(value, { stream: true })
+          if (chunk) {
+            received += chunk.length
+            setReport(prev => prev + chunk)
+          }
+        }
+        const tail = decoder.decode()
+        if (tail) {
+          received += tail.length
+          setReport(prev => prev + tail)
+        }
+      } catch {
+        // サーバー側streamエラー or ネットワーク切断。部分表示は残したまま通知する。
+        throw new Error(
+          received > 0
+            ? 'レポート生成が途中で中断されました（表示中の内容は部分的な結果です）。再試行してください。'
+            : 'レポートの受信に失敗しました。ネットワークを確認して再試行してください。',
+        )
       }
-      const tail = decoder.decode()
-      if (tail) setReport(prev => prev + tail)
+      if (received === 0) {
+        throw new Error('AIからのレポートが空でした。少し待ってから再試行してください。')
+      }
 
       setPhase('done')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'エラーが発生しました')
+      // fetch自体の失敗（ネットワーク断など）は英語の "Failed to fetch" になるため翻訳する
+      const message =
+        e instanceof TypeError
+          ? 'サーバーに接続できませんでした。ネットワークを確認して再試行してください。'
+          : e instanceof Error ? e.message : 'エラーが発生しました'
+      setError(message)
       setPhase('idle')
     } finally {
       runningRef.current = false

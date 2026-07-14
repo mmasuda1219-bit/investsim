@@ -4,12 +4,24 @@ type Period = '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y'
 
 const PROVIDER = process.env.NEXT_PUBLIC_DATA_PROVIDER ?? 'yahoo'
 
-export async function getQuote(symbol: string): Promise<StockQuote> {
+export async function getQuote(
+  symbol: string,
+  opts: { allowMock?: boolean } = {},
+): Promise<StockQuote> {
+  const { allowMock = true } = opts // default unchanged — existing callers unaffected
   if (PROVIDER !== 'mock') {
     try {
       const { yfDirectGetQuote } = await import('./providers/yahoodirect')
       return await yfDirectGetQuote(symbol)
-    } catch { /* fall through */ }
+    } catch (err) {
+      // Real-data-required callers (e.g. /report — COMPANY.md 原則9) pass
+      // allowMock:false so a fake "current price" never reaches the user.
+      if (!allowMock) throw err instanceof Error ? err : new Error(String(err))
+      /* else fall through to mock */
+    }
+  }
+  if (!allowMock) {
+    throw new Error(`Real quote unavailable for ${symbol} (mock fallback disabled)`)
   }
   const { mockGetQuote } = await import('./providers/mock')
   return mockGetQuote(symbol)

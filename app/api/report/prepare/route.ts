@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getQuote, getHistory, getFundamentals } from '@/lib/market'
 import { calcMA, calcRSI, calcMACD, calcBB } from '@/lib/technicals'
-import { runBacktest } from '@/lib/backtest/run'
+import { runBacktest, BacktestDataError } from '@/lib/backtest/run'
 import { interpretTheory, InterpretError } from '@/lib/report/interpret'
 import { listSessions } from '@/lib/ai-trader/store'
 import { normalizeLearningMemory, buildLearningContext } from '@/lib/ai-trader/memory'
@@ -16,6 +16,36 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 const VALID_INDICATORS: ReportIndicator[] = ['ma', 'rsi', 'macd', 'bb']
+
+// Map raw data-layer errors (already retried in the Yahoo provider) to
+// user-facing Japanese + the right status. 4xx-ish causes (bad ticker,
+// insufficient history) => 422; upstream trouble (429 after retries, 5xx,
+// network) => 502.
+function classifyDataError(err: unknown, symbol: string): { status: number; error: string } {
+  if (err instanceof BacktestDataError) {
+    return { status: 422, error: err.message }
+  }
+  const message = err instanceof Error ? err.message : String(err)
+  if (/HTTP 404|No data|not found|delisted/i.test(message)) {
+    return {
+      status: 422,
+      error: `銘柄「${symbol}」のデータが見つかりませんでした。ティッカーシンボル（例: AAPL, 7203.T）を確認してください。`,
+    }
+  }
+  if (/HTTP 429/.test(message)) {
+    return {
+      status: 502,
+      error: 'データ提供元（Yahoo Finance）が混雑しています（レート制限）。1〜2分ほど待ってから再試行してください。',
+    }
+  }
+  if (/HTTP (5\d\d|529)/.test(message)) {
+    return {
+      status: 502,
+      error: 'データ提供元（Yahoo Finance）で一時的な障害が発生しています。少し待ってから再試行してください。',
+    }
+  }
+  return { status: 502, error: `実データの取得・バックテストに失敗しました: ${message}` }
+}
 
 // Human-readable technical summary of recent real bars (same signals the
 // AI trader uses; formatting only — indicator math reused from lib/technicals).
@@ -134,7 +164,7 @@ export async function POST(req: Request) {
 
     // ── 3. Current snapshot (real quote/technicals/fundamentals) ───────
     const [quote, recentBars, fundamentals] = await Promise.all([
-      getQuote(symbol),
+      getQuote(symbol, { allowMock: false }), // 原則9: モック現在値をレポートに混ぜない
       getHistory(symbol, '3mo', { allowMock: false }),
       getFundamentals(symbol),
     ])
@@ -173,11 +203,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ bundle })
   } catch (err) {
-    // Real-data fetch/backtest failure => 502 (never mock fallback here).
-    const message = err instanceof Error ? err.message : 'data preparation failed'
-    return NextResponse.json(
-      { error: `実データの取得・バックテストに失敗しました: ${message}` },
-      { status: 502 },
-    )
+    // Real-data fetch/backtest failure => 422/502 (never mock fallback here).
+    const { status, error } = classifyDataError(err, symbol)
+    return NextResponse.json({ error }, { status })
   }
 }
