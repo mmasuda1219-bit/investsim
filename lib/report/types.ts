@@ -11,17 +11,25 @@ import type {
 } from '@/lib/backtest/types'
 import type { StockQuote, FundamentalsData } from '@/types'
 
-/** Indicator families the user can check in the /report form. */
-export type ReportIndicator = 'ma' | 'rsi' | 'macd' | 'bb'
+/**
+ * Indicator families the user can check in the /report form.
+ * These are OPTIONAL HINTS for the interpreter — since slice 2 the AI picks
+ * from the FULL rule catalog regardless; checked families are only passed to
+ * the prompt as a soft preference (empty array = fully automatic).
+ */
+export type ReportIndicator = 'ma' | 'rsi' | 'macd' | 'bb' | 'stoch' | 'roc' | 'breakout'
 
 /** Input of POST /api/report/prepare. */
 export interface ReportRequest {
   symbol: string
   /** Free-form theory text written by the user (Japanese OK). */
   theoryText: string
-  /** Indicator families the user allows the interpreter to pick from. */
+  /**
+   * Optional hint: indicator families the user prefers. NOT a restriction —
+   * the interpreter may pick any supported rule. Empty = no hint.
+   */
   indicators: ReportIndicator[]
-  /** Optional MA period hint (used when 'ma' is checked). */
+  /** Optional MA period hint (used when an MA-family rule is chosen). */
   maPeriod?: number
   /** Virtual starting capital (native currency). Defaults server-side. */
   initialCapital?: number

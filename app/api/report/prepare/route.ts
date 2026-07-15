@@ -3,6 +3,7 @@ import { getQuote, getHistory, getFundamentals } from '@/lib/market'
 import { calcMA, calcRSI, calcMACD, calcBB } from '@/lib/technicals'
 import { runBacktest, BacktestDataError } from '@/lib/backtest/run'
 import { interpretTheory, InterpretError } from '@/lib/report/interpret'
+import { INTERPRET_MODEL } from '@/lib/report/claude'
 import { listSessions } from '@/lib/ai-trader/store'
 import { normalizeLearningMemory, buildLearningContext } from '@/lib/ai-trader/memory'
 import type { HistoricalBar } from '@/types'
@@ -15,7 +16,7 @@ import type {
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-const VALID_INDICATORS: ReportIndicator[] = ['ma', 'rsi', 'macd', 'bb']
+const VALID_INDICATORS: ReportIndicator[] = ['ma', 'rsi', 'macd', 'bb', 'stoch', 'roc', 'breakout']
 
 // Map raw data-layer errors (already retried in the Yahoo provider) to
 // user-facing Japanese + the right status. 4xx-ish causes (bad ticker,
@@ -121,13 +122,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'theoryText is too long (max 2000 chars)' }, { status: 400 })
   }
 
+  // Indicators are an OPTIONAL HINT since slice 2 — empty array is fine
+  // (= no hint, interpreter picks from the full rule catalog). Unknown ids
+  // are silently dropped for backward/forward payload compatibility.
   const rawIndicators = Array.isArray(body?.indicators) ? body.indicators : []
   const indicators = rawIndicators.filter(
     (i): i is ReportIndicator => VALID_INDICATORS.includes(i as ReportIndicator),
   )
-  if (indicators.length === 0) {
-    return NextResponse.json({ error: 'at least one indicator is required' }, { status: 400 })
-  }
 
   const maPeriod =
     typeof body?.maPeriod === 'number' && body.maPeriod >= 2 && body.maPeriod <= 200
@@ -196,7 +197,7 @@ export async function POST(req: Request) {
         'Yahoo Finance（ファンダメンタル指標）',
         'InvestSimバックテストエンジン（lib/backtest・実データ純計算）',
         'InvestSim AIセッション学習メモリ（過去の仮想売買の教訓）',
-        `Claude AI（理論解釈: claude-haiku-4-5 / レポート生成: ${process.env.REPORT_AI_MODEL || 'claude-opus-4-8'}）`,
+        `Claude AI（理論解釈: ${INTERPRET_MODEL} / レポート生成: ${process.env.REPORT_AI_MODEL || 'claude-opus-4-8'}）`,
       ],
       preparedAt: new Date().toISOString(),
     }

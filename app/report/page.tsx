@@ -6,11 +6,26 @@ import type { PreparedBundle, ReportIndicator } from '@/lib/report/types'
 import { describeCondition } from '@/lib/report/prompt'
 
 const INDICATOR_OPTIONS: { id: ReportIndicator; label: string }[] = [
-  { id: 'ma',   label: '移動平均（MAクロス）' },
-  { id: 'rsi',  label: 'RSI（売られすぎ反発）' },
-  { id: 'macd', label: 'MACD（シグナルクロス）' },
-  { id: 'bb',   label: 'ボリンジャーバンド（ブレイク）' },
+  { id: 'ma',       label: '移動平均（MA/ゴールデンクロス）' },
+  { id: 'rsi',      label: 'RSI（売られすぎ反発）' },
+  { id: 'macd',     label: 'MACD（シグナルクロス）' },
+  { id: 'bb',       label: 'ボリンジャーバンド（ブレイク）' },
+  { id: 'stoch',    label: 'ストキャスティクス（%K/%D）' },
+  { id: 'roc',      label: 'ROC（モメンタム/変化率）' },
+  { id: 'breakout', label: 'ブレイクアウト（N日高値/安値）' },
 ]
+
+// AIが選んだルール → チェックボックスの指標ファミリー（ヒントとの相違表示用）
+const RULE_FAMILY: Record<string, ReportIndicator> = {
+  ma_cross: 'ma',
+  ma_cross_dual: 'ma',
+  rsi_reversal: 'rsi',
+  macd_cross: 'macd',
+  bb_break: 'bb',
+  stoch_cross: 'stoch',
+  roc_signal: 'roc',
+  hl_break: 'breakout',
+}
 
 type Phase = 'idle' | 'preparing' | 'generating' | 'done'
 
@@ -56,7 +71,8 @@ function MarkdownView({ text }: { text: string }) {
 export default function ReportPage() {
   const [symbol, setSymbol] = useState('AAPL')
   const [theoryText, setTheoryText] = useState('')
-  const [indicators, setIndicators] = useState<Set<ReportIndicator>>(new Set(['ma']))
+  // ヒントは任意（既定は未選択＝AIが全ルールからおまかせで選ぶ）
+  const [indicators, setIndicators] = useState<Set<ReportIndicator>>(new Set())
   const [maPeriod, setMaPeriod] = useState('20')
   const [capital, setCapital] = useState('100000')
 
@@ -162,6 +178,14 @@ export default function ReportPage() {
   const busy = phase === 'preparing' || phase === 'generating'
   const m = bundle?.backtest.metrics
 
+  // AIが選んだルールがヒント（チェック）と異なるファミリーだった場合の注記用
+  const hinted = bundle?.request.indicators ?? []
+  const chosenFamily =
+    bundle && bundle.interpreted.condition.type === 'technical'
+      ? RULE_FAMILY[bundle.interpreted.condition.indicator]
+      : undefined
+  const offHint = hinted.length > 0 && chosenFamily != null && !hinted.includes(chosenFamily)
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -185,7 +209,7 @@ export default function ReportPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-muted mb-2">MA期間（日・MA使用時）</label>
+            <label className="block text-xs text-muted mb-2">MA期間ヒント（日・MAチェック時のみ）</label>
             <input
               type="number" min="2" max="200" step="1"
               value={maPeriod}
@@ -220,7 +244,9 @@ export default function ReportPage() {
         </div>
 
         <div>
-          <label className="block text-xs text-muted mb-2">検証に使う指標（AIはこの中から選びます）</label>
+          <label className="block text-xs text-muted mb-2">
+            ヒント指標（任意 — 未選択ならAIが全ルールからおまかせで選びます）
+          </label>
           <div className="flex flex-wrap gap-3">
             {INDICATOR_OPTIONS.map(({ id, label }) => (
               <label key={id} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
@@ -238,9 +264,9 @@ export default function ReportPage() {
 
         <button
           onClick={run}
-          disabled={busy || !theoryText.trim() || indicators.size === 0}
+          disabled={busy || !theoryText.trim()}
           className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-            busy || !theoryText.trim() || indicators.size === 0
+            busy || !theoryText.trim()
               ? 'bg-slate-700 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-500'
           }`}
@@ -276,10 +302,16 @@ export default function ReportPage() {
       {bundle && m && (
         <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
           <h2 className="text-white font-semibold text-sm">バックテスト実行結果（実データ・1年日足）</h2>
-          <p className="text-xs text-muted">
-            解釈されたルール: <span className="text-slate-300">{describeCondition(bundle.interpreted.condition)}</span>
-          </p>
-          <p className="text-xs text-muted">解釈メモ: {bundle.interpreted.note}</p>
+          <div className="bg-surface/50 border border-blue-900/50 rounded-lg p-3 space-y-1">
+            <p className="text-xs text-blue-300 font-medium">AIが選んだルール</p>
+            <p className="text-sm text-white font-medium">{describeCondition(bundle.interpreted.condition)}</p>
+            {offHint && (
+              <p className="text-xs text-amber-400">
+                ※ チェックしたヒント指標とは別のルールを、理論の文章に合わせてAIが選択しました
+              </p>
+            )}
+            <p className="text-xs text-muted">解釈根拠: {bundle.interpreted.note}</p>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div className="bg-surface/50 rounded-lg p-3">
               <p className="text-muted text-xs mb-1">総リターン</p>

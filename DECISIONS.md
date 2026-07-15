@@ -87,3 +87,12 @@
 - スコープ: 今回はUS株のみ（オーナー選択）。日本株(.T)はTwelve Data無料枠非対応のためプロバイダ内で即throwしAPI枠を消費しない（従来どおりYahoo→Mock・フェイルオーバーは別スライス）。getFundamentalsも対象外（無料枠のファンダは限定的・従来どおりYahoo→失敗時は空{}）
 - 副次効果: tick（selectCandidates等）もgetQuote/getHistory共有経由で自動的に実データフェイルオーバーの恩恵を受ける。tickが40銘柄で8/分を超過し得るがtickはMock許可で失敗吸収するため許容。tick用キャッシュ最適化は別スライス
 - 影響ファイル: lib/market/providers/twelvedata.ts（仕様準拠に全面書換・旧実装はJP→ADR変換とmockファンダを含み未参照だった）, lib/market/index.ts, .env.example
+
+## 2026-07-15: /reportの理論解釈をチェック制約→全8ルールカタログ推論へ／技術ルール4種追加
+- 背景: 「ボリンジャー上抜けで買い」と書きつつMACDだけチェックした等で、interpret.tsの旧`allowed`制約（req.indicatorsのみに解釈を限定）が「合致ルール無し」で422ハード失敗していた（オーナー報告バグ）。真因は「チェックした指標だけから選ぶ」制約
+- 決定: interpretTheoryを全ルールカタログ（8種）からの推論に変更。チェックボックス(req.indicators)は検証・制限に使わず、プロンプトへ渡す任意の優先ヒントに格下げ（未選択でも解釈可・ヒントと食い違うルールも選べる）。各ルールの日本語典型表現＋few-shot 2例をプロンプトに埋め込み推察力を上げた。原則9は「選んだルール＋解釈根拠noteを必ず返す」ことと、技術トリガーが本当に読めない時のみ投げる親切な422（対応ルール一覧＋入力案内を同梱）で両立。複数条件は主要1ルールを選び拾えなかった条件をnoteに明記（AND/ORは別スライス）
+- 技術ルール追加（追加のみ・既存ma_cross/rsi_reversal/macd_cross/bb_break不変）: ma_cross_dual（短期MA×長期MAのGC/DC・long上限100）, hl_break（Donchianブレイク・当日バーを除いた前日までのN日高値/安値でルックアヘッド回避）, stoch_cross（%K×%D＋30/70ゾーンフィルタ）, roc_signal（ROC 0ライン跨ぎ）。指標計算はlib/technicalsにcalcStochastic/calcROC/calcDonchianを既存スタイルで追加
+- INTERPRET_MODELを`process.env.REPORT_INTERPRET_MODEL || 'claude-haiku-4-5'`に変更（env切替可・既定Haiku据え置き）。prepareは空indicators配列でも400にせずヒントなし＝完全おまかせで通す（後方互換）
+- 非破壊確認: /lab(app/api/lab, app/lab)・tick経路(lib/ai-trader/*)・既存4ルールのシグナル挙動は不変。describeConditionはexhaustive switch(never代入)で将来の追加漏れをコンパイルエラー化
+- 検証: scripts/check-rules.ts（合成バーで8評価器を検証・全PASS。特にhl_breakのルックアヘッド境界＝当日高値12に阻害されず前日まで高値10の上抜けでbuy発火を確認）。npx tsc --noEmit 緑
+- 影響ファイル: lib/report/interpret.ts, lib/report/types.ts, lib/report/prompt.ts, lib/report/claude.ts, lib/technicals.ts, lib/backtest/types.ts, lib/backtest/rules.ts, lib/backtest/run.ts, app/api/report/prepare/route.ts, app/report/page.tsx, scripts/check-rules.ts(新), .env.example

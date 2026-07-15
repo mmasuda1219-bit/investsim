@@ -5,7 +5,10 @@
 // `rsi_reversal` / `macd_cross` / `bb_break` were ADDED for the /report slice.
 
 import type { HistoricalBar } from '@/types'
-import { calcMA, calcRSI, calcMACD, calcBB } from '@/lib/technicals'
+import {
+  calcMA, calcRSI, calcMACD, calcBB,
+  calcStochastic, calcROC, calcDonchian,
+} from '@/lib/technicals'
 import type { TechnicalCondition } from './types'
 
 export interface DailySignal {
@@ -34,6 +37,10 @@ export function evaluateTechnical(
     case 'rsi_reversal':  return evaluateRsiReversal(bars, condition.period)
     case 'macd_cross':    return evaluateMacdCross(bars)
     case 'bb_break':      return evaluateBbBreak(bars, condition.period)
+    case 'ma_cross_dual': return evaluateMaCrossDual(bars, condition.shortPeriod, condition.longPeriod)
+    case 'hl_break':      return evaluateHlBreak(bars, condition.period)
+    case 'stoch_cross':   return evaluateStochCross(bars, condition.period)
+    case 'roc_signal':    return evaluateRocSignal(bars, condition.period)
     default: {
       const never: never = condition
       throw new Error(`Unsupported technical indicator: ${JSON.stringify(never)}`)
@@ -61,6 +68,123 @@ function evaluateMaCross(bars: HistoricalBar[], period: number): DailySignal[] {
       const crossedDown = prev.close >= maPrev && bar.close < maNow
       if (crossedUp) signal = 'buy'
       else if (crossedDown) signal = 'sell'
+    }
+    signals.push({ time: bar.time, signal })
+  }
+  return signals
+}
+
+// ── ma_cross_dual ─────────────────────────────────────────────────────────
+// Short MA crossing ABOVE the long MA (golden cross) => buy; crossing BELOW
+// (dead cross) => sell. Warm-up bars (long MA undefined) stay 'hold'.
+function evaluateMaCrossDual(
+  bars: HistoricalBar[],
+  shortPeriod: number,
+  longPeriod: number,
+): DailySignal[] {
+  const shortByTime = new Map<number, number>()
+  for (const p of calcMA(bars, shortPeriod)) shortByTime.set(p.time, p.value)
+  const longByTime = new Map<number, number>()
+  for (const p of calcMA(bars, longPeriod)) longByTime.set(p.time, p.value)
+
+  const signals: DailySignal[] = []
+  for (let i = 0; i < bars.length; i++) {
+    const bar = bars[i]
+    const prev = bars[i - 1]
+    const sNow = shortByTime.get(bar.time)
+    const lNow = longByTime.get(bar.time)
+    const sPrev = prev ? shortByTime.get(prev.time) : undefined
+    const lPrev = prev ? longByTime.get(prev.time) : undefined
+
+    let signal: SignalValue = 'hold'
+    if (sNow !== undefined && lNow !== undefined && sPrev !== undefined && lPrev !== undefined) {
+      const crossedUp = sPrev <= lPrev && sNow > lNow
+      const crossedDown = sPrev >= lPrev && sNow < lNow
+      if (crossedUp) signal = 'buy'
+      else if (crossedDown) signal = 'sell'
+    }
+    signals.push({ time: bar.time, signal })
+  }
+  return signals
+}
+
+// ── hl_break ──────────────────────────────────────────────────────────────
+// Donchian breakout: close crossing ABOVE the prior N-day high => buy; close
+// crossing BELOW the prior N-day low => sell. calcDonchian EXCLUDES the
+// current bar from the channel (look-ahead avoidance), so "today's high" can
+// never suppress today's own breakout signal.
+function evaluateHlBreak(bars: HistoricalBar[], period: number): DailySignal[] {
+  const chanByTime = new Map<number, { upper: number; lower: number }>()
+  for (const p of calcDonchian(bars, period)) {
+    chanByTime.set(p.time, { upper: p.upper, lower: p.lower })
+  }
+
+  const signals: DailySignal[] = []
+  for (let i = 0; i < bars.length; i++) {
+    const bar = bars[i]
+    const prev = bars[i - 1]
+    const now = chanByTime.get(bar.time)
+    const before = prev ? chanByTime.get(prev.time) : undefined
+
+    let signal: SignalValue = 'hold'
+    if (prev && now && before) {
+      const brokeUp = prev.close <= before.upper && bar.close > now.upper
+      const brokeDown = prev.close >= before.lower && bar.close < now.lower
+      if (brokeUp) signal = 'buy'
+      else if (brokeDown) signal = 'sell'
+    }
+    signals.push({ time: bar.time, signal })
+  }
+  return signals
+}
+
+// ── stoch_cross ───────────────────────────────────────────────────────────
+// Slow Stochastic: %K crossing ABOVE %D while %K <= 30 (oversold) => buy;
+// %K crossing BELOW %D while %K >= 70 (overbought) => sell.
+// Smoothing fixed at kSmooth=3 / dPeriod=3 (calcStochastic defaults).
+function evaluateStochCross(bars: HistoricalBar[], period: number): DailySignal[] {
+  const OVERSOLD = 30
+  const OVERBOUGHT = 70
+
+  const stochByTime = new Map<number, { k: number; d: number }>()
+  for (const p of calcStochastic(bars, period)) stochByTime.set(p.time, { k: p.k, d: p.d })
+
+  const signals: DailySignal[] = []
+  for (let i = 0; i < bars.length; i++) {
+    const bar = bars[i]
+    const prev = bars[i - 1]
+    const now = stochByTime.get(bar.time)
+    const before = prev ? stochByTime.get(prev.time) : undefined
+
+    let signal: SignalValue = 'hold'
+    if (now && before) {
+      const crossedUp = before.k <= before.d && now.k > now.d && now.k <= OVERSOLD
+      const crossedDown = before.k >= before.d && now.k < now.d && now.k >= OVERBOUGHT
+      if (crossedUp) signal = 'buy'
+      else if (crossedDown) signal = 'sell'
+    }
+    signals.push({ time: bar.time, signal })
+  }
+  return signals
+}
+
+// ── roc_signal ────────────────────────────────────────────────────────────
+// Momentum: ROC crossing ABOVE 0 => buy; crossing BELOW 0 => sell.
+function evaluateRocSignal(bars: HistoricalBar[], period: number): DailySignal[] {
+  const rocByTime = new Map<number, number>()
+  for (const p of calcROC(bars, period)) rocByTime.set(p.time, p.value)
+
+  const signals: DailySignal[] = []
+  for (let i = 0; i < bars.length; i++) {
+    const bar = bars[i]
+    const prev = bars[i - 1]
+    const now = rocByTime.get(bar.time)
+    const before = prev ? rocByTime.get(prev.time) : undefined
+
+    let signal: SignalValue = 'hold'
+    if (now !== undefined && before !== undefined) {
+      if (before <= 0 && now > 0) signal = 'buy'
+      else if (before >= 0 && now < 0) signal = 'sell'
     }
     signals.push({ time: bar.time, signal })
   }

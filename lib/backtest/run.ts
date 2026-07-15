@@ -39,6 +39,10 @@ function minBarsFor(condition: TechnicalCondition): number {
     case 'rsi_reversal': return condition.period + 2
     case 'bb_break':     return condition.period + 2
     case 'macd_cross':   return 26 + 9 + 2 // slow EMA + signal EMA warm-up
+    case 'ma_cross_dual': return condition.longPeriod + 2
+    case 'hl_break':     return condition.period + 3  // channel starts at bar[period], cross needs one more
+    case 'stoch_cross':  return condition.period + 5  // + kSmooth(3) + dPeriod(3) - 2 warm-up, +1 for cross
+    case 'roc_signal':   return condition.period + 3  // first ROC at bar[period], cross needs one more
   }
 }
 

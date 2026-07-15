@@ -48,15 +48,73 @@ export interface BbBreakCondition {
 }
 
 /**
+ * Dual moving-average cross (report slice 2):
+ * buy when the SHORT MA crosses above the LONG MA (golden cross),
+ * sell when it crosses below (dead cross).
+ * Constraint: shortPeriod < longPeriod; longPeriod <= 100 (1y-daily warm-up).
+ */
+export interface MaCrossDualCondition {
+  type: 'technical'
+  indicator: 'ma_cross_dual'
+  /** Short MA period (typically 20). */
+  shortPeriod: number
+  /** Long MA period (typically 50; max 100 for 1y daily data). */
+  longPeriod: number
+}
+
+/**
+ * High/low breakout — Donchian style (report slice 2):
+ * buy when the close breaks ABOVE the prior N-day high, sell when it breaks
+ * BELOW the prior N-day low. The channel EXCLUDES the current bar
+ * (look-ahead avoidance). period range 5–100.
+ */
+export interface HlBreakCondition {
+  type: 'technical'
+  indicator: 'hl_break'
+  /** Channel look-back period (typically 20). */
+  period: number
+}
+
+/**
+ * Slow Stochastic %K/%D cross with zone filter (report slice 2):
+ * buy when %K crosses above %D while %K <= 30 (oversold),
+ * sell when %K crosses below %D while %K >= 70 (overbought).
+ * Smoothing fixed at kSmooth=3 / dPeriod=3 (calcStochastic defaults).
+ */
+export interface StochCrossCondition {
+  type: 'technical'
+  indicator: 'stoch_cross'
+  /** %K look-back period (typically 14). */
+  period: number
+}
+
+/**
+ * Rate-of-Change zero-line cross (report slice 2):
+ * buy when ROC crosses above 0 (momentum turns positive),
+ * sell when it crosses below 0.
+ */
+export interface RocSignalCondition {
+  type: 'technical'
+  indicator: 'roc_signal'
+  /** ROC look-back period (typically 12). */
+  period: number
+}
+
+/**
  * Technical rule — discriminated on `indicator`.
- * `ma_cross` keeps its original shape/behaviour; the other three were ADDED
- * for the /report slice and do not affect existing ma_cross callers.
+ * `ma_cross` keeps its original shape/behaviour; rsi/macd/bb were added for
+ * the /report slice 1, and ma_cross_dual/hl_break/stoch_cross/roc_signal for
+ * slice 2. Additions never affect existing ma_cross callers (/lab etc.).
  */
 export type TechnicalCondition =
   | MaCrossCondition
   | RsiReversalCondition
   | MacdCrossCondition
   | BbBreakCondition
+  | MaCrossDualCondition
+  | HlBreakCondition
+  | StochCrossCondition
+  | RocSignalCondition
 
 /**
  * Fundamental rule — PLACEHOLDER ONLY (future slice).

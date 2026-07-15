@@ -12,8 +12,11 @@ export function reportModel(): string {
   return process.env.REPORT_AI_MODEL || 'claude-opus-4-8'
 }
 
-/** Cheap interpreter model for the prepare step (fixed — tick model untouched). */
-export const INTERPRET_MODEL = 'claude-haiku-4-5'
+/**
+ * Interpreter model for the prepare step. Override with REPORT_INTERPRET_MODEL
+ * (defaults to cheap Haiku). Tick model (AI_MODEL in engine.ts) untouched.
+ */
+export const INTERPRET_MODEL = process.env.REPORT_INTERPRET_MODEL || 'claude-haiku-4-5'
 
 // ── Non-streaming call (used by interpret.ts / CLI fallback) ───────────────
 export async function callReportClaude(

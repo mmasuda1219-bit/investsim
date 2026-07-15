@@ -26,6 +26,20 @@ export function describeCondition(c: BacktestCondition): string {
       return 'MACD(12,26,9)がシグナル線を上抜けで買い・下抜けで売り'
     case 'bb_break':
       return `終値がボリンジャーバンド(${c.period}日,±2σ)の上限突破で買い・下限割れで売り`
+    case 'ma_cross_dual':
+      return `${c.shortPeriod}日MAが${c.longPeriod}日MAを上抜け（ゴールデンクロス）で買い・下抜け（デッドクロス）で売り`
+    case 'hl_break':
+      return `終値が直近${c.period}日高値（前日まで）の上抜けで買い・直近${c.period}日安値の下抜けで売り`
+    case 'stoch_cross':
+      return `ストキャスティクス(${c.period},3,3): %Kが%Dを上抜け かつ %K≤30 で買い・下抜け かつ %K≥70 で売り`
+    case 'roc_signal':
+      return `変化率ROC(${c.period})が0を上抜けで買い・下抜けで売り`
+    default: {
+      // Exhaustiveness guard: adding a TechnicalCondition member without a
+      // case here is a COMPILE error (never assignment), not a silent hole.
+      const never: never = c
+      return `未対応の条件: ${JSON.stringify(never)}`
+    }
   }
 }
 
