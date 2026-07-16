@@ -75,3 +75,89 @@ export async function upsertSession(session: AISession): Promise<void> {
   map.set(session.id, session)
   saveFileStore(map)
 }
+
+// ── tickロック（二重実行防止）────────────────────────────────────────────
+// 自動tick（cron）と手動tickが同一セッションで同時に走ると、last-write-winsで
+// 学習・売買状態が巻き戻る事故になる。短命リース（TTL）でクリティカルセクションを守る。
+// Supabase経路: ai_sessions.lock_until timestamptz を条件付き更新でリース取得。
+// ローカル（ファイルstore）経路: data/locks/<id>.lock に until ISO を書きTTL＋所有者判定に使う。
+//
+// リーストークン方式: 取得成功時は「そのリースの lock_until ISO文字列」をトークンとして返す。
+// release は自分のトークンと一致する行/ファイルだけを解放する（他者リースを消さない）。
+// カラム未追加のdegraded時は特別トークン 'degraded' を返す（実行はするがロックは無効）。
+const LOCK_DIR = path.join(process.cwd(), 'data', 'locks')
+export const DEGRADED_LOCK_TOKEN = 'degraded'
+
+/**
+ * ロック取得を試みる。
+ * @returns 取得成功: リーストークン(lock_untilのISO文字列) / 既ロックで失敗: null /
+ *          カラム未追加のdegraded: 'degraded'（truthyなので実行はする、ロックは無効）。
+ */
+export async function tryAcquireTickLock(id: string, ttlMs: number): Promise<string | null> {
+  if (hasServiceRole()) {
+    const nowMs = Date.now()
+    const nowISO = new Date(nowMs).toISOString()
+    const untilISO = new Date(nowMs + ttlMs).toISOString()
+    try {
+      const { data, error } = await getAdminClient()
+        .from(TABLE)
+        .update({ lock_until: untilISO })
+        .eq('id', id)
+        .or(`lock_until.is.null,lock_until.lt.${nowISO}`)
+        .select('id')
+      if (error) {
+        // カラム未追加など: ロック機能を無効化し、tick自体は通す（degraded）
+        console.warn(`[tickLock] acquire degraded (lock disabled): ${error.message}`)
+        return DEGRADED_LOCK_TOKEN
+      }
+      return (data?.length ?? 0) > 0 ? untilISO : null
+    } catch (e) {
+      console.warn(`[tickLock] acquire threw (lock disabled): ${e instanceof Error ? e.message : String(e)}`)
+      return DEGRADED_LOCK_TOKEN
+    }
+  }
+  // ファイルstore（ローカル）
+  try {
+    fs.mkdirSync(LOCK_DIR, { recursive: true })
+    const lockPath = path.join(LOCK_DIR, `${id}.lock`)
+    if (fs.existsSync(lockPath)) {
+      const age = Date.now() - fs.statSync(lockPath).mtimeMs
+      if (age < ttlMs) return null // 有効なロックが存在 → 取得失敗
+    }
+    const untilISO = new Date(Date.now() + ttlMs).toISOString()
+    fs.writeFileSync(lockPath, untilISO)
+    return untilISO
+  } catch (e) {
+    console.warn(`[tickLock] file acquire failed (lock disabled): ${e instanceof Error ? e.message : String(e)}`)
+    return DEGRADED_LOCK_TOKEN
+  }
+}
+
+/**
+ * ロックを解放する。取得時に受け取ったトークンを渡し、自分のリースだけを解放する。
+ * token が 'degraded' の場合は何もしない（そもそもロックを取っていない）。
+ */
+export async function releaseTickLock(id: string, token: string): Promise<void> {
+  if (token === DEGRADED_LOCK_TOKEN) return
+  if (hasServiceRole()) {
+    try {
+      // 自分のリース(lock_until===token)だけを解放。他者が既に奪ったリースは消さない。
+      const { error } = await getAdminClient()
+        .from(TABLE)
+        .update({ lock_until: null })
+        .eq('id', id)
+        .eq('lock_until', token)
+      if (error) console.warn(`[tickLock] release degraded: ${error.message}`)
+    } catch (e) {
+      console.warn(`[tickLock] release threw: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    return
+  }
+  try {
+    const lockPath = path.join(LOCK_DIR, `${id}.lock`)
+    // 自分のトークンが書かれている時だけ削除（他者が上書き取得したロックは消さない）。
+    if (fs.existsSync(lockPath) && fs.readFileSync(lockPath, 'utf8') === token) {
+      fs.unlinkSync(lockPath)
+    }
+  } catch { /* non-critical */ }
+}

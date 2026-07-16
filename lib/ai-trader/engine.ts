@@ -151,6 +151,9 @@ export interface AISession {
     totalTradeCount: number
     winRate:        number
   }
+  // 自律学習ループ（サーバー側自動tick）の状態。enabled=trueのセッションのみcron/tickで実行される。
+  // date は NY市場日付(YYYY-MM-DD)、count は当日の自動tick回数（日次上限のカウンタ）。
+  auto?: { enabled: boolean; date: string; count: number }
 }
 
 // 永続化はstore.tsに集約（Supabase JSONB blob / キー未設定ローカルはファイルにフォールバック）。
@@ -629,6 +632,7 @@ export async function startSession(capital = 100000): Promise<AISession> {
     equityHistory:  [],
     benchmarkStart,
     stats:          emptyStats(),
+    auto:           { enabled: false, date: '', count: 0 },
   }
   await upsertSession(session)
   return session

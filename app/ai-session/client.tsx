@@ -36,6 +36,17 @@ function ago(iso: string) {
   return `${Math.floor(s / 3600)}時間前`
 }
 
+// NY市場日付(YYYY-MM-DD)。サーバー側の自動tick日次カウンタと同じ基準で「本日 n/3」を表示するため。
+function nyDate() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())
+}
+// 本日の自動tick回数（dateが今日でなければ0扱い）。
+function autoCountToday(session: AISession): number {
+  const a = session.auto
+  if (!a) return 0
+  return a.date === nyDate() ? a.count : 0
+}
+
 // Convert AI trades to TradingChart Trade format (with pairing for PnL display)
 function toChartTrades(aiTrades: AITrade[], symbol: string): Trade[] {
   const filtered = [...aiTrades]
@@ -267,6 +278,7 @@ export function AISessionClient() {
     try {
       const res = await fetch(`/api/ai-session/${sess.id}/tick`, { method: 'POST' })
       const data: AISession = await res.json()
+      if (res.status === 409) { setError((data as any).message ?? '自動分析実行中です'); return }
       if ((data as any).error) { setError((data as any).error); return }
       setSession(data)
       sessionRef.current = data
@@ -296,6 +308,31 @@ export function AISessionClient() {
       setError('セッション開始に失敗しました')
     }
   }, [runTick])
+
+  // サーバー側「自動運転」トグル。PATCHで auto.enabled を切り替える。
+  const [autoDriveSaving, setAutoDriveSaving] = useState(false)
+  const toggleAutoDrive = useCallback(async () => {
+    const sess = sessionRef.current
+    if (!sess || autoDriveSaving) return
+    const next = !(sess.auto?.enabled ?? false)
+    setAutoDriveSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/ai-session/${sess.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto: { enabled: next } }),
+      })
+      const data: AISession = await res.json()
+      if ((data as any).error) { setError((data as any).error); return }
+      setSession(data)
+      sessionRef.current = data
+    } catch {
+      setError('自動運転の切り替えに失敗しました')
+    } finally {
+      setAutoDriveSaving(false)
+    }
+  }, [autoDriveSaving])
 
   // Auto-tick countdown
   useEffect(() => {
@@ -518,6 +555,29 @@ export function AISessionClient() {
             >
               {ticking ? '⟳ 分析中...' : '▶ 今すぐ Tick 実行'}
             </button>
+
+            {/* サーバー側 自動運転（ブラウザを閉じてもcronがtickする）*/}
+            <div className="pt-1 border-t border-gray-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-gray-400">自動運転</div>
+                  <div className="text-[11px] text-gray-600">ブラウザを閉じてもサーバーが自動でtick</div>
+                </div>
+                <button
+                  onClick={toggleAutoDrive}
+                  disabled={autoDriveSaving}
+                  className={`relative w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${session.auto?.enabled ? 'bg-emerald-600' : 'bg-gray-700'}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${session.auto?.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+              <div className="flex justify-between text-[11px]">
+                <span className="text-gray-600">本日の自動tick</span>
+                <span className={`tabular-nums font-mono ${session.auto?.enabled ? 'text-emerald-400' : 'text-gray-500'}`}>
+                  {autoCountToday(session)}/3
+                </span>
+              </div>
+            </div>
             <button
               onClick={() => {
                 setSession(null)

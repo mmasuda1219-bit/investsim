@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# tick locks (ローカルのファイルロック・実行時生成物)
+data/locks/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

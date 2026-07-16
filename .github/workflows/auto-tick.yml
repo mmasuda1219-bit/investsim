@@ -1,0 +1,27 @@
+# InvestSim 自律学習ループ: サーバー側の自動tickを定期発火する。
+# auto.enabled=true のセッションだけが対象（1セッション最大3回/日、cron側で最大5件を逐次tick）。
+#
+# 必要な GitHub Secrets（Settings → Secrets and variables → Actions）:
+#   PROD_URL     … 本番のオリジン（例: https://investsim-nine.vercel.app、末尾スラッシュ無し）
+#   CRON_SECRET  … cronエンドポイントの Bearer トークン。Vercel の Env と同じ値にすること。
+#
+# スケジュールは :00 を避けた分（GitHub Actions の混雑ピーク回避）＋ US 平日（UTC）。
+# 米国市場のおおよそ 前場/昼/引け前 に相当する時刻へ散らしている。
+name: auto-tick
+
+on:
+  schedule:
+    - cron: '37 14 * * 1-5' # 09:37 ET 前後（寄り付き後）
+    - cron: '23 17 * * 1-5' # 12:23 ET 前後（昼）
+    - cron: '48 19 * * 1-5' # 14:48 ET 前後（引け前）
+  workflow_dispatch: {}      # 手動発火（動作確認用）
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire cron tick
+        run: |
+          curl -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PROD_URL }}/api/cron/tick"

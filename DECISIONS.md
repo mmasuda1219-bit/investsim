@@ -138,3 +138,22 @@
 - 理由: 全てVercel実証済みのyahoo-finance2で賄え追加キーゼロ。過去個別ニュースは無料・クラウドIPで安定取得不可(NewsAPI本番不可/GDELTノイズ)→誠実に範囲外にしマクロで代替(原則12=過去は補助)。ユニバースはニセ財務を作らず実データ前提の厳選リスト(原則9)。
 - 検証: 実データプローブ(AAPLニュース6件・マクロ6銘柄5年分/^TNX 1.32→4.58%等)成功、tsc緑、禁止ファイル(tick/news.ts含む)不変。日本株マクロ・過去個別ニュース・FRED(CPI/失業率)は次スライス。
 - 影響ファイル: lib/market/us-universe.ts(新), lib/report/macro.ts(新), lib/market/{index,providers/yahoo2}.ts, lib/report/{types,prompt}.ts, app/api/report/prepare/route.ts, app/report/page.tsx
+
+## 2026-07-16: /report 画面グラフ＋PDF出力（ブラウザ印刷方式）
+- 背景: オーナー要望「レポート内にreferenceが見えるように」「PDFで出す機能（グラフ・分かりやすさ重視）」「言語は当面日本語（英語は後で）」。
+- 決定: (chart) 依存ゼロのSVG LineChartコンポーネントを app/report/page.tsx に新設。結果パネルへ価格チャート（5年・売買マーカー緑買い/赤売り）＋エクイティカーブ（仮想資金の資産推移）を chartData から描画（既存レスポンスのbars/trades/equityCurveを利用・Opusには渡さない）。(pdf) 「📄 PDFで保存」ボタン（report && phase==='done'時・window.print()）＋インライン@media print CSS。#report-page配下を白背景・濃色文字へ強制（SVG strokeは属性なので色が残る）、nav/.no-print非表示、@page margin。ヘッダ・入力欄に no-print 付与。
+- 理由: @react-pdf/rendererは日本語フォント埋め込みがサーバーレスで最大リスク→ブラウザ印刷→PDF保存方式を採用（追加依存ゼロ・日本語ネイティブ・後の英語化も容易）。引用元パネル自体はR3で既にデプロイ済み。
+- 検証: tsc --noEmit緑、本番デプロイ後 /report=200・初期HTMLに@media print/report-page/no-print反映を確認（PDFボタン・チャートは結果確定後の動的描画）。
+- 影響ファイル: app/report/page.tsx（+80/-3）。コミット dc17ab7。
+
+## 2026-07-16: 自律学習ループ第1スライス — サーバー側自動tick（cron＋日次上限＋リースロック）
+- 背景: 学習ループ（原則11）はブラウザを開いている間のクライアント側ポーリングでしか進まず、閉じると止まっていた。Vercel Hobbyのネイティブcronは日次1回・分未満スケジュール不可で高頻度tickに不適。サーバー起点の自動tick経路が欠落しており、二重発火（cronと手動の同時実行でlast-write-wins巻き戻り）・多重cronでの過剰実行のリスクもあった
+- 決定:
+  - GitHub Actions schedule 3本（平日UTC・:00回避）＋workflow_dispatchで `CRON_SECRET` Bearer保護の `POST/GET /api/cron/tick` を叩く。cronは `listAutoTickTargets(3)`（auto.enabled かつ 当日count<3 を lastTickAt 昇順）を経過時間バジェット240s付きで逐次runAutoTick、超過分は `time_budget` で残し次回cronが古い順に前進
+  - 日次3回上限はNY市場日付基準の blob内カウンタ `AISession.auto{enabled,date,count}`。自動tickのみカウントし手動tickは非干渉（経路分離）。startSessionで初期OFF
+  - 二重実行防止は `ai_sessions.lock_until timestamptz` のリーストークン方式。tryAcquireTickLockは取得したlock_until ISOをトークンとして返し（既ロック=null）、releaseTickLockは `.eq('lock_until', token)`（ファイル経路はファイル内容一致）で自分のリースだけ解放＝他者リースを消さない。カラム未追加は特別トークン 'degraded' で実行はするがロック無効、cronレスポンスに `lockDegraded:true` で可視化
+  - 整合性: 日次上限の権威的チェックはロック取得後の読み直し（fresh）で行いTOCTOUを回避。count+1はrunTickの「前」に先行保存し、タイムアウト/失敗時も1回消費扱い＝過少実行側に倒す（実行済み未加算での上限超過を防止）
+- 理由: GH Actionsは無料・分単位schedule可でHobby cron制約を回避。blobカウンタは既存AISession型と1:1で早すぎる抽象化を避ける（原則8）。runTick/callClaude本体は不変で学習ループ（原則11）を壊さない
+- 検証: scripts/check-auto-tick.mjs（file-lockのトークン所有解放・上限後4回目拒否・TOCTOU再チェック・古い順target絞り込み・cron認可）全PASS、npx tsc --noEmit 緑
+- 運用: Supabaseに `ALTER TABLE ai_sessions ADD COLUMN IF NOT EXISTS lock_until timestamptz;`、Vercel Env `CRON_SECRET`、GitHub Secrets `CRON_SECRET`/`PROD_URL` が必要
+- 影響ファイル: lib/ai-trader/engine.ts, lib/ai-trader/store.ts, lib/ai-trader/auto.ts(新), app/api/cron/tick/route.ts(新), app/api/ai-session/[id]/route.ts, app/api/ai-session/[id]/tick/route.ts, app/ai-session/client.tsx, .github/workflows/auto-tick.yml(新), .gitignore
