@@ -121,6 +121,35 @@ function MarkdownView({ text }: { text: string }) {
   )
 }
 
+// ── Lightweight SVG line chart (no deps) — price w/ trade markers & equity ──
+function LineChart({ points, markers, height = 160, stroke = '#3b82f6', label }: {
+  points: { x: number; y: number }[]
+  markers?: { x: number; y: number; side: 'buy' | 'sell' }[]
+  height?: number
+  stroke?: string
+  label?: string
+}) {
+  if (points.length < 2) return null
+  const W = 720, H = height, pad = 8
+  const xs = points.map(p => p.x), ys = points.map(p => p.y)
+  const minX = Math.min(...xs), maxX = Math.max(...xs)
+  const minY = Math.min(...ys), maxY = Math.max(...ys)
+  const spanX = maxX - minX || 1, spanY = maxY - minY || 1
+  const sx = (x: number) => pad + ((x - minX) / spanX) * (W - pad * 2)
+  const sy = (y: number) => H - pad - ((y - minY) / spanY) * (H - pad * 2)
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(' ')
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: H }} preserveAspectRatio="none" role="img" aria-label={label}>
+      <path d={`${d} L${sx(maxX).toFixed(1)},${H - pad} L${sx(minX).toFixed(1)},${H - pad} Z`} fill={stroke} fillOpacity="0.08" />
+      <path d={d} fill="none" stroke={stroke} strokeWidth="1.5" />
+      {markers?.map((m, i) => (
+        <circle key={i} cx={sx(m.x)} cy={sy(m.y)} r="3.2"
+          fill={m.side === 'buy' ? '#22c55e' : '#ef4444'} stroke="#0b0f17" strokeWidth="1" />
+      ))}
+    </svg>
+  )
+}
+
 export default function ReportPage() {
   const [symbol, setSymbol] = useState('AAPL')
   const [capital, setCapital] = useState('100000')
@@ -312,9 +341,22 @@ export default function ReportPage() {
   const selectedRule = RULES.find(r => r.id === indicator)!
 
   return (
-    <div className="space-y-6">
+    <div id="report-page" className="space-y-6">
+      {/* Print styles: on Save-as-PDF, keep only the report content, force a
+          light, readable layout (SVG chart strokes use attributes, so they
+          survive the color override). */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          nav, .no-print { display: none !important; }
+          #report-page, #report-page * { color: #111 !important; background: #fff !important; border-color: #d1d5db !important; }
+          #report-page a { color: #1d4ed8 !important; text-decoration: underline; }
+          #report-page { max-width: 100% !important; }
+          @page { margin: 14mm; }
+        }
+      ` }} />
+
       {/* Header */}
-      <div>
+      <div className="no-print">
         <h1 className="text-2xl font-bold text-white">AIレポート</h1>
         <p className="text-muted text-sm mt-1">
           テクニカル条件＋ファンダメンタル条件を指定して過去5年の実データでバックテストし、
@@ -323,7 +365,7 @@ export default function ReportPage() {
       </div>
 
       {/* Form */}
-      <div className="bg-panel border border-border rounded-xl p-5 space-y-5">
+      <div className="no-print bg-panel border border-border rounded-xl p-5 space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs text-muted mb-2">銘柄シンボル（有名な米国株から選択も可）</label>
@@ -672,6 +714,41 @@ export default function ReportPage() {
               — 詳細はレポート本文の「AIトレーダーの実績」参照
             </p>
           )}
+
+          {/* Charts (price with buy/sell markers + equity curve) */}
+          {chartData && chartData.bars.length > 1 && (() => {
+            const bars = chartData.bars
+            const step = Math.max(1, Math.floor(bars.length / 200))
+            const pricePts = bars.filter((_, i) => i % step === 0).map(b => ({ x: b.time, y: b.close }))
+            const markers = chartData.trades.map(t => ({ x: t.time, y: t.price, side: t.action }))
+            const eqPts = chartData.equityCurve.filter((_, i) => i % step === 0).map(e => ({ x: e.time, y: e.value }))
+            return (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-muted mb-1">価格チャート（過去5年・<span className="text-green-400">●</span>買い/<span className="text-red-400">●</span>売り）</p>
+                  <LineChart points={pricePts} markers={markers} stroke="#60a5fa" label="価格チャート" />
+                </div>
+                {eqPts.length > 1 && (
+                  <div>
+                    <p className="text-xs text-muted mb-1">エクイティカーブ（戦略の資産推移・仮想資金）</p>
+                    <LineChart points={eqPts} stroke="#34d399" height={120} label="エクイティカーブ" />
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* PDF (print) — browser Save-as-PDF keeps charts + references + Japanese */}
+      {report && phase === 'done' && (
+        <div className="no-print flex justify-end">
+          <button
+            onClick={() => window.print()}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-border text-slate-200 hover:border-blue-500 hover:text-white transition-colors"
+          >
+            📄 PDFで保存（印刷 → 送信先を「PDFに保存」）
+          </button>
         </div>
       )}
 
