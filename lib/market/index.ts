@@ -1,4 +1,5 @@
 import type { StockQuote, HistoricalBar, FundamentalsData, SearchResult } from '@/types'
+import type { StatementsData } from '@/lib/statements/types'
 
 type Period = '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y'
 
@@ -118,6 +119,19 @@ export async function getFundamentals(
   if (!allowMock) return {}
   const { mockGetFundamentals } = await import('./providers/mock')
   return mockGetFundamentals(symbol)
+}
+
+// Multi-period annual financial statements (/report R2 — earnings depth).
+// Real data only; returns null when unavailable (statements are OPTIONAL report
+// enrichment — never a hard failure, and never mock-synthesised: 原則9).
+export async function getStatements(symbol: string): Promise<StatementsData | null> {
+  if (PROVIDER === 'mock') return null
+  try {
+    const { yf2GetStatements } = await import('./providers/yahoo2')
+    return await yf2GetStatements(symbol)
+  } catch {
+    return null
+  }
 }
 
 export async function searchStocks(query: string): Promise<SearchResult[]> {

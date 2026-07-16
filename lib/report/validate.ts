@@ -13,9 +13,11 @@ import type {
   CompositeCondition,
   FundamentalFilter,
   FundamentalMetric,
+  DerivedFilter,
   TechnicalCondition,
 } from '@/lib/backtest/types'
-import { FUNDAMENTAL_METRICS } from '@/lib/backtest/fundamental'
+import type { DerivedMetric } from '@/lib/statements/types'
+import { FUNDAMENTAL_METRICS, DERIVED_METRICS } from '@/lib/backtest/fundamental'
 
 /** Thrown on malformed input — API routes map this to HTTP 400. */
 export class ValidationError extends Error {
@@ -112,11 +114,44 @@ export function parseFundamentalFilters(raw: unknown): FundamentalFilter[] {
   })
 }
 
+/** Max derived (earnings-trend) filters per request. */
+export const MAX_DERIVED_FILTERS = 10
+
+/** Validate the derived (earnings-trend) filter list. Throws on bad shape. */
+export function parseDerivedFilters(raw: unknown): DerivedFilter[] {
+  if (raw === undefined || raw === null) return []
+  if (!Array.isArray(raw)) {
+    throw new ValidationError('condition.derivedFilters は配列である必要があります')
+  }
+  if (raw.length > MAX_DERIVED_FILTERS) {
+    throw new ValidationError(`決算トレンド条件は最大${MAX_DERIVED_FILTERS}件までです`)
+  }
+  return raw.map((f, i) => {
+    if (!isRecord(f)) throw new ValidationError(`derivedFilters[${i}] が不正です`)
+    const { metric, operator, value } = f
+    if (typeof metric !== 'string' || !DERIVED_METRICS.includes(metric as DerivedMetric)) {
+      throw new ValidationError(`derivedFilters[${i}]: 未対応の決算指標です: ${String(metric)}`)
+    }
+    if (typeof operator !== 'string' || !OPERATORS.includes(operator as DerivedFilter['operator'])) {
+      throw new ValidationError(`derivedFilters[${i}]: 未対応の比較演算子です: ${String(operator)}`)
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new ValidationError(`derivedFilters[${i}]: value は有限の数値である必要があります`)
+    }
+    return {
+      metric: metric as DerivedMetric,
+      operator: operator as DerivedFilter['operator'],
+      value,
+    }
+  })
+}
+
 /** Validate the whole composite condition. Throws ValidationError on bad shape. */
 export function parseCompositeCondition(raw: unknown): CompositeCondition {
   if (!isRecord(raw)) throw new ValidationError('condition が指定されていません')
   return {
     technical: parseTechnicalCondition(raw.technical),
     fundamentalFilters: parseFundamentalFilters(raw.fundamentalFilters),
+    derivedFilters: parseDerivedFilters(raw.derivedFilters),
   }
 }

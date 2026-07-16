@@ -11,8 +11,12 @@
 
 import type { FundamentalsData } from '@/types'
 import type { BacktestCondition, CompositeCondition } from '@/lib/backtest/types'
-import type { FundamentalGateResult } from '@/lib/backtest/fundamental'
-import { describeFundamentalFilter, formatMetricValue, METRIC_INFO } from '@/lib/backtest/fundamental'
+import type { FundamentalGateResult, DerivedGateResult } from '@/lib/backtest/fundamental'
+import {
+  describeFundamentalFilter, formatMetricValue, METRIC_INFO,
+  describeDerivedFilter, formatDerivedValue, DERIVED_METRIC_INFO, DERIVED_METRICS,
+} from '@/lib/backtest/fundamental'
+import type { StatementsData, DerivedFundamentals } from '@/lib/statements/types'
 import type { PreparedBundle, BacktestSummary, AiTraderEvidence } from './types'
 
 const MAX_TRADES_IN_PROMPT = 20
@@ -55,10 +59,59 @@ export function describeCondition(c: BacktestCondition): string {
  * technical trigger + fundamental AND-filters (current-value static gate).
  */
 export function describeCompositeCondition(c: CompositeCondition): string {
-  const tech = describeCondition(c.technical)
-  if (c.fundamentalFilters.length === 0) return tech
-  const fund = c.fundamentalFilters.map(describeFundamentalFilter).join(' AND ')
-  return `${tech} ＋ ファンダ条件（現在値・静的）: ${fund}`
+  const parts = [describeCondition(c.technical)]
+  if (c.fundamentalFilters.length > 0) {
+    parts.push(`ファンダ条件（現在値・静的）: ${c.fundamentalFilters.map(describeFundamentalFilter).join(' AND ')}`)
+  }
+  if (c.derivedFilters && c.derivedFilters.length > 0) {
+    parts.push(`決算トレンド条件（年次実績）: ${c.derivedFilters.map(describeDerivedFilter).join(' AND ')}`)
+  }
+  return parts.join(' ＋ ')
+}
+
+// ── Financial-statement formatting (/report R2) ─────────────────────────────
+function bn(v: number | undefined): string {
+  if (v == null || !Number.isFinite(v)) return 'N/A'
+  const a = Math.abs(v)
+  if (a >= 1e9) return `${(v / 1e9).toFixed(1)}B`
+  if (a >= 1e6) return `${(v / 1e6).toFixed(1)}M`
+  return v.toFixed(0)
+}
+function marginPct(a: number | undefined, b: number | undefined): string {
+  return a != null && b != null && b > 0 ? `${((a / b) * 100).toFixed(1)}%` : 'N/A'
+}
+
+/** Compact multi-period table (latest 5 years). Summary columns only (tokens). */
+function fmtStatementsTable(st: StatementsData): string {
+  const rows = st.periods.slice(-5).map((p) =>
+    `${p.endDate} | 売上 ${bn(p.totalRevenue)} | 営業利益率 ${marginPct(p.operatingIncome, p.totalRevenue)}` +
+    ` | 純利益率 ${marginPct(p.netIncome, p.totalRevenue)} | EPS ${p.dilutedEps != null ? p.dilutedEps.toFixed(2) : 'N/A'}` +
+    ` | FCF ${bn(p.freeCashFlow)} | FCFマージン ${marginPct(p.freeCashFlow, p.totalRevenue)}`,
+  )
+  return `（通貨: ${st.currency}・出典: ${st.source}・年次${st.periods.length}期）\n年度末 | 売上 | 営業利益率 | 純利益率 | EPS | FCF | FCFマージン\n${rows.join('\n')}`
+}
+
+/** All derived metrics with values, undefined shown as 判定不能 (transparency). */
+function fmtDerivedBlock(derived: DerivedFundamentals): string {
+  return DERIVED_METRICS.map((k) => {
+    const v = derived[k]
+    const label = DERIVED_METRIC_INFO[k].label
+    return v != null && Number.isFinite(v)
+      ? `- ${label}: ${formatDerivedValue(k, v)}`
+      : `- ${label}: 判定不能（データ不足）`
+  }).join('\n')
+}
+
+/** Derived (earnings-trend) gate verdicts. */
+function fmtDerivedGate(gate: DerivedGateResult): string {
+  const lines = gate.evaluations.map((e) => {
+    const cond = describeDerivedFilter(e.filter)
+    if (e.result === 'no_data') return `✗ ${cond} → 判定不能（決算データ不足・fail-closed）`
+    const actual = e.actual != null ? formatDerivedValue(e.filter.metric, e.actual) : 'N/A'
+    return `${e.result === 'pass' ? '✓' : '✗'} ${cond} → 実測 ${actual}（${e.result === 'pass' ? '成立' : '不成立'}）`
+  })
+  lines.push(`総合判定（AND）: ${gate.passed ? '成立' : '不成立'}`)
+  return lines.join('\n')
 }
 
 /** All fetched fundamentals with real values — nothing hidden from the model. */
@@ -154,8 +207,14 @@ function fmtAiEvidence(ev: AiTraderEvidence, symbol: string): string {
 
 /** Build the single Opus prompt from a prepared bundle. */
 export function buildReportPrompt(bundle: PreparedBundle): string {
-  const { request, backtest: bt, current, fundamentalGate, aiEvidence, learningContext, sources } = bundle
+  const { request, backtest: bt, current, fundamentalGate, aiEvidence, learningContext, sources,
+    statements, derived, derivedGate } = bundle
   const q = current.quote
+
+  const statementsBlock = statements
+    ? `${fmtStatementsTable(statements)}\n\n【決算から算出した派生指標（トレンド・質）】\n${fmtDerivedBlock(derived ?? {})}` +
+      (derivedGate.evaluations.length > 0 ? `\n\n【決算トレンド条件の判定（実測 vs 閾値）】\n${fmtDerivedGate(derivedGate)}` : '')
+    : '（この銘柄の決算書データを取得できませんでした — 決算書分析は不可）'
 
   const backtestBlock = bt
     ? fmtBacktest(bt)
@@ -178,8 +237,11 @@ ${backtestBlock}
 【現在の状況（リアルタイム実データ）】
 - ${q.symbol} ${q.name}: 現在値 ${q.price.toFixed(2)} ${q.currency}（前日比 ${q.change >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}%・出来高 ${q.volume.toLocaleString()}）
 - テクニカル（直近3ヶ月日足から算出した実数値）: ${current.technicals}
-- ファンダメンタル（取得できた全指標・実測値）:
+- ファンダメンタル（取得できた全指標・現在値スナップショット）:
 ${fmtFundamentals(current.fundamentals)}
+
+【決算書（年次・複数期の実数値／損益計算書・貸借対照表・キャッシュフロー由来）】
+${statementsBlock}
 
 【AIトレーダーのこの銘柄での実績（InvestSim AIセッションの実記録）】
 ${fmtAiEvidence(aiEvidence, q.symbol)}
@@ -192,7 +254,7 @@ ${sources.map((s) => `- ${s}`).join('\n')}
 
 ---
 
-以下の8セクションを、この見出し・この順序で必ず出力してください（見出しの文言を変えない）:
+以下の9セクションを、この見出し・この順序で必ず出力してください（見出しの文言を変えない）:
 
 ## 前提
 このレポートの位置づけ。仮想資金によるシミュレーションであること、バックテストは過去5年の実市場データに基づくこと、手数料・スリッページ未考慮の簡略モデルであること、ファンダメンタル条件は現在値の静的評価であり過去5年に遡及しないことを明記。
@@ -205,6 +267,9 @@ ${sources.map((s) => `- ${s}`).join('\n')}
 
 ## 現状分析
 現在の株価・テクニカル実数値・ファンダメンタル実測値から見た現時点の状態。設定した条件のシグナルが今どの位置にあるか（発火に近いか遠いか）を具体的な数値で。
+
+## 決算書分析（複数期推移）
+上記の決算書（複数期の実数値）と派生指標を根拠に、**単期の絶対値ではなく複数期の傾きと一貫性**を評価する。売上・営業利益率・純利益率・EPS・FCFの方向性（成長しているか鈍化か、利益率は改善か悪化か）、利益の質（営業CF÷純利益）、財務健全性（自己資本比率・純有利子負債/EBITDA）を数値根拠付きで論じる。決算トレンド条件を設定している場合はその判定結果にも触れる。判定不能（データ不足）の指標は判定不能と明記し、決算データが取得できなかった場合はその旨を書く。
 
 ## AIトレーダーの実績
 InvestSim AIトレーダーのこの銘柄での実際の売買実績（回数・勝率・平均損益・直近取引の理由・教訓）の要約と、それが本条件の評価にどう関係するか。実績データが無い場合は「実績なし」と明記し、全銘柄横断の学習コンテキストから言える範囲のみ述べる。

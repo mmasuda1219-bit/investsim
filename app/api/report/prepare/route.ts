@@ -1,19 +1,24 @@
 import { NextResponse } from 'next/server'
-import { getQuote, getHistory, getFundamentals } from '@/lib/market'
+import { getQuote, getHistory, getFundamentals, getStatements } from '@/lib/market'
 import { calcMA, calcRSI, calcMACD, calcBB } from '@/lib/technicals'
 import { runBacktest, BacktestDataError } from '@/lib/backtest/run'
 import {
   evaluateFundamentalGate,
   describeFundamentalFilter,
   formatMetricValue,
+  evaluateDerivedGate,
+  describeDerivedFilter,
+  formatDerivedValue,
 } from '@/lib/backtest/fundamental'
+import { computeDerived } from '@/lib/statements/derived'
 import { parseCompositeCondition, ValidationError } from '@/lib/report/validate'
 import { describeCompositeCondition } from '@/lib/report/prompt'
 import { collectAiTraderEvidence } from '@/lib/report/evidence'
 import { listSessions } from '@/lib/ai-trader/store'
 import { normalizeLearningMemory, buildLearningContext } from '@/lib/ai-trader/memory'
 import type { HistoricalBar } from '@/types'
-import type { FundamentalGateResult } from '@/lib/backtest/fundamental'
+import type { FundamentalGateResult, DerivedGateResult } from '@/lib/backtest/fundamental'
+import type { DerivedFundamentals } from '@/lib/statements/types'
 import type {
   ReportRequest,
   PreparedBundle,
@@ -124,16 +129,27 @@ async function collectLearningContext(): Promise<string> {
   }
 }
 
-// Human-readable reason when the fundamental AND-gate fails (actual vs threshold).
-function buildGateFailReason(gate: FundamentalGateResult): string {
-  const failed = gate.evaluations.filter((e) => e.result !== 'pass')
-  const parts = failed.map((e) => {
+// Human-readable reason when either AND-gate fails (actual vs threshold).
+function buildGateFailReason(
+  fundamentalGate: FundamentalGateResult,
+  derivedGate: DerivedGateResult,
+): string {
+  const parts: string[] = []
+  for (const e of fundamentalGate.evaluations) {
+    if (e.result === 'pass') continue
     const cond = describeFundamentalFilter(e.filter)
-    if (e.result === 'no_data') return `「${cond}」→ 実データ取得不可のため判定不能（不成立扱い）`
-    const actual = e.actual != null ? formatMetricValue(e.filter.metric, e.actual) : 'N/A'
-    return `「${cond}」→ 実測 ${actual} で不成立`
-  })
-  return `ファンダメンタル条件が現在値で不成立: ${parts.join(' / ')}`
+    parts.push(e.result === 'no_data'
+      ? `「${cond}」→ 実データ取得不可のため判定不能（不成立扱い）`
+      : `「${cond}」→ 実測 ${e.actual != null ? formatMetricValue(e.filter.metric, e.actual) : 'N/A'} で不成立`)
+  }
+  for (const e of derivedGate.evaluations) {
+    if (e.result === 'pass') continue
+    const cond = describeDerivedFilter(e.filter)
+    parts.push(e.result === 'no_data'
+      ? `「${cond}」→ 決算データ不足で判定不能（不成立扱い）`
+      : `「${cond}」→ 実測 ${e.actual != null ? formatDerivedValue(e.filter.metric, e.actual) : 'N/A'} で不成立`)
+  }
+  return `条件が不成立: ${parts.join(' / ')}`
 }
 
 // POST /api/report/prepare (R1)
@@ -177,18 +193,24 @@ export async function POST(req: Request) {
   const request: ReportRequest = { symbol, condition, initialCapital }
 
   try {
-    // ── 1. Real fundamentals → AND-gate (current values, static) ───────
-    // allowMock:false — a mock number must never decide the gate (原則9).
-    // Unavailable data comes back as {} ⇒ 'no_data' ⇒ fail-closed but
-    // explicitly reported as 判定不能.
-    const fundamentals = await getFundamentals(symbol, { allowMock: false })
+    // ── 1. Real fundamentals + annual statements (parallel) → AND-gates ─
+    // allowMock:false — a mock number must never decide a gate (原則9).
+    // Unavailable snapshot data ⇒ {} ⇒ 'no_data'; statements unavailable ⇒
+    // null ⇒ derived {} ⇒ derived filters resolve 'no_data' (fail-closed).
+    const [fundamentals, statements] = await Promise.all([
+      getFundamentals(symbol, { allowMock: false }),
+      getStatements(symbol), // null on failure — optional enrichment, never throws
+    ])
     const fundamentalGate = evaluateFundamentalGate(fundamentals, condition.fundamentalFilters)
+    const derived: DerivedFundamentals | null = statements ? computeDerived(statements) : null
+    const derivedGate = evaluateDerivedGate(derived ?? {}, condition.derivedFilters ?? [])
+    const gatesPassed = fundamentalGate.passed && derivedGate.passed
 
-    // ── 2. 5y real-data backtest — ONLY when the gate passed ───────────
+    // ── 2. 5y real-data backtest — ONLY when BOTH gates passed ─────────
     let backtest: BacktestSummary | null = null
     let equityCurve: ChartData['equityCurve'] = []
     let trades: ChartData['trades'] = []
-    if (fundamentalGate.passed) {
+    if (gatesPassed) {
       const result = await runBacktest({
         symbol,
         period: '5y',
@@ -239,14 +261,18 @@ export async function POST(req: Request) {
       conditionDescription: describeCompositeCondition(condition),
       period: '5y',
       fundamentalGate,
+      statements,
+      derived,
+      derivedGate,
       backtest,
-      ...(fundamentalGate.passed ? {} : { gateFailReason: buildGateFailReason(fundamentalGate) }),
+      ...(gatesPassed ? {} : { gateFailReason: buildGateFailReason(fundamentalGate, derivedGate) }),
       current: { quote, technicals, fundamentals },
       aiEvidence,
       learningContext,
       sources: [
         'Yahoo Finance（リアルタイム株価・過去5年日足ヒストリカル・直近3ヶ月日足）',
         'Yahoo Finance（ファンダメンタル指標・現在値）',
+        ...(statements ? [`${statements.source}（損益計算書・貸借対照表・キャッシュフロー・年次${statements.periods.length}期）`] : []),
         'InvestSimバックテストエンジン（lib/backtest・実データ純計算・5年日足）',
         'InvestSim AIトレーダー実績（全AIセッションの実売買記録・銘柄別）',
         'InvestSim AIセッション学習メモリ（過去の仮想売買の教訓）',

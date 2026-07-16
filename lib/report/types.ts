@@ -18,7 +18,8 @@ import type {
   EquityPoint,
   BacktestCondition,
 } from '@/lib/backtest/types'
-import type { FundamentalGateResult } from '@/lib/backtest/fundamental'
+import type { FundamentalGateResult, DerivedGateResult } from '@/lib/backtest/fundamental'
+import type { StatementsData, DerivedFundamentals } from '@/lib/statements/types'
 import type { StockQuote, FundamentalsData, HistoricalBar } from '@/types'
 
 /** Input of POST /api/report/prepare (v2 — structured condition, no free text). */
@@ -102,6 +103,15 @@ export interface PreparedBundle {
   period: BacktestPeriod
   /** Current-value fundamental AND-gate outcome (with per-filter evidence). */
   fundamentalGate: FundamentalGateResult
+  /**
+   * R2: multi-period annual financial statements (income/balance/cash-flow).
+   * null when the provider returned nothing (report notes it explicitly).
+   */
+  statements: StatementsData | null
+  /** R2: derived earnings trends/ratios computed from `statements` (null if none). */
+  derived: DerivedFundamentals | null
+  /** R2: earnings-trend AND-gate outcome (empty evaluations when no derived filters). */
+  derivedGate: DerivedGateResult
   /**
    * 5y real-data backtest. null ⇔ the fundamental gate did not pass
    * (backtest skipped; the report still gets written around that fact).

@@ -16,7 +16,8 @@
 // Pure functions only — no I/O (unit-smoked in scripts/check-report-r1.ts).
 
 import type { FundamentalsData } from '@/types'
-import type { FundamentalFilter, FundamentalMetric } from './types'
+import type { FundamentalFilter, FundamentalMetric, DerivedFilter } from './types'
+import type { DerivedFundamentals, DerivedMetric } from '@/lib/statements/types'
 
 /** One filter's outcome. `actual` is the real current value (absent on no_data). */
 export interface FundamentalEvaluation {
@@ -108,4 +109,81 @@ export const OPERATOR_LABEL: Record<FundamentalFilter['operator'], string> = {
 /** Human-readable one-liner: 「ROE（自己資本利益率） > 15.00%」 */
 export function describeFundamentalFilter(f: FundamentalFilter): string {
   return `${METRIC_INFO[f.metric].label} ${OPERATOR_LABEL[f.operator]} ${formatMetricValue(f.metric, f.value)}`
+}
+
+// ── Derived (multi-period earnings) AND-gate — /report R2 ───────────────────
+// Same static-gate + fail-closed + no_data-distinguished semantics as the
+// snapshot gate above, but evaluated against DerivedFundamentals (computed from
+// financial statements). Completely separate from evaluateFundamentalGate so the
+// R1 snapshot path is untouched.
+
+export interface DerivedEvaluation {
+  filter: DerivedFilter
+  actual?: number
+  result: 'pass' | 'fail' | 'no_data'
+}
+
+export interface DerivedGateResult {
+  passed: boolean
+  evaluations: DerivedEvaluation[]
+}
+
+/** percent … human % ⇔ raw fraction (×0.01) / ratio … 倍 as-is / count … 期・整数 */
+export type DerivedUnit = 'percent' | 'ratio' | 'count'
+
+export interface DerivedMetricInfo {
+  label: string
+  unit: DerivedUnit
+  hint: string
+}
+
+export const DERIVED_METRIC_INFO: Record<DerivedMetric, DerivedMetricInfo> = {
+  revenueCagr3y:                { label: '売上高CAGR(3年)',              unit: 'percent', hint: '%（例: 10）' },
+  revenueYoy:                   { label: '売上高成長率(前年比)',          unit: 'percent', hint: '%（例: 8）' },
+  operatingMarginLatest:        { label: '営業利益率(最新期)',            unit: 'percent', hint: '%（例: 15）' },
+  operatingMarginRisingStreak:  { label: '営業利益率の連続上昇期数',      unit: 'count',   hint: '期（例: 2＝直近2回連続上昇）' },
+  epsCagr3y:                    { label: 'EPS成長率CAGR(3年)',           unit: 'percent', hint: '%（例: 10）' },
+  fcfMargin:                    { label: 'FCFマージン(最新期)',           unit: 'percent', hint: '%（例: 10）' },
+  fcfPositiveYears:             { label: 'FCF黒字の期数',                unit: 'count',   hint: '期（例: 5）' },
+  profitQuality:                { label: '利益の質(営業CF÷純利益)',       unit: 'ratio',   hint: '倍（例: 1.0）' },
+  roeLatest:                    { label: 'ROE(最新期・決算ベース)',        unit: 'percent', hint: '%（例: 15）' },
+  equityRatio:                  { label: '自己資本比率',                  unit: 'percent', hint: '%（例: 40）' },
+  netDebtToEbitda:              { label: '純有利子負債/EBITDA',           unit: 'ratio',   hint: '倍（例: 2.0・低いほど健全）' },
+  netMarginRisingStreak:        { label: '純利益率の連続上昇期数',        unit: 'count',   hint: '期（例: 2）' },
+}
+
+export const DERIVED_METRICS = Object.keys(DERIVED_METRIC_INFO) as DerivedMetric[]
+
+/** Human input number → raw DerivedFundamentals unit (what the gate compares). */
+export function toRawDerivedValue(metric: DerivedMetric, humanValue: number): number {
+  return DERIVED_METRIC_INFO[metric].unit === 'percent' ? humanValue / 100 : humanValue
+}
+
+/** Raw DerivedFundamentals value → human-readable string. */
+export function formatDerivedValue(metric: DerivedMetric, raw: number): string {
+  switch (DERIVED_METRIC_INFO[metric].unit) {
+    case 'percent': return `${(raw * 100).toFixed(2)}%`
+    case 'ratio':   return `${raw.toFixed(2)}x`
+    case 'count':   return `${Math.round(raw)}`
+  }
+}
+
+export function describeDerivedFilter(f: DerivedFilter): string {
+  return `${DERIVED_METRIC_INFO[f.metric].label} ${OPERATOR_LABEL[f.operator]} ${formatDerivedValue(f.metric, f.value)}`
+}
+
+/** Evaluate derived filters (AND) against computed statement-derived metrics. */
+export function evaluateDerivedGate(
+  derived: DerivedFundamentals,
+  filters: DerivedFilter[],
+): DerivedGateResult {
+  const evaluations: DerivedEvaluation[] = filters.map((filter) => {
+    const raw = derived[filter.metric]
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+      return { filter, result: 'no_data' as const }
+    }
+    const ok = OPERATORS[filter.operator](raw, filter.value)
+    return { filter, actual: raw, result: ok ? ('pass' as const) : ('fail' as const) }
+  })
+  return { passed: evaluations.every((e) => e.result === 'pass'), evaluations }
 }

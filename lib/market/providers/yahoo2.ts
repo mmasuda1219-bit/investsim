@@ -14,6 +14,7 @@
 // which keeps us well under Yahoo's rate limits.
 
 import type { StockQuote, HistoricalBar, FundamentalsData, SearchResult } from '@/types'
+import type { StatementsData, PeriodStatement } from '@/lib/statements/types'
 
 // ── Singleton library instance (reuses cookie/crumb session) ───────────────
 // Typed loosely on purpose: yahoo-finance2 v3 ships its own types but we only
@@ -56,6 +57,7 @@ const QUOTE_TTL_MS = 20_000
 const HISTORY_TTL_MS = 300_000
 const FUNDAMENTALS_TTL_MS = 1_800_000
 const SEARCH_TTL_MS = 600_000
+const STATEMENTS_TTL_MS = 86_400_000 // 決算は四半期毎更新 → 24h（実データのキャッシュ）
 
 function detectMarket(symbol: string): StockQuote['market'] {
   if (symbol.endsWith('.T')) return 'JP'
@@ -266,6 +268,112 @@ export async function yf2Search(query: string): Promise<SearchResult[]> {
 
   writeCache(key, results)
   return results
+}
+
+// ── Financial statements (annual, multi-period) — /report R2 ───────────────
+// yahoo-finance2 `fundamentalsTimeSeries` for the income / balance / cash-flow
+// groups, called in PARALLEL and merged by fiscal-year-end date. Quarterly and
+// TTM rows are EXCLUDED (原則9: a quarterly figure must never be treated as an
+// annual one — this bug was observed on 7203.T where the newest row was a
+// quarter). Long TTL (24h) since statements only change once a quarter.
+type TSRow = Record<string, unknown>
+
+function rowEndDate(r: TSRow): string | undefined {
+  const d = r.date
+  const dt = d instanceof Date ? d
+    : (typeof d === 'string' || typeof d === 'number') ? new Date(d) : undefined
+  if (!dt || Number.isNaN(dt.getTime())) return undefined
+  return dt.toISOString().slice(0, 10)
+}
+
+/** Keep annual rows only — exclude anything flagged quarterly/TTM/trailing. */
+function isAnnualRow(r: TSRow): boolean {
+  const tag = String(r.periodType ?? r.type ?? '').toUpperCase()
+  return !(tag.includes('3M') || tag.includes('QUART') || tag.includes('TTM') || tag.includes('TRAIL'))
+}
+
+async function tsRows(client: any, symbol: string, module: string): Promise<TSRow[]> {
+  // period1/period2 as 'YYYY-MM-DD' STRINGS — fundamentalsTimeSeries rejects
+  // Date objects (unlike chart()), which silently emptied the result.
+  const period1 = new Date(Date.now() - 6 * 365 * 86_400_000).toISOString().slice(0, 10)
+  const period2 = new Date().toISOString().slice(0, 10)
+  try {
+    // type:'annual' is REQUIRED — the default returns quarterly (periodType '3M'),
+    // which is how a quarterly figure previously masqueraded as a yearly one.
+    const res = await client.fundamentalsTimeSeries(symbol, { period1, period2, module, type: 'annual' })
+    return Array.isArray(res) ? (res as TSRow[]).filter(isAnnualRow) : []
+  } catch {
+    return []
+  }
+}
+
+export async function yf2GetStatements(symbol: string): Promise<StatementsData> {
+  const cacheKey = `st:${symbol}`
+  const hit = readCache<StatementsData>(cacheKey, STATEMENTS_TTL_MS)
+  if (hit) return hit
+
+  const client = await yf()
+  const [inc, bal, cf] = await Promise.all([
+    tsRows(client, symbol, 'financials'),
+    tsRows(client, symbol, 'balance-sheet'),
+    tsRows(client, symbol, 'cash-flow'),
+  ])
+
+  const byYear = new Map<string, PeriodStatement>()
+  const ensure = (endDate: string): PeriodStatement => {
+    let p = byYear.get(endDate)
+    if (!p) { p = { endDate }; byYear.set(endDate, p) }
+    return p
+  }
+
+  for (const r of inc) {
+    const y = rowEndDate(r); if (!y) continue
+    const p = ensure(y)
+    p.totalRevenue    = num(r.totalRevenue) ?? p.totalRevenue
+    p.operatingIncome = num(r.operatingIncome) ?? p.operatingIncome
+    p.netIncome       = num(r.netIncome) ?? num(r.netIncomeCommonStockholders) ?? p.netIncome
+    p.ebitda          = num(r.EBITDA) ?? p.ebitda
+    const dilNI = num(r.dilutedNIAvailtoComStockholders)
+    const dilSh = num(r.dilutedAverageShares)
+    p.dilutedEps = num(r.dilutedEPS)
+      ?? (dilNI !== undefined && dilSh !== undefined && dilSh > 0 ? dilNI / dilSh : undefined)
+      ?? num(r.basicEPS) ?? p.dilutedEps
+  }
+  for (const r of bal) {
+    const y = rowEndDate(r); if (!y) continue
+    const p = ensure(y)
+    p.totalAssets        = num(r.totalAssets) ?? p.totalAssets
+    p.stockholdersEquity = num(r.stockholdersEquity) ?? p.stockholdersEquity
+    p.totalDebt          = num(r.totalDebt) ?? p.totalDebt
+    p.cash               = num(r.cashAndCashEquivalents)
+      ?? num(r.cashCashEquivalentsAndShortTermInvestments) ?? p.cash
+  }
+  for (const r of cf) {
+    const y = rowEndDate(r); if (!y) continue
+    const p = ensure(y)
+    p.operatingCashFlow  = num(r.operatingCashFlow) ?? p.operatingCashFlow
+    p.freeCashFlow       = num(r.freeCashFlow) ?? p.freeCashFlow
+    p.capitalExpenditure = num(r.capitalExpenditure) ?? p.capitalExpenditure
+    if (p.freeCashFlow === undefined && p.operatingCashFlow !== undefined && p.capitalExpenditure !== undefined) {
+      p.freeCashFlow = p.operatingCashFlow + p.capitalExpenditure // capex is negative
+    }
+  }
+
+  const periods = Array.from(byYear.values())
+    .filter((p) => p.totalRevenue !== undefined || p.netIncome !== undefined || p.totalAssets !== undefined)
+    .sort((a, b) => a.endDate.localeCompare(b.endDate)) // ascending (oldest first)
+
+  if (periods.length === 0) throw new Error(`yahoo-finance2: no statements for ${symbol}`)
+
+  const data: StatementsData = {
+    symbol,
+    currency: symbol.toUpperCase().endsWith('.T') ? 'JPY' : 'USD',
+    periodType: 'annual',
+    periods,
+    source: 'Yahoo Finance（fundamentalsTimeSeries・年次決算）',
+  }
+  writeCache(cacheKey, data)
+  return data
 }
 
 // Exposed for a targeted cache flush if ever needed (not used in hot paths).

@@ -124,3 +124,10 @@
 - 同梱出荷: yahoo2主経路フェイルオーバー（既差分）・SiteNavに/report追加＋/lab行削除（app/lab本体未出荷で404のため・オーナー承認済み）
 - 検証: scripts/check-report-r1.ts新設（ゲートpass/fail/no_data/矛盾・単位変換・バリデーション・1250本評価15ms）全PASS、scripts/check-rules.ts回帰PASS、tsc --noEmit緑、実API E2E（AAPL 5y実データ+実ファンダ18指標）成功。Opus呼び出しE2Eは未実施（計画どおり）
 - 影響ファイル: lib/backtest/{types,run,fundamental(新)}.ts, lib/report/{types,prompt,validate(新),evidence(新),interpret}.ts, lib/market/{index,providers/yahoo2,providers/yahoodirect,providers/twelvedata}.ts, app/api/report/{prepare,generate}/route.ts, app/report/page.tsx, components/SiteNav.tsx, scripts/check-report-r1.ts(新)
+
+## 2026-07-16: 決算書ファンダ深化（/report R2）— データソースと派生指標ゲートの分離
+- 背景: オーナー要件「損益計算書等の決算数値を複数期でレポート根拠・スクリーニングに使いたい」。
+- 決定: MVPは yahoo2 の fundamentalsTimeSeries を **type:'annual' 指定**で使い（US+JP・キー/依存ゼロ・年次4-5期）、決算3表を取得。派生指標（売上CAGR/YoY・営業/純利益率のトレンド上昇期数・EPS CAGR・FCFマージン/黒字年数・利益の質=営業CF÷純利益・ROE・自己資本比率・純有利子負債/EBITDA）を純関数(lib/statements/derived)で計算。スクリーニングは既存10指標ゲートを不変のまま、別系統 DerivedFilter + evaluateDerivedGate を **fundamentalGate.passed && derivedGate.passed** でAND合成。Opusプロンプトに「## 決算書分析（複数期推移）」を追加（8→9見出し・複数期の傾きと一貫性を数値根拠で評価）。取得層はソース中立の StatementsData で受け、EDGAR(US)/J-Quants(JP)は後続スライスに温存。
+- 理由: 4-5期で3年CAGR/トレンドが計算可能・yahoo-finance2はVercel実証済み・最小の縦切り（原則2）。**type:'annual' が必須**（デフォルトは四半期'3M'を返し、トヨタ売上が四半期12.6兆で年次50兆に化ける＝原則9違反になる。実測でAAPL 416B/トヨタ50.7兆の年次抽出を確認）。欠損・計算不能は no_data として fail-closed かつ判定不能を区別表示。決算は24hキャッシュ（実データのキャッシュは原則9に反しない）。
+- 検証: scripts/check-statements.ts（computeDerived/ゲート/単位変換/バリデーションの31アサート全PASS）、実データ年次抽出プローブ（AAPL/トヨタ）成功、tsc --noEmit緑。
+- 影響ファイル: lib/statements/{types,derived}.ts(新), lib/market/{index,providers/yahoo2}.ts, lib/backtest/{types,fundamental}.ts, lib/report/{types,prompt,validate}.ts, app/api/report/prepare/route.ts, app/report/page.tsx, scripts/check-statements.ts(新)

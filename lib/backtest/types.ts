@@ -1,3 +1,5 @@
+import type { DerivedMetric } from '@/lib/statements/types'
+
 // Backtest domain types (Lab / slice 1)
 //
 // Slice 1 scope: a single symbol, a single technical condition, 1-year daily data.
@@ -160,10 +162,31 @@ export interface FundamentalFilter {
   value: number
 }
 
-/** /report R1 condition: one technical rule gated by fundamental AND-filters. */
+/**
+ * One DERIVED (multi-period earnings) AND-filter (/report R2).
+ * `metric` is computed from financial statements (CAGR, margin trends, cash-flow
+ * quality etc. — see lib/statements/derived.ts). Evaluated as a static gate on
+ * the latest available figures, same fail-closed semantics as FundamentalFilter.
+ * `value` is in the SAME raw unit as DerivedFundamentals (percent metrics as
+ * fractions, streaks/counts as integers); human input conversion lives in
+ * lib/backtest/fundamental.ts.
+ */
+export interface DerivedFilter {
+  metric: DerivedMetric
+  operator: 'gt' | 'lt' | 'gte' | 'lte'
+  value: number
+}
+
+/**
+ * /report R1 condition + optional R2 earnings-trend filters.
+ * `derivedFilters` is OPTIONAL so every existing caller (that omits it) is
+ * unaffected — R1 requests keep validating and running exactly as before.
+ */
 export interface CompositeCondition {
   technical: TechnicalCondition
   fundamentalFilters: FundamentalFilter[]
+  /** R2: earnings-trend AND-filters (optional; undefined ⇔ none). */
+  derivedFilters?: DerivedFilter[]
 }
 
 /** Supported backtest windows (daily bars). '5y' added for /report R1. */

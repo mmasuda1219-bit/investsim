@@ -11,8 +11,10 @@ import type {
   CompositeCondition,
   FundamentalFilter,
   FundamentalMetric,
+  DerivedFilter,
   TechnicalCondition,
 } from '@/lib/backtest/types'
+import type { DerivedMetric } from '@/lib/statements/types'
 import {
   METRIC_INFO,
   FUNDAMENTAL_METRICS,
@@ -20,6 +22,11 @@ import {
   toRawValue,
   formatMetricValue,
   describeFundamentalFilter,
+  DERIVED_METRIC_INFO,
+  DERIVED_METRICS,
+  toRawDerivedValue,
+  formatDerivedValue,
+  describeDerivedFilter,
 } from '@/lib/backtest/fundamental'
 import type { PreparedBundle, ChartData } from '@/lib/report/types'
 import { describeCompositeCondition } from '@/lib/report/prompt'
@@ -49,6 +56,14 @@ interface FilterRow {
   metric: FundamentalMetric
   operator: FundamentalFilter['operator']
   /** Human-unit input（%・10億等）。送信時に toRawValue で実単位へ変換 */
+  value: string
+}
+
+interface DerivedRow {
+  key: number
+  metric: DerivedMetric
+  operator: DerivedFilter['operator']
+  /** Human-unit input（%・倍・期）。送信時に toRawDerivedValue で実単位へ変換 */
   value: string
 }
 
@@ -107,6 +122,10 @@ export default function ReportPage() {
   const nextKey = useRef(1)
   const [filters, setFilters] = useState<FilterRow[]>([])
 
+  // ── Derived (earnings-trend) AND-filter rows (R2) ────────────────────
+  const nextDKey = useRef(1)
+  const [dFilters, setDFilters] = useState<DerivedRow[]>([])
+
   const [phase, setPhase] = useState<Phase>('idle')
   const [error, setError] = useState<string | null>(null)
   const [bundle, setBundle] = useState<PreparedBundle | null>(null)
@@ -123,6 +142,16 @@ export default function ReportPage() {
   const removeFilter = (key: number) => setFilters(prev => prev.filter(f => f.key !== key))
   const updateFilter = (key: number, patch: Partial<FilterRow>) =>
     setFilters(prev => prev.map(f => (f.key === key ? { ...f, ...patch } : f)))
+
+  const addDFilter = () => {
+    setDFilters(prev => [
+      ...prev,
+      { key: nextDKey.current++, metric: 'revenueCagr3y', operator: 'gte', value: '' },
+    ])
+  }
+  const removeDFilter = (key: number) => setDFilters(prev => prev.filter(f => f.key !== key))
+  const updateDFilter = (key: number, patch: Partial<DerivedRow>) =>
+    setDFilters(prev => prev.map(f => (f.key === key ? { ...f, ...patch } : f)))
 
   const buildCondition = (): CompositeCondition | { error: string } => {
     const num = (s: string, fallback: number) => {
@@ -159,7 +188,20 @@ export default function ReportPage() {
         value: toRawValue(row.metric, v), // 人間単位（%・10億）→ 実単位に変換して送信
       })
     }
-    return { technical, fundamentalFilters }
+
+    const derivedFilters: DerivedFilter[] = []
+    for (const row of dFilters) {
+      const v = Number(row.value)
+      if (row.value.trim() === '' || !Number.isFinite(v)) {
+        return { error: `決算トレンド条件「${DERIVED_METRIC_INFO[row.metric].label}」の値を数値で入力してください` }
+      }
+      derivedFilters.push({
+        metric: row.metric,
+        operator: row.operator,
+        value: toRawDerivedValue(row.metric, v), // 人間単位（%・倍・期）→ 実単位に変換
+      })
+    }
+    return { technical, fundamentalFilters, derivedFilters }
   }
 
   const run = async () => {
@@ -253,6 +295,7 @@ export default function ReportPage() {
   const busy = phase === 'preparing' || phase === 'generating'
   const m = bundle?.backtest?.metrics
   const gate = bundle?.fundamentalGate
+  const dgate = bundle?.derivedGate
   const selectedRule = RULES.find(r => r.id === indicator)!
 
   return (
@@ -415,6 +458,66 @@ export default function ReportPage() {
           </p>
         </div>
 
+        {/* Derived (earnings-trend) filters — R2 */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs text-muted">
+              決算トレンド条件（任意・AND結合／損益計算書など年次決算の複数期推移から算出）
+            </label>
+            <button
+              onClick={addDFilter}
+              disabled={dFilters.length >= 10}
+              className="text-xs px-3 py-1 rounded-lg border border-border text-slate-300 hover:border-blue-500 hover:text-white transition-colors disabled:opacity-40"
+            >
+              ＋ 決算条件を追加
+            </button>
+          </div>
+          {dFilters.length === 0 && (
+            <p className="text-xs text-muted/70">条件なし（例: 売上高CAGR(3年) ≥ 10%、営業利益率の連続上昇期数 ≥ 2）</p>
+          )}
+          <div className="space-y-2">
+            {dFilters.map(row => (
+              <div key={row.key} className="flex flex-wrap items-center gap-2">
+                <select
+                  value={row.metric}
+                  onChange={e => updateDFilter(row.key, { metric: e.target.value as DerivedMetric })}
+                  className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                >
+                  {DERIVED_METRICS.map(mId => (
+                    <option key={mId} value={mId}>{DERIVED_METRIC_INFO[mId].label}</option>
+                  ))}
+                </select>
+                <select
+                  value={row.operator}
+                  onChange={e => updateDFilter(row.key, { operator: e.target.value as DerivedFilter['operator'] })}
+                  className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                >
+                  {OPERATORS.map(op => (
+                    <option key={op} value={op}>{OPERATOR_LABEL[op]}</option>
+                  ))}
+                </select>
+                <input
+                  type="number" step="any"
+                  value={row.value}
+                  onChange={e => updateDFilter(row.key, { value: e.target.value })}
+                  placeholder={DERIVED_METRIC_INFO[row.metric].hint}
+                  className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                />
+                <span className="text-xs text-muted/70">{DERIVED_METRIC_INFO[row.metric].hint}</span>
+                <button
+                  onClick={() => removeDFilter(row.key)}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-border text-red-400 hover:border-red-500 transition-colors"
+                >
+                  削除
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-amber-400/80 mt-2">
+            ※ 決算データは年次の実績（最新約5期）。トレンド指標は直近数期から計算し、データ不足の場合は「判定不能（不成立扱い）」になります。
+          </p>
+        </div>
+
         <button
           onClick={run}
           disabled={busy}
@@ -486,6 +589,28 @@ export default function ReportPage() {
                   条件不成立のためバックテストはスキップされました。レポートは「不成立の理由と成立に必要な変化」を分析します。
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Derived (earnings-trend) gate result */}
+          {dgate && dgate.evaluations.length > 0 && (
+            <div className={`rounded-lg p-3 space-y-1 border ${
+              dgate.passed ? 'bg-surface/50 border-green-900/50' : 'bg-surface/50 border-amber-800/60'
+            }`}>
+              <p className={`text-xs font-medium ${dgate.passed ? 'text-green-400' : 'text-amber-400'}`}>
+                決算トレンド・ゲート判定（年次実績）: {dgate.passed ? '成立' : '不成立'}
+              </p>
+              <ul className="space-y-0.5">
+                {dgate.evaluations.map((ev, i) => (
+                  <li key={i} className="text-xs text-slate-300 font-mono">
+                    {ev.result === 'pass' ? '✓' : '✗'} {describeDerivedFilter(ev.filter)}
+                    {' → '}
+                    {ev.result === 'no_data'
+                      ? '判定不能（決算データ不足・不成立扱い）'
+                      : `実測 ${ev.actual != null ? formatDerivedValue(ev.filter.metric, ev.actual) : '-'}（${ev.result === 'pass' ? '成立' : '不成立'}）`}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
