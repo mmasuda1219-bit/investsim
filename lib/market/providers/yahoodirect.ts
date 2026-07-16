@@ -81,6 +81,7 @@ function periodToParams(period: string): { range: string; interval: string } {
     '6mo':  { range: '6mo', interval: '1d' },
     '1y':   { range: '1y',  interval: '1d' },
     '2y':   { range: '2y',  interval: '1wk' },
+    '5y':   { range: '5y',  interval: '1d' },
   }
   return map[period] ?? { range: '3mo', interval: '1d' }
 }

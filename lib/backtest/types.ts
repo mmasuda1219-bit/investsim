@@ -131,11 +131,49 @@ export interface FundamentalCondition {
 /** Discriminated union — narrow on `.type`. */
 export type BacktestCondition = TechnicalCondition | FundamentalCondition
 
+// ── Composite condition (/report R1) ────────────────────────────────────────
+// ONE technical trigger + zero-or-more fundamental AND-filters evaluated on
+// CURRENT values only (static gate — fundamentals are NOT applied
+// retroactively over the backtest window; the UI/prompt must state this).
+
+/** Fundamentals fields selectable as gate filters (all exist on FundamentalsData). */
+export type FundamentalMetric =
+  | 'pe'
+  | 'pb'
+  | 'roe'
+  | 'debtToEquity'
+  | 'dividendYield'
+  | 'marketCap'
+  | 'revenueGrowth'
+  | 'earningsGrowth'
+  | 'profitMargin'
+  | 'currentRatio'
+
+/**
+ * One fundamental AND-filter. `value` is in the SAME raw unit as
+ * FundamentalsData (e.g. roe 0.15 = 15%, marketCap in native currency units).
+ * Unit conversion for human input/display lives in lib/backtest/fundamental.ts.
+ */
+export interface FundamentalFilter {
+  metric: FundamentalMetric
+  operator: 'gt' | 'lt' | 'gte' | 'lte'
+  value: number
+}
+
+/** /report R1 condition: one technical rule gated by fundamental AND-filters. */
+export interface CompositeCondition {
+  technical: TechnicalCondition
+  fundamentalFilters: FundamentalFilter[]
+}
+
+/** Supported backtest windows (daily bars). '5y' added for /report R1. */
+export type BacktestPeriod = '1y' | '5y'
+
 /** Input to a single backtest run. */
 export interface BacktestParams {
   symbol: string
-  /** Slice 1 is fixed to 1-year daily bars (Yahoo returns weekly at 2y+). */
-  period: '1y'
+  /** Daily-bar window. Optional — defaults to '1y' (existing callers unchanged). */
+  period?: BacktestPeriod
   condition: BacktestCondition
   /** Virtual starting capital in the symbol's native currency (仮想資金). */
   initialCapital: number
@@ -185,7 +223,7 @@ export interface BacktestResult {
   symbol: string
   /** Native currency of the instrument (e.g. 'USD', 'JPY'). */
   currency: string
-  period: '1y'
+  period: BacktestPeriod
   condition: BacktestCondition
   initialCapital: number
   finalValue: number

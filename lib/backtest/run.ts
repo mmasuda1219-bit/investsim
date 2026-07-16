@@ -60,15 +60,17 @@ function currencyOf(symbol: string): string {
  * Equity is marked to market on every bar with that bar's close.
  */
 export async function runBacktest(params: BacktestParams): Promise<BacktestResult> {
-  const { symbol, condition, initialCapital } = params
+  const { symbol, condition, initialCapital, period = '1y' } = params
 
   if (condition.type !== 'technical') {
     throw new Error('Slice 1 supports technical conditions only')
   }
 
-  // Real data, 1-year daily bars. getHistory('1y') maps to range=1y interval=1d.
-  // allowMock:false => throw on fetch failure rather than returning fake data.
-  const rawBars = await getHistory(symbol, '1y', { allowMock: false })
+  // Real daily bars for the requested window ('1y' default keeps existing
+  // callers identical; '5y' ≈ 1250 bars — the pure-JS loop below stays in the
+  // low-millisecond range). allowMock:false => throw on fetch failure rather
+  // than returning fake data.
+  const rawBars = await getHistory(symbol, period, { allowMock: false })
   // Guard against bad/zero/non-finite closes so NaN/Infinity can't propagate
   // into share sizing, the equity curve, or the metrics.
   const bars = rawBars.filter(b => Number.isFinite(b.close) && b.close > 0)
@@ -114,7 +116,7 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
   return {
     symbol,
     currency: currencyOf(symbol),
-    period: '1y',
+    period,
     condition,
     initialCapital,
     finalValue,

@@ -8,14 +8,20 @@ export const maxDuration = 300
 
 // Minimal structural check — the bundle is produced by our own prepare
 // endpoint, but generate is a separate public route so we don't trust blindly.
+// R1 shape: structured condition (no theoryText/interpreted), fundamentalGate,
+// aiEvidence, and backtest that is null when the fundamental gate failed.
 function isBundle(b: unknown): b is PreparedBundle {
   if (typeof b !== 'object' || b === null) return false
   const o = b as Record<string, unknown>
+  const request = o.request as Record<string, unknown> | undefined
+  const gate = o.fundamentalGate as Record<string, unknown> | undefined
   return (
-    typeof (o.request as Record<string, unknown> | undefined)?.symbol === 'string' &&
-    typeof (o.request as Record<string, unknown> | undefined)?.theoryText === 'string' &&
-    typeof o.interpreted === 'object' && o.interpreted !== null &&
-    typeof o.backtest === 'object' && o.backtest !== null &&
+    typeof request?.symbol === 'string' &&
+    typeof request?.condition === 'object' && request.condition !== null &&
+    typeof gate?.passed === 'boolean' && Array.isArray(gate?.evaluations) &&
+    // backtest is null exactly when the gate failed (skipped run)
+    (o.backtest === null || (typeof o.backtest === 'object' && o.backtest !== null)) &&
+    typeof o.aiEvidence === 'object' && o.aiEvidence !== null &&
     typeof o.current === 'object' && o.current !== null &&
     typeof o.learningContext === 'string' &&
     Array.isArray(o.sources)
@@ -39,7 +45,9 @@ export async function POST(req: Request) {
 
   try {
     const prompt = buildReportPrompt(body.bundle)
-    const stream = await streamReportClaude(prompt, { maxTokens: 3500 })
+    // 4500 tokens — information density is the R1 priority (fits within
+    // maxDuration=300 streaming budget).
+    const stream = await streamReportClaude(prompt, { maxTokens: 4500 })
 
     return new Response(stream, {
       status: 200,

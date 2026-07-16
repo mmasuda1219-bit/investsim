@@ -1,6 +1,6 @@
 import type { StockQuote, HistoricalBar, FundamentalsData, SearchResult } from '@/types'
 
-type Period = '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y'
+type Period = '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y'
 
 const PROVIDER = process.env.NEXT_PUBLIC_DATA_PROVIDER ?? 'yahoo'
 
@@ -8,13 +8,14 @@ function toError(err: unknown): Error {
   return err instanceof Error ? err : new Error(String(err))
 }
 
-// ── Real-data failover: Yahoo Direct → Twelve Data (US stocks) ─────────────
-// Yahoo persistently blocks Vercel's egress IPs with HTTP 429, so allowMock:false
-// paths (e.g. /report) need a second real-data provider (COMPANY.md 原則9).
-// The Twelve Data stage is skipped entirely when TWELVE_DATA_API_KEY is unset
-// (keyless environments keep the legacy Yahoo→Mock behaviour), and its module
-// is only loaded on demand. JP (.T) symbols throw inside the provider without
-// consuming API quota (free tier is US-only; JP failover is a separate slice).
+// ── Real-data failover chain ───────────────────────────────────────────────
+// 1. yahoo-finance2 (providers/yahoo2) — PRIMARY. Uses a cookie+crumb session,
+//    so it succeeds where the raw query1/query2 fetch now gets a blanket 429.
+// 2. Yahoo Direct (providers/yahoodirect) — legacy raw fetch, kept as a cheap
+//    secondary in case the library breaks; typically fails fast on 429.
+// 3. Twelve Data (US stocks) — only when TWELVE_DATA_API_KEY is set.
+// 4. Mock — dev-only last resort, and ONLY when allowMock (COMPANY.md 原則9:
+//    real-data-required callers pass allowMock:false and get an error instead).
 function twelveDataEnabled(): boolean {
   return Boolean(process.env.TWELVE_DATA_API_KEY)
 }
@@ -25,28 +26,27 @@ export async function getQuote(
 ): Promise<StockQuote> {
   const { allowMock = true } = opts // default unchanged — existing callers unaffected
   if (PROVIDER !== 'mock') {
+    const errors: string[] = []
+    // 1. yahoo-finance2 (primary — cookie/crumb session avoids the 429 wall)
+    try {
+      const { yf2GetQuote } = await import('./providers/yahoo2')
+      return await yf2GetQuote(symbol)
+    } catch (e) { errors.push(`yahoo2: ${toError(e).message}`) }
+    // 2. Yahoo Direct (legacy raw fetch — usually fails fast on 429)
     try {
       const { yfDirectGetQuote } = await import('./providers/yahoodirect')
       return await yfDirectGetQuote(symbol)
-    } catch (yahooErr) {
-      if (twelveDataEnabled()) {
-        try {
-          const { twelveDataGetQuote } = await import('./providers/twelvedata')
-          return await twelveDataGetQuote(symbol)
-        } catch (tdErr) {
-          // Real-data-required callers (e.g. /report — COMPANY.md 原則9) pass
-          // allowMock:false so a fake "current price" never reaches the user.
-          if (!allowMock) {
-            throw new Error(
-              `Real quote unavailable for ${symbol} — yahoo: ${toError(yahooErr).message} / twelvedata: ${toError(tdErr).message}`,
-            )
-          }
-          /* else fall through to mock */
-        }
-      } else {
-        if (!allowMock) throw toError(yahooErr)
-        /* else fall through to mock */
-      }
+    } catch (e) { errors.push(`yahoodirect: ${toError(e).message}`) }
+    // 3. Twelve Data (US stocks only, when a key is configured)
+    if (twelveDataEnabled()) {
+      try {
+        const { twelveDataGetQuote } = await import('./providers/twelvedata')
+        return await twelveDataGetQuote(symbol)
+      } catch (e) { errors.push(`twelvedata: ${toError(e).message}`) }
+    }
+    // Real-data-required callers (e.g. /report — COMPANY.md 原則9) never get mock.
+    if (!allowMock) {
+      throw new Error(`Real quote unavailable for ${symbol} — ${errors.join(' / ')}`)
     }
   }
   if (!allowMock) {
@@ -63,28 +63,27 @@ export async function getHistory(
 ): Promise<HistoricalBar[]> {
   const { allowMock = true } = opts
   if (PROVIDER !== 'mock') {
+    const errors: string[] = []
+    // 1. yahoo-finance2 (primary — cookie/crumb session avoids the 429 wall)
+    try {
+      const { yf2GetHistory } = await import('./providers/yahoo2')
+      return await yf2GetHistory(symbol, period)
+    } catch (e) { errors.push(`yahoo2: ${toError(e).message}`) }
+    // 2. Yahoo Direct (legacy raw fetch — usually fails fast on 429)
     try {
       const { yfDirectGetHistory } = await import('./providers/yahoodirect')
       return await yfDirectGetHistory(symbol, period)
-    } catch (yahooErr) {
-      if (twelveDataEnabled()) {
-        try {
-          const { twelveDataGetHistory } = await import('./providers/twelvedata')
-          return await twelveDataGetHistory(symbol, period)
-        } catch (tdErr) {
-          // Callers that require real data (e.g. backtests, COMPANY.md 原則9) pass
-          // allowMock:false so we surface the error instead of silently returning mock data.
-          if (!allowMock) {
-            throw new Error(
-              `Real market data unavailable for ${symbol} — yahoo: ${toError(yahooErr).message} / twelvedata: ${toError(tdErr).message}`,
-            )
-          }
-          /* else fall through to mock */
-        }
-      } else {
-        if (!allowMock) throw toError(yahooErr)
-        /* else fall through to mock */
-      }
+    } catch (e) { errors.push(`yahoodirect: ${toError(e).message}`) }
+    // 3. Twelve Data (US stocks only, when a key is configured)
+    if (twelveDataEnabled()) {
+      try {
+        const { twelveDataGetHistory } = await import('./providers/twelvedata')
+        return await twelveDataGetHistory(symbol, period)
+      } catch (e) { errors.push(`twelvedata: ${toError(e).message}`) }
+    }
+    // Real-data-required callers (backtests etc. — COMPANY.md 原則9) never get mock.
+    if (!allowMock) {
+      throw new Error(`Real market data unavailable for ${symbol} — ${errors.join(' / ')}`)
     }
   }
   if (!allowMock) {
@@ -94,13 +93,29 @@ export async function getHistory(
   return mockGetHistory(symbol, period)
 }
 
-export async function getFundamentals(symbol: string): Promise<FundamentalsData> {
+export async function getFundamentals(
+  symbol: string,
+  opts: { allowMock?: boolean } = {},
+): Promise<FundamentalsData> {
+  const { allowMock = true } = opts // default unchanged — existing callers unaffected
   if (PROVIDER !== 'mock') {
+    // 1. yahoo-finance2 (primary). Returns {} inside itself only on schema gaps;
+    //    a thrown/empty result here falls through to the legacy provider.
+    try {
+      const { yf2GetFundamentals } = await import('./providers/yahoo2')
+      const f = await yf2GetFundamentals(symbol)
+      if (Object.keys(f).length > 0) return f
+    } catch { /* fall through */ }
+    // 2. Yahoo Direct (legacy). 原則9: on failure it returns {} (never mock).
     try {
       const { yfDirectGetFundamentals } = await import('./providers/yahoodirect')
       return await yfDirectGetFundamentals(symbol)
     } catch { /* fall through */ }
+    // Real-data-required callers (e.g. /report fundamental gate — 原則9) get an
+    // EMPTY object (= "no data", distinguishable) instead of mock numbers.
+    if (!allowMock) return {}
   }
+  if (!allowMock) return {}
   const { mockGetFundamentals } = await import('./providers/mock')
   return mockGetFundamentals(symbol)
 }
@@ -117,11 +132,16 @@ export async function searchStocks(query: string): Promise<SearchResult[]> {
 
   if (PROVIDER !== 'mock') {
     try {
+      const { yf2Search } = await import('./providers/yahoo2')
+      merge(await yf2Search(query))
+    } catch { /* fall through */ }
+    try {
       const { yfDirectSearch } = await import('./providers/yahoodirect')
       merge(await yfDirectSearch(query))
     } catch { /* fall through */ }
   }
 
+  // Mock catalog augments real results (adds JP aliases / offline dev support).
   const { mockSearch } = await import('./providers/mock')
   merge(mockSearch(query))
 

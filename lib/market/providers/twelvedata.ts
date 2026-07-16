@@ -107,6 +107,7 @@ function periodToOutputSize(period: string): number {
     '6mo': 135,
     '1y':  300,
     '2y':  520,
+    '5y':  1300,
   }
   return map[period] ?? 70
 }

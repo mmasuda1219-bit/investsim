@@ -1,5 +1,10 @@
-// Prepare step 1: interpret the user's free-form theory into ONE executable
-// BacktestCondition using a cheap model (non-streaming).
+// ⚠️ PARKED (R1, 2026-07-16): the Haiku interpret step was REMOVED from the
+// /report pipeline — prepare now takes a structured CompositeCondition and no
+// route imports this file. Kept on disk per owner/architect decision (may
+// return in a later slice). Uses Legacy* types so it still compiles.
+//
+// Prepare step 1 (v1): interpret the user's free-form theory into ONE
+// executable BacktestCondition using a cheap model (non-streaming).
 //
 // Slice 2 change: the interpreter picks from the FULL catalog of supported
 // rules (8 as of now). The user's checked indicator families are passed only
@@ -13,7 +18,7 @@
 
 import { callReportClaude, INTERPRET_MODEL } from './claude'
 import type { TechnicalCondition } from '@/lib/backtest/types'
-import type { ReportRequest, InterpretedTheory, ReportIndicator } from './types'
+import type { LegacyReportRequest, InterpretedTheory, ReportIndicator } from './types'
 
 /** Thrown when the theory cannot be mapped to a supported condition (=> 422). */
 export class InterpretError extends Error {
@@ -105,7 +110,7 @@ interface ParsedInterpretation {
 }
 
 /** Build a validated condition from the model's raw JSON (clamped periods). */
-function buildCondition(id: IndicatorId, parsed: ParsedInterpretation, req: ReportRequest): TechnicalCondition {
+function buildCondition(id: IndicatorId, parsed: ParsedInterpretation, req: LegacyReportRequest): TechnicalCondition {
   switch (id) {
     case 'ma_cross':
       return {
@@ -140,7 +145,7 @@ function buildCondition(id: IndicatorId, parsed: ParsedInterpretation, req: Repo
   }
 }
 
-function buildPrompt(req: ReportRequest): string {
+function buildPrompt(req: LegacyReportRequest): string {
   const catalogText = ALL_RULE_IDS.map(id => `- "${id}": ${RULE_CATALOG[id]}`).join('\n')
 
   const hintText = req.indicators.length > 0
@@ -191,7 +196,7 @@ ${hintText}${maHint}
  * FULL catalog (checked indicators are a soft hint only), then validate
  * strictly and clamp the periods.
  */
-export async function interpretTheory(req: ReportRequest): Promise<InterpretedTheory> {
+export async function interpretTheory(req: LegacyReportRequest): Promise<InterpretedTheory> {
   const text = await callReportClaude(buildPrompt(req), { model: INTERPRET_MODEL, maxTokens: 600 })
 
   const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) ?? text.match(/(\{[\s\S]*\})/)

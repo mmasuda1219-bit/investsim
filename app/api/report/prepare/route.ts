@@ -2,21 +2,28 @@ import { NextResponse } from 'next/server'
 import { getQuote, getHistory, getFundamentals } from '@/lib/market'
 import { calcMA, calcRSI, calcMACD, calcBB } from '@/lib/technicals'
 import { runBacktest, BacktestDataError } from '@/lib/backtest/run'
-import { interpretTheory, InterpretError } from '@/lib/report/interpret'
-import { INTERPRET_MODEL } from '@/lib/report/claude'
+import {
+  evaluateFundamentalGate,
+  describeFundamentalFilter,
+  formatMetricValue,
+} from '@/lib/backtest/fundamental'
+import { parseCompositeCondition, ValidationError } from '@/lib/report/validate'
+import { describeCompositeCondition } from '@/lib/report/prompt'
+import { collectAiTraderEvidence } from '@/lib/report/evidence'
 import { listSessions } from '@/lib/ai-trader/store'
 import { normalizeLearningMemory, buildLearningContext } from '@/lib/ai-trader/memory'
 import type { HistoricalBar } from '@/types'
+import type { FundamentalGateResult } from '@/lib/backtest/fundamental'
 import type {
   ReportRequest,
-  ReportIndicator,
   PreparedBundle,
+  BacktestSummary,
+  ChartData,
+  PrepareResponse,
 } from '@/lib/report/types'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
-
-const VALID_INDICATORS: ReportIndicator[] = ['ma', 'rsi', 'macd', 'bb', 'stoch', 'roc', 'breakout']
 
 // Map raw data-layer errors (already retried in the Yahoo provider) to
 // user-facing Japanese + the right status. 4xx-ish causes (bad ticker,
@@ -33,10 +40,23 @@ function classifyDataError(err: unknown, symbol: string): { status: number; erro
       error: `銘柄「${symbol}」のデータが見つかりませんでした。ティッカーシンボル（例: AAPL, 7203.T）を確認してください。`,
     }
   }
+  // All real-data providers were exhausted (index.ts combined-failure message).
+  // This is NOT a transient blip you can wait out — it's typically Yahoo hard-
+  // blocking the server IP (common on Vercel). Give an accurate, actionable hint.
+  if (/unavailable for/.test(message)) {
+    const hasTwelve = Boolean(process.env.TWELVE_DATA_API_KEY)
+    const hint = hasTwelve
+      ? '少し待って再試行しても改善しない場合は、しばらく時間をおいてください。'
+      : 'この環境（特にVercel等のサーバー）ではYahooがIPを制限している可能性があります。環境変数 TWELVE_DATA_API_KEY（Twelve Dataの無料キー）を設定すると実データ取得が安定します。'
+    return {
+      status: 502,
+      error: `実データの取得に失敗しました（全データ提供元が応答しませんでした）。${hint}`,
+    }
+  }
   if (/HTTP 429/.test(message)) {
     return {
       status: 502,
-      error: 'データ提供元（Yahoo Finance）が混雑しています（レート制限）。1〜2分ほど待ってから再試行してください。',
+      error: 'データ提供元が混雑しています（レート制限）。少し待ってから再試行してください。改善しない場合は TWELVE_DATA_API_KEY の設定をご検討ください。',
     }
   }
   if (/HTTP (5\d\d|529)/.test(message)) {
@@ -48,8 +68,9 @@ function classifyDataError(err: unknown, symbol: string): { status: number; erro
   return { status: 502, error: `実データの取得・バックテストに失敗しました: ${message}` }
 }
 
-// Human-readable technical summary of recent real bars (same signals the
-// AI trader uses; formatting only — indicator math reused from lib/technicals).
+// Human-readable technical summary of recent real bars, WITH the actual
+// values (MA20/50, RSI, MACD line/signal/histogram, BB upper/lower) — the
+// report's accuracy-first prompt quotes these numbers directly.
 function summarizeTechnicals(bars: HistoricalBar[], price: number): string {
   const ma20 = calcMA(bars, 20).at(-1)?.value
   const ma50 = calcMA(bars, 50).at(-1)?.value
@@ -76,12 +97,22 @@ function summarizeTechnicals(bars: HistoricalBar[], price: number): string {
       : 'BBバンド内'
     : ''
 
-  const detail = `MA20=${ma20?.toFixed(2) ?? '-'} MA50=${ma50?.toFixed(2) ?? '-'} RSI=${rsi?.toFixed(1) ?? '-'} MACD=${macd?.macd?.toFixed(2) ?? '-'}`
+  const detail = [
+    `MA20=${ma20?.toFixed(2) ?? '-'}`,
+    `MA50=${ma50?.toFixed(2) ?? '-'}`,
+    `RSI(14)=${rsi?.toFixed(1) ?? '-'}`,
+    `MACD=${macd?.macd?.toFixed(3) ?? '-'}`,
+    `シグナル=${macd?.signal?.toFixed(3) ?? '-'}`,
+    `ヒストグラム=${macd?.histogram?.toFixed(3) ?? '-'}`,
+    `BB上限=${bb?.upper?.toFixed(2) ?? '-'}`,
+    `BB中心=${bb?.middle?.toFixed(2) ?? '-'}`,
+    `BB下限=${bb?.lower?.toFixed(2) ?? '-'}`,
+  ].join(' ')
   return [trend, rsiSig, macdSig, bbSig].filter(Boolean).join(' | ') + ` (${detail})`
 }
 
-// Latest session's learning context. Missing sessions are fine ('' — slice 1
-// stores nothing itself; this only READS the ai-trader store).
+// Latest session's learning context (cross-symbol). Missing sessions are fine
+// ('' — this only READS the ai-trader store).
 async function collectLearningContext(): Promise<string> {
   try {
     const sessions = await listSessions() // sorted newest-first
@@ -93,9 +124,23 @@ async function collectLearningContext(): Promise<string> {
   }
 }
 
-// POST /api/report/prepare
-// Validate → Haiku interpret (422 on failure) → real-data backtest (502 on
-// data failure) → current snapshot + learning context → PreparedBundle.
+// Human-readable reason when the fundamental AND-gate fails (actual vs threshold).
+function buildGateFailReason(gate: FundamentalGateResult): string {
+  const failed = gate.evaluations.filter((e) => e.result !== 'pass')
+  const parts = failed.map((e) => {
+    const cond = describeFundamentalFilter(e.filter)
+    if (e.result === 'no_data') return `「${cond}」→ 実データ取得不可のため判定不能（不成立扱い）`
+    const actual = e.actual != null ? formatMetricValue(e.filter.metric, e.actual) : 'N/A'
+    return `「${cond}」→ 実測 ${actual} で不成立`
+  })
+  return `ファンダメンタル条件が現在値で不成立: ${parts.join(' / ')}`
+}
+
+// POST /api/report/prepare (R1)
+// Validate structured condition (400) → real fundamentals → AND-gate →
+// (gate pass ⇒ 5y real-data backtest / fail ⇒ skip) → current snapshot →
+// AI-trader evidence + learning context → { bundle, chartData }.
+// No Haiku interpret step — the condition arrives structured from the UI.
 export async function POST(req: Request) {
   let body: Record<string, unknown>
   try {
@@ -114,70 +159,45 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid symbol format' }, { status: 400 })
   }
 
-  const theoryText = typeof body?.theoryText === 'string' ? body.theoryText.trim() : ''
-  if (!theoryText) {
-    return NextResponse.json({ error: 'theoryText is required' }, { status: 400 })
+  let condition
+  try {
+    condition = parseCompositeCondition(body?.condition)
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
+    throw err
   }
-  if (theoryText.length > 2000) {
-    return NextResponse.json({ error: 'theoryText is too long (max 2000 chars)' }, { status: 400 })
-  }
-
-  // Indicators are an OPTIONAL HINT since slice 2 — empty array is fine
-  // (= no hint, interpreter picks from the full rule catalog). Unknown ids
-  // are silently dropped for backward/forward payload compatibility.
-  const rawIndicators = Array.isArray(body?.indicators) ? body.indicators : []
-  const indicators = rawIndicators.filter(
-    (i): i is ReportIndicator => VALID_INDICATORS.includes(i as ReportIndicator),
-  )
-
-  const maPeriod =
-    typeof body?.maPeriod === 'number' && body.maPeriod >= 2 && body.maPeriod <= 200
-      ? Math.floor(body.maPeriod)
-      : undefined
 
   const initialCapital =
     typeof body?.initialCapital === 'number' && body.initialCapital > 0
       ? Math.min(body.initialCapital, 10_000_000)
       : 100_000
 
-  const request: ReportRequest = { symbol, theoryText, indicators, maPeriod, initialCapital }
-
-  // ── 1. Haiku interpretation (no silent default — principle 9) ────────
-  let interpreted
-  try {
-    interpreted = await interpretTheory(request)
-  } catch (err) {
-    if (err instanceof InterpretError) {
-      return NextResponse.json({ error: err.message }, { status: 422 })
-    }
-    const message = err instanceof Error ? err.message : 'interpretation failed'
-    return NextResponse.json({ error: `理論の解釈に失敗しました: ${message}` }, { status: 500 })
-  }
+  const request: ReportRequest = { symbol, condition, initialCapital }
 
   try {
-    // ── 2. Real-data backtest (allowMock:false inside runBacktest) ─────
-    const result = await runBacktest({
-      symbol,
-      period: '1y',
-      condition: interpreted.condition,
-      initialCapital,
-    })
+    // ── 1. Real fundamentals → AND-gate (current values, static) ───────
+    // allowMock:false — a mock number must never decide the gate (原則9).
+    // Unavailable data comes back as {} ⇒ 'no_data' ⇒ fail-closed but
+    // explicitly reported as 判定不能.
+    const fundamentals = await getFundamentals(symbol, { allowMock: false })
+    const fundamentalGate = evaluateFundamentalGate(fundamentals, condition.fundamentalFilters)
 
-    // ── 3. Current snapshot (real quote/technicals/fundamentals) ───────
-    const [quote, recentBars, fundamentals] = await Promise.all([
-      getQuote(symbol, { allowMock: false }), // 原則9: モック現在値をレポートに混ぜない
-      getHistory(symbol, '3mo', { allowMock: false }),
-      getFundamentals(symbol),
-    ])
-    const technicals = summarizeTechnicals(recentBars, quote.price)
-
-    // ── 4. Learning context from the latest AI session (read-only) ─────
-    const learningContext = await collectLearningContext()
-
-    const bundle: PreparedBundle = {
-      request,
-      interpreted,
-      backtest: {
+    // ── 2. 5y real-data backtest — ONLY when the gate passed ───────────
+    let backtest: BacktestSummary | null = null
+    let equityCurve: ChartData['equityCurve'] = []
+    let trades: ChartData['trades'] = []
+    if (fundamentalGate.passed) {
+      const result = await runBacktest({
+        symbol,
+        period: '5y',
+        condition: condition.technical,
+        initialCapital,
+      })
+      const firstPrice = result.equityCurve[0]?.price ?? 0
+      const lastPrice = result.equityCurve[result.equityCurve.length - 1]?.price ?? 0
+      backtest = {
         symbol: result.symbol,
         currency: result.currency,
         period: result.period,
@@ -187,22 +207,66 @@ export async function POST(req: Request) {
         initialCapital: result.initialCapital,
         finalValue: result.finalValue,
         metrics: result.metrics,
-        // Equity curve intentionally dropped (token economy); trades kept.
+        // Equity curve intentionally dropped from the bundle (token economy);
+        // it goes into chartData below instead. Trades kept for the prompt.
         trades: result.trades,
-      },
+        buyHoldReturnPct: firstPrice > 0
+          ? parseFloat((((lastPrice - firstPrice) / firstPrice) * 100).toFixed(2))
+          : 0,
+      }
+      equityCurve = result.equityCurve
+      trades = result.trades
+    }
+
+    // ── 3. Current snapshot + 5y bars for the client chart ─────────────
+    // (5y bars are served from the provider's short TTL cache when the
+    // backtest above already fetched them.)
+    const [quote, recentBars, fiveYearBars] = await Promise.all([
+      getQuote(symbol, { allowMock: false }), // 原則9: モック現在値をレポートに混ぜない
+      getHistory(symbol, '3mo', { allowMock: false }),
+      getHistory(symbol, '5y', { allowMock: false }),
+    ])
+    const technicals = summarizeTechnicals(recentBars, quote.price)
+
+    // ── 4. AI trader evidence (this symbol) + learning context ─────────
+    const [aiEvidence, learningContext] = await Promise.all([
+      collectAiTraderEvidence(symbol),
+      collectLearningContext(),
+    ])
+
+    const bundle: PreparedBundle = {
+      request,
+      conditionDescription: describeCompositeCondition(condition),
+      period: '5y',
+      fundamentalGate,
+      backtest,
+      ...(fundamentalGate.passed ? {} : { gateFailReason: buildGateFailReason(fundamentalGate) }),
       current: { quote, technicals, fundamentals },
+      aiEvidence,
       learningContext,
       sources: [
-        'Yahoo Finance（リアルタイム株価・1年日足ヒストリカル・3ヶ月日足）',
-        'Yahoo Finance（ファンダメンタル指標）',
-        'InvestSimバックテストエンジン（lib/backtest・実データ純計算）',
+        'Yahoo Finance（リアルタイム株価・過去5年日足ヒストリカル・直近3ヶ月日足）',
+        'Yahoo Finance（ファンダメンタル指標・現在値）',
+        'InvestSimバックテストエンジン（lib/backtest・実データ純計算・5年日足）',
+        'InvestSim AIトレーダー実績（全AIセッションの実売買記録・銘柄別）',
         'InvestSim AIセッション学習メモリ（過去の仮想売買の教訓）',
-        `Claude AI（理論解釈: ${INTERPRET_MODEL} / レポート生成: ${process.env.REPORT_AI_MODEL || 'claude-opus-4-8'}）`,
+        `Claude AI（レポート生成: ${process.env.REPORT_AI_MODEL || 'claude-opus-4-8'}）`,
       ],
       preparedAt: new Date().toISOString(),
     }
 
-    return NextResponse.json({ bundle })
+    // Chart payload lives NEXT TO the bundle — the client can draw 5y OHLC +
+    // equity curve + trade markers, but none of it reaches the Opus prompt.
+    const chartData: ChartData = {
+      symbol,
+      period: '5y',
+      bars: fiveYearBars,
+      equityCurve,
+      trades,
+    }
+
+    const response: PrepareResponse = { bundle, chartData }
+    return NextResponse.json(response)
   } catch (err) {
     // Real-data fetch/backtest failure => 422/502 (never mock fallback here).
     const { status, error } = classifyDataError(err, symbol)

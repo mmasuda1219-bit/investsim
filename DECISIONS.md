@@ -96,3 +96,31 @@
 - 非破壊確認: /lab(app/api/lab, app/lab)・tick経路(lib/ai-trader/*)・既存4ルールのシグナル挙動は不変。describeConditionはexhaustive switch(never代入)で将来の追加漏れをコンパイルエラー化
 - 検証: scripts/check-rules.ts（合成バーで8評価器を検証・全PASS。特にhl_breakのルックアヘッド境界＝当日高値12に阻害されず前日まで高値10の上抜けでbuy発火を確認）。npx tsc --noEmit 緑
 - 影響ファイル: lib/report/interpret.ts, lib/report/types.ts, lib/report/prompt.ts, lib/report/claude.ts, lib/technicals.ts, lib/backtest/types.ts, lib/backtest/rules.ts, lib/backtest/run.ts, app/api/report/prepare/route.ts, app/report/page.tsx, scripts/check-rules.ts(新), .env.example
+
+## 2026-07-15: Yahoo恒常429を yahoo-finance2 ライブラリ主プロバイダ化で解決
+- 背景: オーナー報告「データ提供元(Yahoo)が混雑しています(レート制限)」。調査でquery1/query2の生fetchが全リクエストHTTP 429（curlでUA有無・Cookie付与・両ホストいずれも429を再現）。原因はYahooがpublic chart/quoteホストをcookie+crumbセッションでハードゲート化したこと。手書きfetch(providers/yahoodirect)はcrumbを持たず恒常429
+- 決定: 既にインストール済みの `yahoo-finance2` v3（cookie/crumbセッションを自動確立・再利用）をラップした新プロバイダ `lib/market/providers/yahoo2.ts` を第一実データ源にする。実証: 同ライブラリでAAPL(quote 326.31/chart 281本)・7203.T(JP chart 275本 JPY)・fundamentals(pe/roe)・search 全取得成功。生fetchでは全て429
+- フェイルオーバー刷新（getQuote/getHistory）: yahoo2 → yahoodirect(生fetch・通常は429即失敗の保険) → Twelve Data(US・キー有時) → mock。allowMock:falseは実データ尽きたらthrow（原則9・/reportやバックテストにモック現在値/株価を混ぜない）。getFundamentalsは yahoo2→yahoodirect→mock、searchは yahoo2+yahoodirect+mockカタログをマージ
+- 実装詳細: モジュールスコープでYahooFinanceインスタンスを1個メモ化しcrumb/cookieをtick(engine.ts)の多数並列呼び出し間で再利用。小さいTTLキャッシュ（quote20s/history300s/fundamentals30分/search10分・最大500件LRU的破棄）で重複呼び出しを畳みレート負荷を軽減。periodトークン→period1日付+intervalへ変換（1y=370日分の日足等、warm-up余裕を確保）
+- 非破壊: 既存のPeriod型・呼び出し側(engine.ts/simulate/signals/chart/report)は不変。app/api/chart/route.tsは元からyahoo-finance2直用だったため方式は前例踏襲
+- 未検証(環境要因): dev/本番でのライブE2Eは、作業時点でiCloudのnode_modulesファイル読込がETIMEDOUT多発（既知のiCloud I/O制約）で `next dev` が起動できず未実施。コード側の型チェックは tsc --noEmit exit 0。実データ取得可否はライブラリ単体で実証済み。本番(Vercel)ではVercel IPに対するYahooの挙動を要再確認（Twelve Dataキー投入が保険）
+- 影響ファイル: lib/market/providers/yahoo2.ts(新), lib/market/index.ts
+
+## 2026-07-15: Yahoo 429 追加堅牢化 — quoteをchart metaから導出＋/report 422メッセージ是正
+- 背景: yahoo2主プロバイダ化後も「Yahoo混雑・1〜2分待て」が出続けるとの報告。原因2点: (1)本番VercelはYahooがv7 quote(crumb必須)を特に強くIP 429し、yahoo2のquote()も弾かれ得る (2)全プロバイダ失敗時にindex.tsが投げる結合メッセージに"HTTP 429"(yahoodirect由来)が混ざり、prepareのclassifyDataErrorが誤って「Yahoo混雑・待て」に分類していた
+- 決定: (1) yf2GetQuoteで client.quote() 失敗時に、より弾かれにくいv8 chart()の meta（regularMarketPrice/chartPreviousClose/volume/longName/currency/regularMarketTime）から StockQuote を導出するフォールバックを追加。US(AAPL $327.94)・JP(7203.T ¥2875.5)で実データ導出を実証。(2) classifyDataErrorに「全提供元枯渇(unavailable for)」分岐を新設し、待てば直る誤誘導をやめ、Vercel等ではYahooのIP制限が原因でTWELVE_DATA_API_KEY設定が有効、と実態に即した案内に是正。従来の生"HTTP 429"分岐も文言修正
+- yf2GetFundamentalsはundefined値を除去して返し、index.tsの「空なら次プロバイダへ」判定が正しく効くよう修正
+- 環境別の解決策: ローカル開発=yahoo2で解決(サーバ再起動要)。本番Vercel=YahooがIP遮断するためTWELVE_DATA_API_KEY(無料)設定が確実。原則9は維持(実データ尽きたらthrow・モック株価を混ぜない)
+- 影響ファイル: lib/market/providers/yahoo2.ts, app/api/report/prepare/route.ts
+
+## 2026-07-16: /report再設計R1 — 構造化条件ピッカー・5y統一・AIトレーダー実績統合（情報量/正確性優先）
+- 背景: 自由記述theoryTextのHaiku解釈は誤解釈・422の温床で、オーナー方針も「レポートの情報量と正確性を最優先（デザイン非優先）」に確定。PDF出力はオーナー判断で優先降格（後続スライスへ）
+- 決定: prepareの入力を `{symbol, condition: CompositeCondition, initialCapital?}` に刷新（theoryText/indicators廃止）。CompositeCondition＝テクニカル1ルール（既存8種・期間clamp）＋ファンダANDゲート（10指標×gt/lt/gte/lte・現在値による静的フィルタで過去5年に遡及しない旨をUI/プロンプト双方に明記）。ゲートno_dataはfail-closed（不成立扱い・ただし「判定不能」と区別表示）、矛盾条件はエラーにせず単に評価。ゲートpass時のみ5yバックテスト、fail時はスキップし不成立理由を実測値つきでbundleへ（レポートは不成立分析として生成可能）
+- Haiku解釈（lib/report/interpret.ts）は経路から除外・ファイル残置（Legacy型で温存）。バリデーションは純関数化（lib/report/validate.ts・未知metric/indicator/operatorは400・数値範囲はclamp）
+- 5y統一: Period型に'5y'追加、yahoo2(days:1835/1d)・yahoodirect(range:5y/1d)・twelvedata(outputsize:1300)の3プロバイダにマップ追加。runBacktestをperiod引数化（既定'1y'で/lab互換維持）。実測: AAPL 5y=1262本・31取引・数ms
+- AIトレーダー実績統合: lib/report/evidence.ts新設。全セッション（listSessions・読み取りのみ）から対象銘柄のclosedTrades（entry/exit・pnlPct・保有時間・理由）・直近decisions・銘柄言及lessonsを構造化したAiTraderEvidenceをbundleへ。従来のbuildLearningContext（全銘柄横断）も併用
+- prompt強化（オーナー最優先）: metrics全項目＋取引一覧最大20件（往復損益%つき）＋バイ&ホールド実測比較＋ファンダ全指標実測値＋ゲート判定（実測vs閾値）＋テクニカル実数値（MA20/50・RSI・MACD線/シグナル/ヒスト・BB上中下）＋AI実績。見出しは現行7＋「AIトレーダーの実績」の計8。厳守指示「全主張に数値根拠・データに無いことを断定しない・ファンダ静的評価と未来予想非予言の明記」。max_tokens 3500→4500
+- chartData（5年OHLC＋エクイティカーブ＋約定マーカー）はbundleと別にレスポンスへ（Opusに渡さない・トークン節約）。getFundamentalsにallowMockオプション追加（ゲート判定にモック値を混ぜない・実データ不可時は{}=no_data、原則9）
+- 同梱出荷: yahoo2主経路フェイルオーバー（既差分）・SiteNavに/report追加＋/lab行削除（app/lab本体未出荷で404のため・オーナー承認済み）
+- 検証: scripts/check-report-r1.ts新設（ゲートpass/fail/no_data/矛盾・単位変換・バリデーション・1250本評価15ms）全PASS、scripts/check-rules.ts回帰PASS、tsc --noEmit緑、実API E2E（AAPL 5y実データ+実ファンダ18指標）成功。Opus呼び出しE2Eは未実施（計画どおり）
+- 影響ファイル: lib/backtest/{types,run,fundamental(新)}.ts, lib/report/{types,prompt,validate(新),evidence(新),interpret}.ts, lib/market/{index,providers/yahoo2,providers/yahoodirect,providers/twelvedata}.ts, app/api/report/{prepare,generate}/route.ts, app/report/page.tsx, components/SiteNav.tsx, scripts/check-report-r1.ts(新)
