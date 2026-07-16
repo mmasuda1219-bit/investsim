@@ -17,7 +17,7 @@ import {
   describeDerivedFilter, formatDerivedValue, DERIVED_METRIC_INFO, DERIVED_METRICS,
 } from '@/lib/backtest/fundamental'
 import type { StatementsData, DerivedFundamentals } from '@/lib/statements/types'
-import type { PreparedBundle, BacktestSummary, AiTraderEvidence } from './types'
+import type { PreparedBundle, BacktestSummary, AiTraderEvidence, NewsItem, MacroContext, SourceRef } from './types'
 
 const MAX_TRADES_IN_PROMPT = 20
 
@@ -205,10 +205,39 @@ function fmtAiEvidence(ev: AiTraderEvidence, symbol: string): string {
   return parts.join('\n')
 }
 
+// ── News / macro / citations formatting (/report R3) ───────────────────────
+function fmtNews(news: NewsItem[]): string {
+  if (news.length === 0) {
+    return '（この銘柄の直近ニュースは取得できませんでした）'
+  }
+  return news.map((nw) => {
+    const when = nw.publishedAt > 0 ? new Date(nw.publishedAt * 1000).toISOString().slice(0, 10) : '日付不明'
+    return `- [${when}] ${nw.title}（${nw.publisher || '出所不明'}）`
+  }).join('\n')
+}
+
+function fmtMacro(macro: MacroContext | null): string {
+  if (!macro) return '（マクロ・市場指標を取得できませんでした）'
+  const lines = macro.items.map((m) => {
+    if (m.current == null) return `- ${m.label}: データなし`
+    const cur = `${m.current.toFixed(2)}${m.unit}`
+    const then = m.periodStartValue != null
+      ? `（5年前 ${m.periodStartValue.toFixed(2)}${m.unit} → 現在 ${m.current.toFixed(2)}${m.unit}・${m.periodStartValue > 0 ? `${(((m.current - m.periodStartValue) / m.periodStartValue) * 100).toFixed(1)}%` : '—'}）`
+      : ''
+    return `- ${m.label}: 現在 ${cur} ${then}`
+  })
+  return lines.join('\n')
+}
+
+/** Numbered citation list for the prompt (URLs are shown but Opus must NOT reproduce them). */
+function fmtSources(sources: SourceRef[]): string {
+  return sources.map((s) => `[${s.id}] ${s.label} — ${s.usedFor}`).join('\n')
+}
+
 /** Build the single Opus prompt from a prepared bundle. */
 export function buildReportPrompt(bundle: PreparedBundle): string {
   const { request, backtest: bt, current, fundamentalGate, aiEvidence, learningContext, sources,
-    statements, derived, derivedGate } = bundle
+    statements, derived, derivedGate, news, macro } = bundle
   const q = current.quote
 
   const statementsBlock = statements
@@ -249,8 +278,14 @@ ${fmtAiEvidence(aiEvidence, q.symbol)}
 【AIトレーダーの学習コンテキスト（全銘柄横断・過去の仮想売買から蓄積した教訓）】
 ${learningContext || '（学習データなし）'}
 
-【データソース】
-${sources.map((s) => `- ${s}`).join('\n')}
+【直近の関連ニュース（現在・実データ／過去時点の個別ニュースは取得不可）】
+${fmtNews(news)}
+
+【マクロ・市場環境（米国市場指標／現在値と過去5年の推移）】
+${fmtMacro(macro)}
+
+【引用元（参照番号つき — 本文ではこの番号[n]で引用する）】
+${fmtSources(sources)}
 
 ---
 
@@ -263,10 +298,10 @@ ${sources.map((s) => `- ${s}`).join('\n')}
 ユーザーが設定した売買条件（テクニカルルール＋ファンダメンタル・フィルタ）の説明。ゲート判定の結果（各フィルタの実測値vs閾値）を数値つきで示す。判定不能（データなし）のフィルタがあればその旨も明示。
 
 ## バックテスト結果
-数値の提示だけでなく解釈を。リターン・勝率・ドローダウン・シャープの意味、バイ&ホールド（上記の実測値）との比較、この条件が過去5年のこの銘柄で機能したか/しなかったかの評価。バックテスト未実行の場合は、条件不成立の理由と成立に必要な変化を実測値に基づき分析する。
+数値の提示だけでなく解釈を。リターン・勝率・ドローダウン・シャープの意味、バイ&ホールド（上記の実測値）との比較、この条件が過去5年のこの銘柄で機能したか/しなかったかの評価。**過去5年のマクロ環境の推移（上記の指数・VIX・金利の「5年前→現在」）を「当時の市場環境」として踏まえ**、この戦略の成績がその環境とどう関係したかにも触れる（※過去の特定日付の個別ニュースは取得できないため創作しない）。バックテスト未実行の場合は、条件不成立の理由と成立に必要な変化を実測値に基づき分析する。
 
 ## 現状分析
-現在の株価・テクニカル実数値・ファンダメンタル実測値から見た現時点の状態。設定した条件のシグナルが今どの位置にあるか（発火に近いか遠いか）を具体的な数値で。
+現在の株価・テクニカル実数値・ファンダメンタル実測値から見た現時点の状態。設定した条件のシグナルが今どの位置にあるか（発火に近いか遠いか）を具体的な数値で。**直近の関連ニュースと足元のマクロ・市場環境（VIX・米金利・指数・ドル指数・原油の現在水準）を加味**し、その根拠に引用元番号[n]を付す。
 
 ## 決算書分析（複数期推移）
 上記の決算書（複数期の実数値）と派生指標を根拠に、**単期の絶対値ではなく複数期の傾きと一貫性**を評価する。売上・営業利益率・純利益率・EPS・FCFの方向性（成長しているか鈍化か、利益率は改善か悪化か）、利益の質（営業CF÷純利益）、財務健全性（自己資本比率・純有利子負債/EBITDA）を数値根拠付きで論じる。決算トレンド条件を設定している場合はその判定結果にも触れる。判定不能（データ不足）の指標は判定不能と明記し、決算データが取得できなかった場合はその旨を書く。
@@ -275,16 +310,18 @@ ${sources.map((s) => `- ${s}`).join('\n')}
 InvestSim AIトレーダーのこの銘柄での実際の売買実績（回数・勝率・平均損益・直近取引の理由・教訓）の要約と、それが本条件の評価にどう関係するか。実績データが無い場合は「実績なし」と明記し、全銘柄横断の学習コンテキストから言える範囲のみ述べる。
 
 ## 未来予想
-実データとAI推論に基づく今後のシナリオ（強気・中立・弱気の3シナリオと各々の条件・目安となる価格/指標水準）。**これは実データに基づくAIの推論であり予言ではないこと、投資判断はユーザー自身の責任であることを冒頭に明記する。**
+**足元の状況（直近ニュース・現在のマクロ/市場環境＝金利・VIX・指数・ドル指数・原油の現在水準）を加味した上で**、実データとAI推論に基づく今後のシナリオ（強気・中立・弱気の3シナリオと各々の条件・目安となる価格/指標水準）。各シナリオの根拠に引用元番号[n]を付す。**これは実データに基づくAIの推論であり予言ではないこと、投資判断はユーザー自身の責任であることを冒頭に明記する。**
 
 ## 根拠チェーン
 上記の予想に至った論理の連鎖を「事実→解釈→推論」の形で箇条書きにする。各ステップでどのデータ（バックテスト数値/ゲート実測値/現在テクニカル/ファンダ/AIトレーダー実績/学習コンテキスト)を根拠にしたかを数値つきで明示。
 
 ## 引用元
-使用したデータソースの一覧（上記【データソース】をそのまま列挙し、それぞれ何に使ったかを1行で）。
+上記【引用元】の番号付きリストを「[n] ラベル — 用途」の形でそのまま列挙する（本文で使った番号を中心に）。**URLは書かない**（アプリが番号[n]から実際のリンクを表示する）。
 
 厳守事項:
 - **すべての主張に数値根拠を付けること**。本文中の実データのみを使い、架空の数値を作らない。データに無いことを断定しない（不明なものは不明と書く）。
+- **引用**: ニュース・マクロ・決算・バックテスト・現在指標などデータ由来の主張には、対応する引用元番号「[n]」を文末に付す。**URLは絶対に自分で書かない**（幻覚防止・リンクはアプリが番号から表示）。
+- **ニュース・マクロの扱い**: 直近ニュースと現在のマクロ環境は現状分析・未来予想に加味する。過去分析では「当時のマクロ推移」を根拠にし、**過去の特定日付の個別ニュースは取得できないため創作しない**。
 - ファンダメンタル条件は現在値の静的評価であり過去5年に遡及しない旨を必ず明記する。
 - 未来予想は実データ＋AI推論であり予言ではない旨を明記する。
 - 日本語で、具体的かつ情報量を最大に。見た目の装飾より数値と根拠の密度を優先する。`

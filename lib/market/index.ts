@@ -1,5 +1,6 @@
 import type { StockQuote, HistoricalBar, FundamentalsData, SearchResult } from '@/types'
 import type { StatementsData } from '@/lib/statements/types'
+import type { NewsItem } from '@/lib/report/types'
 
 type Period = '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y'
 
@@ -131,6 +132,19 @@ export async function getStatements(symbol: string): Promise<StatementsData | nu
     return await yf2GetStatements(symbol)
   } catch {
     return null
+  }
+}
+
+// Recent real news for a symbol (/report R3). [] on failure — news is optional
+// enrichment (never mock-synthesised). Routed through yahoo2 (search), which
+// works on Vercel where the raw lib/ai-trader/news.ts fetch gets 429'd.
+export async function getNews(symbol: string, count = 6): Promise<NewsItem[]> {
+  if (PROVIDER === 'mock') return []
+  try {
+    const { yf2GetNews } = await import('./providers/yahoo2')
+    return await yf2GetNews(symbol, count)
+  } catch {
+    return []
   }
 }
 

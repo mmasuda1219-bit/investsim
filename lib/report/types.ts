@@ -94,6 +94,45 @@ export interface AiTraderEvidence {
   decisionsSummary: string
 }
 
+/** One recent news headline for the symbol (real, with a clickable link). */
+export interface NewsItem {
+  title: string
+  publisher: string
+  /** Article URL — supplied by the data provider (never AI-generated). */
+  link: string
+  /** Unix seconds of publication. */
+  publishedAt: number
+}
+
+/** One macro / market-context series (index, volatility, rate, commodity). */
+export interface MacroItem {
+  label: string
+  symbol: string
+  /** Latest value (null when unavailable). */
+  current: number | null
+  /** Value at the start of the backtest window (≈5y ago) — "当時" reference. */
+  periodStartValue: number | null
+  /** Value at the end of the window (≈latest bar). */
+  periodEndValue: number | null
+  unit: string
+}
+
+/** Market/economic backdrop — current levels + how they moved over the window. */
+export interface MacroContext {
+  asOf: string
+  items: MacroItem[]
+}
+
+/** A citation the report links to. URL is always app-supplied (never from Opus). */
+export interface SourceRef {
+  id: number
+  label: string
+  /** Clickable URL when available; absent for internal/computed sources. */
+  url?: string
+  /** One-line "what it was used for" (JA). */
+  usedFor: string
+}
+
 /** Output of prepare, input of generate. Never persisted. */
 export interface PreparedBundle {
   request: ReportRequest
@@ -124,8 +163,12 @@ export interface PreparedBundle {
   aiEvidence: AiTraderEvidence
   /** Learning context distilled from the latest AI session ('' if none). */
   learningContext: string
-  /** Data/analysis sources cited in the report. */
-  sources: string[]
+  /** R3: recent real news headlines for the symbol (with links). */
+  news: NewsItem[]
+  /** R3: current + over-window macro/market backdrop (null if unavailable). */
+  macro: MacroContext | null
+  /** Structured, linkable citations (URLs are app-supplied, not AI-generated). */
+  sources: SourceRef[]
   /** ISO timestamp of preparation. */
   preparedAt: string
 }

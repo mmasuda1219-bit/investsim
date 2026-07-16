@@ -1,0 +1,130 @@
+// Curated universe of ~100 famous US stocks (large/mega-cap, roughly by
+// prominence). Factual public listing data only — symbols + names + sector.
+// Used as report quick-picks and (later) the real-data screening universe.
+// Real prices/fundamentals come from the live provider (yahoo2) — this file
+// never carries fabricated numbers (COMPANY.md 原則9).
+
+export interface UsStock {
+  symbol: string
+  name: string
+  sector: string
+}
+
+export const US_UNIVERSE: UsStock[] = [
+  // ── Mega-cap technology ──
+  { symbol: 'AAPL',  name: 'Apple',                 sector: 'Technology' },
+  { symbol: 'MSFT',  name: 'Microsoft',             sector: 'Technology' },
+  { symbol: 'NVDA',  name: 'NVIDIA',                sector: 'Semiconductors' },
+  { symbol: 'GOOGL', name: 'Alphabet (Class A)',    sector: 'Communication' },
+  { symbol: 'GOOG',  name: 'Alphabet (Class C)',    sector: 'Communication' },
+  { symbol: 'AMZN',  name: 'Amazon',                sector: 'Consumer Disc.' },
+  { symbol: 'META',  name: 'Meta Platforms',        sector: 'Communication' },
+  { symbol: 'TSLA',  name: 'Tesla',                 sector: 'Consumer Disc.' },
+  { symbol: 'AVGO',  name: 'Broadcom',              sector: 'Semiconductors' },
+  { symbol: 'ORCL',  name: 'Oracle',                sector: 'Technology' },
+  { symbol: 'NFLX',  name: 'Netflix',               sector: 'Communication' },
+  { symbol: 'ADBE',  name: 'Adobe',                 sector: 'Technology' },
+  { symbol: 'CRM',   name: 'Salesforce',            sector: 'Technology' },
+  { symbol: 'AMD',   name: 'Advanced Micro Devices',sector: 'Semiconductors' },
+  { symbol: 'INTC',  name: 'Intel',                 sector: 'Semiconductors' },
+  { symbol: 'CSCO',  name: 'Cisco Systems',         sector: 'Technology' },
+  { symbol: 'QCOM',  name: 'Qualcomm',              sector: 'Semiconductors' },
+  { symbol: 'TXN',   name: 'Texas Instruments',     sector: 'Semiconductors' },
+  { symbol: 'IBM',   name: 'IBM',                   sector: 'Technology' },
+  { symbol: 'NOW',   name: 'ServiceNow',            sector: 'Technology' },
+  { symbol: 'INTU',  name: 'Intuit',                sector: 'Technology' },
+  { symbol: 'AMAT',  name: 'Applied Materials',     sector: 'Semiconductors' },
+  { symbol: 'MU',    name: 'Micron Technology',     sector: 'Semiconductors' },
+  { symbol: 'LRCX',  name: 'Lam Research',          sector: 'Semiconductors' },
+  { symbol: 'PANW',  name: 'Palo Alto Networks',    sector: 'Technology' },
+  { symbol: 'SNPS',  name: 'Synopsys',              sector: 'Technology' },
+  { symbol: 'CDNS',  name: 'Cadence Design',        sector: 'Technology' },
+  { symbol: 'KLAC',  name: 'KLA Corporation',       sector: 'Semiconductors' },
+  { symbol: 'MRVL',  name: 'Marvell Technology',    sector: 'Semiconductors' },
+  { symbol: 'CRWD',  name: 'CrowdStrike',           sector: 'Technology' },
+  { symbol: 'PLTR',  name: 'Palantir',              sector: 'Technology' },
+  // ── Communication / media ──
+  { symbol: 'DIS',   name: 'Walt Disney',           sector: 'Communication' },
+  { symbol: 'CMCSA', name: 'Comcast',               sector: 'Communication' },
+  { symbol: 'T',     name: 'AT&T',                  sector: 'Communication' },
+  { symbol: 'VZ',    name: 'Verizon',               sector: 'Communication' },
+  { symbol: 'TMUS',  name: 'T-Mobile US',           sector: 'Communication' },
+  // ── Consumer staples ──
+  { symbol: 'PG',    name: 'Procter & Gamble',      sector: 'Consumer Staples' },
+  { symbol: 'KO',    name: 'Coca-Cola',             sector: 'Consumer Staples' },
+  { symbol: 'PEP',   name: 'PepsiCo',               sector: 'Consumer Staples' },
+  { symbol: 'COST',  name: 'Costco Wholesale',      sector: 'Consumer Staples' },
+  { symbol: 'WMT',   name: 'Walmart',               sector: 'Consumer Staples' },
+  { symbol: 'MDLZ',  name: 'Mondelez',              sector: 'Consumer Staples' },
+  { symbol: 'PM',    name: 'Philip Morris Intl',    sector: 'Consumer Staples' },
+  { symbol: 'MO',    name: 'Altria',                sector: 'Consumer Staples' },
+  { symbol: 'CL',    name: 'Colgate-Palmolive',     sector: 'Consumer Staples' },
+  // ── Consumer discretionary ──
+  { symbol: 'HD',    name: 'Home Depot',            sector: 'Consumer Disc.' },
+  { symbol: 'LOW',   name: "Lowe's",                sector: 'Consumer Disc.' },
+  { symbol: 'MCD',   name: "McDonald's",            sector: 'Consumer Disc.' },
+  { symbol: 'SBUX',  name: 'Starbucks',             sector: 'Consumer Disc.' },
+  { symbol: 'NKE',   name: 'Nike',                  sector: 'Consumer Disc.' },
+  { symbol: 'BKNG',  name: 'Booking Holdings',      sector: 'Consumer Disc.' },
+  { symbol: 'TGT',   name: 'Target',                sector: 'Consumer Disc.' },
+  { symbol: 'ABNB',  name: 'Airbnb',                sector: 'Consumer Disc.' },
+  { symbol: 'UBER',  name: 'Uber Technologies',     sector: 'Consumer Disc.' },
+  { symbol: 'CMG',   name: 'Chipotle Mexican Grill',sector: 'Consumer Disc.' },
+  { symbol: 'LULU',  name: 'Lululemon',             sector: 'Consumer Disc.' },
+  // ── Financials ──
+  { symbol: 'BRK-B', name: 'Berkshire Hathaway B',  sector: 'Financials' },
+  { symbol: 'JPM',   name: 'JPMorgan Chase',        sector: 'Financials' },
+  { symbol: 'V',     name: 'Visa',                  sector: 'Financials' },
+  { symbol: 'MA',    name: 'Mastercard',            sector: 'Financials' },
+  { symbol: 'BAC',   name: 'Bank of America',       sector: 'Financials' },
+  { symbol: 'WFC',   name: 'Wells Fargo',           sector: 'Financials' },
+  { symbol: 'C',     name: 'Citigroup',             sector: 'Financials' },
+  { symbol: 'GS',    name: 'Goldman Sachs',         sector: 'Financials' },
+  { symbol: 'MS',    name: 'Morgan Stanley',        sector: 'Financials' },
+  { symbol: 'AXP',   name: 'American Express',      sector: 'Financials' },
+  { symbol: 'BLK',   name: 'BlackRock',             sector: 'Financials' },
+  { symbol: 'SCHW',  name: 'Charles Schwab',        sector: 'Financials' },
+  { symbol: 'SPGI',  name: 'S&P Global',            sector: 'Financials' },
+  { symbol: 'PYPL',  name: 'PayPal',                sector: 'Financials' },
+  { symbol: 'COF',   name: 'Capital One',           sector: 'Financials' },
+  // ── Healthcare ──
+  { symbol: 'LLY',   name: 'Eli Lilly',             sector: 'Healthcare' },
+  { symbol: 'UNH',   name: 'UnitedHealth Group',    sector: 'Healthcare' },
+  { symbol: 'JNJ',   name: 'Johnson & Johnson',     sector: 'Healthcare' },
+  { symbol: 'ABBV',  name: 'AbbVie',                sector: 'Healthcare' },
+  { symbol: 'MRK',   name: 'Merck',                 sector: 'Healthcare' },
+  { symbol: 'TMO',   name: 'Thermo Fisher',         sector: 'Healthcare' },
+  { symbol: 'ABT',   name: 'Abbott Laboratories',   sector: 'Healthcare' },
+  { symbol: 'PFE',   name: 'Pfizer',                sector: 'Healthcare' },
+  { symbol: 'DHR',   name: 'Danaher',               sector: 'Healthcare' },
+  { symbol: 'AMGN',  name: 'Amgen',                 sector: 'Healthcare' },
+  { symbol: 'BMY',   name: 'Bristol-Myers Squibb',  sector: 'Healthcare' },
+  { symbol: 'ISRG',  name: 'Intuitive Surgical',    sector: 'Healthcare' },
+  { symbol: 'GILD',  name: 'Gilead Sciences',       sector: 'Healthcare' },
+  { symbol: 'VRTX',  name: 'Vertex Pharmaceuticals',sector: 'Healthcare' },
+  { symbol: 'REGN',  name: 'Regeneron',             sector: 'Healthcare' },
+  { symbol: 'MDT',   name: 'Medtronic',             sector: 'Healthcare' },
+  { symbol: 'CVS',   name: 'CVS Health',            sector: 'Healthcare' },
+  // ── Energy ──
+  { symbol: 'XOM',   name: 'Exxon Mobil',           sector: 'Energy' },
+  { symbol: 'CVX',   name: 'Chevron',               sector: 'Energy' },
+  { symbol: 'COP',   name: 'ConocoPhillips',        sector: 'Energy' },
+  { symbol: 'SLB',   name: 'Schlumberger',          sector: 'Energy' },
+  { symbol: 'EOG',   name: 'EOG Resources',         sector: 'Energy' },
+  // ── Industrials ──
+  { symbol: 'CAT',   name: 'Caterpillar',           sector: 'Industrials' },
+  { symbol: 'GE',    name: 'GE Aerospace',          sector: 'Industrials' },
+  { symbol: 'BA',    name: 'Boeing',                sector: 'Industrials' },
+  { symbol: 'HON',   name: 'Honeywell',             sector: 'Industrials' },
+  { symbol: 'RTX',   name: 'RTX (Raytheon)',        sector: 'Industrials' },
+  { symbol: 'UNP',   name: 'Union Pacific',         sector: 'Industrials' },
+  { symbol: 'UPS',   name: 'United Parcel Service',  sector: 'Industrials' },
+  { symbol: 'LMT',   name: 'Lockheed Martin',       sector: 'Industrials' },
+  { symbol: 'DE',    name: 'Deere & Company',       sector: 'Industrials' },
+  { symbol: 'MMM',   name: '3M',                    sector: 'Industrials' },
+  // ── Autos ──
+  { symbol: 'F',     name: 'Ford Motor',            sector: 'Consumer Disc.' },
+  { symbol: 'GM',    name: 'General Motors',        sector: 'Consumer Disc.' },
+]
+
+export const US_UNIVERSE_SYMBOLS: string[] = US_UNIVERSE.map((s) => s.symbol)

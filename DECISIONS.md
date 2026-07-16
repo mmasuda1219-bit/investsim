@@ -131,3 +131,10 @@
 - 理由: 4-5期で3年CAGR/トレンドが計算可能・yahoo-finance2はVercel実証済み・最小の縦切り（原則2）。**type:'annual' が必須**（デフォルトは四半期'3M'を返し、トヨタ売上が四半期12.6兆で年次50兆に化ける＝原則9違反になる。実測でAAPL 416B/トヨタ50.7兆の年次抽出を確認）。欠損・計算不能は no_data として fail-closed かつ判定不能を区別表示。決算は24hキャッシュ（実データのキャッシュは原則9に反しない）。
 - 検証: scripts/check-statements.ts（computeDerived/ゲート/単位変換/バリデーションの31アサート全PASS）、実データ年次抽出プローブ（AAPL/トヨタ）成功、tsc --noEmit緑。
 - 影響ファイル: lib/statements/{types,derived}.ts(新), lib/market/{index,providers/yahoo2}.ts, lib/backtest/{types,fundamental}.ts, lib/report/{types,prompt,validate}.ts, app/api/report/prepare/route.ts, app/report/page.tsx, scripts/check-statements.ts(新)
+
+## 2026-07-16: 米国株フォーカス — ニュース/マクロ加味＋リンク引用（/report R3）＋US100銘柄ユニバース
+- 背景: オーナー方針転換「米国株に集中」。要望=①引用元をリンクで②ニュース・政治経済(マクロ)を加味した判断③過去は当時のマクロ状況を加味④未来予想は現在の状況を加味。加えて有名米国株を約100銘柄に拡充。
+- 決定: (news) yahoo2.yf2GetNews(search)で銘柄の現在ニュース(title/publisher/link/日時)取得→lib/market.getNews。(macro) lib/report/macro.tsで^GSPC/^IXIC/^VIX/^TNX/DX-Y.NYB/CL=Fの現在値＋5年前をgetHistory(allowMock:false)で取得(追加キー不要・実データ実証済)。(citations) PreparedBundle.sourcesをSourceRef[]{id,label,url?,usedFor}に構造化しURLはアプリ提供、Opusには[n]番号のみ扱わせURL捏造を封じる。プロンプトにニュース/マクロ/[n]引用ルールを追加、過去の個別ニュースは取得不可のため創作禁止(当時のマクロ推移で代替)。page.tsxにMarkdownリンク描画＋クリック可能な参照リンク/ニュース/マクロ表示。lib/market/us-universe.ts(約104銘柄・symbol/name/sector・実データはyahoo2)を新設し/reportにdatalistクイック選択。
+- 理由: 全てVercel実証済みのyahoo-finance2で賄え追加キーゼロ。過去個別ニュースは無料・クラウドIPで安定取得不可(NewsAPI本番不可/GDELTノイズ)→誠実に範囲外にしマクロで代替(原則12=過去は補助)。ユニバースはニセ財務を作らず実データ前提の厳選リスト(原則9)。
+- 検証: 実データプローブ(AAPLニュース6件・マクロ6銘柄5年分/^TNX 1.32→4.58%等)成功、tsc緑、禁止ファイル(tick/news.ts含む)不変。日本株マクロ・過去個別ニュース・FRED(CPI/失業率)は次スライス。
+- 影響ファイル: lib/market/us-universe.ts(新), lib/report/macro.ts(新), lib/market/{index,providers/yahoo2}.ts, lib/report/{types,prompt}.ts, app/api/report/prepare/route.ts, app/report/page.tsx

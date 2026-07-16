@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getQuote, getHistory, getFundamentals, getStatements } from '@/lib/market'
+import { getQuote, getHistory, getFundamentals, getStatements, getNews } from '@/lib/market'
+import { collectMacro } from '@/lib/report/macro'
 import { calcMA, calcRSI, calcMACD, calcBB } from '@/lib/technicals'
 import { runBacktest, BacktestDataError } from '@/lib/backtest/run'
 import {
@@ -25,6 +26,7 @@ import type {
   BacktestSummary,
   ChartData,
   PrepareResponse,
+  SourceRef,
 } from '@/lib/report/types'
 
 export const runtime = 'nodejs'
@@ -250,11 +252,32 @@ export async function POST(req: Request) {
     ])
     const technicals = summarizeTechnicals(recentBars, quote.price)
 
-    // ── 4. AI trader evidence (this symbol) + learning context ─────────
-    const [aiEvidence, learningContext] = await Promise.all([
+    // ── 4. AI evidence + learning + news + macro (parallel) ────────────
+    const [aiEvidence, learningContext, news, macro] = await Promise.all([
       collectAiTraderEvidence(symbol),
       collectLearningContext(),
+      getNews(symbol, 6),   // real headlines with links ([] on failure)
+      collectMacro(),       // US market backdrop (null on failure)
     ])
+
+    // ── 5. Structured, linkable citations (URLs are app-supplied) ──────
+    const quoteUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`
+    let sid = 0
+    const sources: SourceRef[] = [
+      { id: ++sid, label: `Yahoo Finance — ${symbol} 銘柄ページ（株価・5年チャート・指標）`, url: quoteUrl, usedFor: '現在値・過去5年日足・スナップショット指標' },
+      { id: ++sid, label: `Yahoo Finance — ${symbol} 決算（年次・複数期）`, url: `${quoteUrl}/financials`, usedFor: statements ? `損益/貸借/CF ${statements.periods.length}期` : '決算データ（今回は取得不可）' },
+    ]
+    for (const nw of news) {
+      sources.push({ id: ++sid, label: `${nw.title}（${nw.publisher || 'ニュース'}）`, url: nw.link, usedFor: '関連ニュース（現在）' })
+    }
+    if (macro) {
+      sources.push({ id: ++sid, label: 'Yahoo Finance — マクロ/市場指標（S&P500・Nasdaq・VIX・米金利・ドル指数・原油）', url: 'https://finance.yahoo.com/markets/', usedFor: '市場・経済環境（現在＋過去5年推移）' })
+    }
+    sources.push(
+      { id: ++sid, label: 'InvestSim バックテストエンジン（実データ純計算・5年日足）', usedFor: 'バックテスト結果の数値' },
+      { id: ++sid, label: 'InvestSim AIトレーダー実績・学習メモリ（全AIセッション）', usedFor: 'この銘柄のAI売買実績と教訓' },
+      { id: ++sid, label: `Claude AI（${process.env.REPORT_AI_MODEL || 'claude-opus-4-8'}）`, usedFor: 'レポートの分析・生成' },
+    )
 
     const bundle: PreparedBundle = {
       request,
@@ -269,15 +292,9 @@ export async function POST(req: Request) {
       current: { quote, technicals, fundamentals },
       aiEvidence,
       learningContext,
-      sources: [
-        'Yahoo Finance（リアルタイム株価・過去5年日足ヒストリカル・直近3ヶ月日足）',
-        'Yahoo Finance（ファンダメンタル指標・現在値）',
-        ...(statements ? [`${statements.source}（損益計算書・貸借対照表・キャッシュフロー・年次${statements.periods.length}期）`] : []),
-        'InvestSimバックテストエンジン（lib/backtest・実データ純計算・5年日足）',
-        'InvestSim AIトレーダー実績（全AIセッションの実売買記録・銘柄別）',
-        'InvestSim AIセッション学習メモリ（過去の仮想売買の教訓）',
-        `Claude AI（レポート生成: ${process.env.REPORT_AI_MODEL || 'claude-opus-4-8'}）`,
-      ],
+      news,
+      macro,
+      sources,
       preparedAt: new Date().toISOString(),
     }
 

@@ -30,6 +30,7 @@ import {
 } from '@/lib/backtest/fundamental'
 import type { PreparedBundle, ChartData } from '@/lib/report/types'
 import { describeCompositeCondition } from '@/lib/report/prompt'
+import { US_UNIVERSE } from '@/lib/market/us-universe'
 
 type IndicatorId = TechnicalCondition['indicator']
 
@@ -69,13 +70,25 @@ interface DerivedRow {
 
 type Phase = 'idle' | 'preparing' | 'generating' | 'done'
 
-// ── Minimal Markdown renderer (headings / bullets / bold) — no deps ────────
+// ── Minimal Markdown renderer (headings / bullets / bold / links) — no deps ─
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith('**') && part.endsWith('**')
-      ? <strong key={`${keyPrefix}-${i}`} className="text-white font-semibold">{part.slice(2, -2)}</strong>
-      : <span key={`${keyPrefix}-${i}`}>{part}</span>
-  )
+  // Split on **bold**, [label](url) links, and bare http(s) URLs.
+  return text
+    .split(/(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s)]+)/g)
+    .map((part, i) => {
+      const key = `${keyPrefix}-${i}`
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={key} className="text-white font-semibold">{part.slice(2, -2)}</strong>
+      }
+      const md = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/)
+      if (md) {
+        return <a key={key} href={md[2]} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all">{md[1]}</a>
+      }
+      if (/^https?:\/\//.test(part)) {
+        return <a key={key} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all">{part}</a>
+      }
+      return <span key={key}>{part}</span>
+    })
 }
 
 function MarkdownView({ text }: { text: string }) {
@@ -313,13 +326,19 @@ export default function ReportPage() {
       <div className="bg-panel border border-border rounded-xl p-5 space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs text-muted mb-2">銘柄シンボル</label>
+            <label className="block text-xs text-muted mb-2">銘柄シンボル（有名な米国株から選択も可）</label>
             <input
               value={symbol}
-              onChange={e => setSymbol(e.target.value)}
-              placeholder="AAPL / 7203.T"
+              onChange={e => setSymbol(e.target.value.toUpperCase())}
+              placeholder="AAPL / MSFT / NVDA …"
+              list="us-universe"
               className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
             />
+            <datalist id="us-universe">
+              {US_UNIVERSE.map(s => (
+                <option key={s.symbol} value={s.symbol}>{`${s.name}（${s.sector}）`}</option>
+              ))}
+            </datalist>
           </div>
           <div>
             <label className="block text-xs text-muted mb-2">初期資金（仮想）</label>
@@ -663,6 +682,62 @@ export default function ReportPage() {
           {phase === 'generating' && (
             <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-1 align-text-bottom" />
           )}
+        </div>
+      )}
+
+      {/* Macro snapshot + news + clickable references (R3) */}
+      {bundle && (
+        <div className="bg-panel border border-border rounded-xl p-5 space-y-4">
+          {bundle.macro && bundle.macro.items.some(mi => mi.current != null) && (
+            <div>
+              <p className="text-xs text-muted font-medium mb-1.5">マクロ・市場環境（現在／5年前→現在）</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-300 font-mono">
+                {bundle.macro.items.filter(mi => mi.current != null).map(mi => (
+                  <span key={mi.symbol}>
+                    {mi.label}: <span className="text-white">{mi.current!.toFixed(2)}{mi.unit}</span>
+                    {mi.periodStartValue != null && mi.periodStartValue > 0 && (
+                      <span className={mi.current! >= mi.periodStartValue ? 'text-green-400' : 'text-red-400'}>
+                        {' '}({((mi.current! - mi.periodStartValue) / mi.periodStartValue * 100 >= 0 ? '+' : '')}
+                        {((mi.current! - mi.periodStartValue) / mi.periodStartValue * 100).toFixed(0)}%/5y)
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {bundle.news.length > 0 && (
+            <div>
+              <p className="text-xs text-muted font-medium mb-1.5">直近の関連ニュース（クリックで記事へ）</p>
+              <ul className="space-y-1">
+                {bundle.news.map((nw, i) => (
+                  <li key={i} className="text-xs">
+                    <a href={nw.link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">
+                      {nw.title}
+                    </a>
+                    <span className="text-muted/70"> — {nw.publisher || '出所不明'}
+                      {nw.publishedAt > 0 && `・${new Date(nw.publishedAt * 1000).toISOString().slice(0, 10)}`}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs text-muted font-medium mb-1.5">引用元・参照リンク</p>
+            <ol className="space-y-1">
+              {bundle.sources.map(s => (
+                <li key={s.id} className="text-xs text-slate-300">
+                  <span className="text-muted/70 font-mono">[{s.id}]</span>{' '}
+                  {s.url
+                    ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline break-all">{s.label}</a>
+                    : <span>{s.label}</span>}
+                  <span className="text-muted/60"> — {s.usedFor}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       )}
 

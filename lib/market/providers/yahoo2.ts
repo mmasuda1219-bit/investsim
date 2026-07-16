@@ -58,6 +58,7 @@ const HISTORY_TTL_MS = 300_000
 const FUNDAMENTALS_TTL_MS = 1_800_000
 const SEARCH_TTL_MS = 600_000
 const STATEMENTS_TTL_MS = 86_400_000 // 決算は四半期毎更新 → 24h（実データのキャッシュ）
+const NEWS_TTL_MS = 600_000 // 10分
 
 function detectMarket(symbol: string): StockQuote['market'] {
   if (symbol.endsWith('.T')) return 'JP'
@@ -268,6 +269,34 @@ export async function yf2Search(query: string): Promise<SearchResult[]> {
 
   writeCache(key, results)
   return results
+}
+
+// ── Recent news for a symbol (/report R3) ──────────────────────────────────
+// yahoo-finance2 search() returns news with a real article `link` — that URL
+// becomes a clickable citation in the report (never AI-generated).
+export interface Yf2NewsItem { title: string; publisher: string; link: string; publishedAt: number }
+
+export async function yf2GetNews(symbol: string, count = 6): Promise<Yf2NewsItem[]> {
+  const key = `n:${symbol}:${count}`
+  const hit = readCache<Yf2NewsItem[]>(key, NEWS_TTL_MS)
+  if (hit) return hit
+
+  const client = await yf()
+  const r: any = await client.search(symbol, { quotesCount: 0, newsCount: count })
+  const news: any[] = Array.isArray(r?.news) ? r.news : []
+  const items: Yf2NewsItem[] = news
+    .filter((n) => typeof n?.title === 'string' && typeof n?.link === 'string')
+    .map((n) => ({
+      title: n.title,
+      publisher: typeof n.publisher === 'string' ? n.publisher : '',
+      link: n.link,
+      publishedAt: typeof n.providerPublishTime === 'number'
+        ? n.providerPublishTime
+        : (n.providerPublishTime instanceof Date ? Math.floor(n.providerPublishTime.getTime() / 1000) : 0),
+    }))
+    .slice(0, count)
+  writeCache(key, items)
+  return items
 }
 
 // ── Financial statements (annual, multi-period) — /report R2 ───────────────
