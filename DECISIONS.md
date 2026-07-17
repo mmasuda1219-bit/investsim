@@ -157,3 +157,10 @@
 - 検証: scripts/check-auto-tick.mjs（file-lockのトークン所有解放・上限後4回目拒否・TOCTOU再チェック・古い順target絞り込み・cron認可）全PASS、npx tsc --noEmit 緑
 - 運用: Supabaseに `ALTER TABLE ai_sessions ADD COLUMN IF NOT EXISTS lock_until timestamptz;`、Vercel Env `CRON_SECRET`、GitHub Secrets `CRON_SECRET`/`PROD_URL` が必要
 - 影響ファイル: lib/ai-trader/engine.ts, lib/ai-trader/store.ts, lib/ai-trader/auto.ts(新), app/api/cron/tick/route.ts(新), app/api/ai-session/[id]/route.ts, app/api/ai-session/[id]/tick/route.ts, app/ai-session/client.tsx, .github/workflows/auto-tick.yml(新), .gitignore
+
+## 2026-07-17: 自動tickをVercel Hobbyの60秒上限に整合
+- 背景: 自律学習ループの配管（GH Actions cron→/api/cron/tick）を本番で稼働開始（CRON_SECRET/PROD_URL登録・Supabase lock_until追加・再デプロイ・手動発火で200/{"processed":0}確認）。ただしroute.tsは maxDuration=300・1回3件・バジェット240s とVercel Pro前提の値で、実プランはHobby（関数上限60秒）。3件宣言しても2件目で切断される嘘の設定だった。
+- 決定: app/api/cron/tick/route.ts を Hobby実態へ整合。maxDuration 300→60、listAutoTickTargets(3)→(1)、TIME_BUDGET_MS 240_000→50_000。1回のcronで1セッションを確実に完了し、複数セッションは1日3回のcronで lastTickAt 昇順に前進。
+- 理由: ロックは5分TTLのリース＋count先行保存で「過少実行側に倒す」設計のため切断されても壊れないが、宣言値と実挙動の乖離を解消して明快にする（原則8）。個人利用で同時セッションは少数のため1件/回で実害なし。
+- 検証: npx tsc --noEmit 緑。runTick/auto.ts本体は不変。
+- 影響ファイル: app/api/cron/tick/route.ts。

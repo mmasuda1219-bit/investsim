@@ -3,8 +3,9 @@ import { listAutoTickTargets, runAutoTick } from '@/lib/ai-trader/auto'
 
 // child_process(CLIフォールバック)を使う可能性があるため Node.js ランタイムを明示。
 export const runtime = 'nodejs'
-// 最大5セッションを逐次tick。1tick数十秒 × 5 を包むため長めに（Vercel Pro前提）。
-export const maxDuration = 300
+// Vercel Hobby は関数上限60秒。宣言値はそれを超えられないため 60 に合わせる。
+// 1回のcronで1セッションだけ確実に完了させ、残りは1日3回のcronで古い順に前進させる。
+export const maxDuration = 60
 
 // CRON_SECRET を Bearer で検証する。未設定 or 不一致は 401。
 function authorized(req: NextRequest): boolean {
@@ -19,12 +20,12 @@ async function handle(req: NextRequest) {
   }
 
   const results: Array<{ id: string; ran: boolean; reason?: string; lockDegraded?: boolean }> = []
-  // 経過時間バジェット。maxDuration(300s)手前で打ち切り、残りは次回cronが古い順に拾う。
+  // 経過時間バジェット。maxDuration(60s・Hobby)手前で打ち切り、残りは次回cronが古い順に拾う。
   const startedAt = Date.now()
-  const TIME_BUDGET_MS = 240_000
+  const TIME_BUDGET_MS = 50_000
   try {
-    // 1回のcronで最大3件（1tick数十秒×3を関数タイムアウトに収める）。
-    const targets = await listAutoTickTargets(3)
+    // 1回のcronで最大1件（1tick数十秒をHobbyの60秒関数上限に確実に収める）。
+    const targets = await listAutoTickTargets(1)
     // 逐次実行（Promise.allではなく順番に）。レート制限・関数タイムアウトへの配慮。
     // 1セッションの失敗が他を止めないよう個別try。
     for (const t of targets) {
