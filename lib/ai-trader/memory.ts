@@ -237,6 +237,45 @@ export function buildLearningContext(memory: LearningMemory): string {
   return parts.join('\n\n')
 }
 
+// ── Distilled-lesson usage summary (pure, for /report honest display) ─────
+// Extracts the distilled lessons EXACTLY as buildLearningContext() above
+// selects them (same categories, same slice limits: lessons 10 / fundamental 6
+// / news 6 / causal 5 / biases 5 / strategy 4). The /report learningUsage
+// population must equal what the prompt actually receives (原則9 — never show
+// unused lessons as "used"). Keep the limits in sync with buildLearningContext.
+export interface DistilledLessonsSummary {
+  /** Whether ANY distilled lesson exists (raw trades/decisions excluded). */
+  hasData: boolean
+  /** Total number of lesson items that reach the prompt. */
+  count: number
+  /** The lesson texts (category-prefixed), in prompt order. */
+  items: string[]
+}
+
+export function summarizeDistilledLessons(memory: LearningMemory): DistilledLessonsSummary {
+  // Same entry gate as buildLearningContext's hasAnyData (closedTrades /
+  // lessons / allDecisions — insights alone do NOT open it). When the gate is
+  // closed, buildLearningContext returns only a placeholder string, so any
+  // insight-only memory (migration/corruption edge case) must report hasData:
+  // false here too — otherwise we'd claim lessons as "used" that never reached
+  // the prompt (原則9). Keep this condition in sync with buildLearningContext.
+  const gateOpen =
+    memory.closedTrades.length > 0 ||
+    memory.lessons.length > 0 ||
+    memory.allDecisions.length > 0
+  if (!gateOpen) return { hasData: false, count: 0, items: [] }
+
+  const items = [
+    ...memory.lessons.slice(0, 10).map(l => `教訓: ${l}`),
+    ...memory.fundamentalInsights.slice(0, 6).map(l => `ファンダ洞察: ${l}`),
+    ...memory.newsInsights.slice(0, 6).map(l => `ニュースパターン: ${l}`),
+    ...memory.causalChains.slice(0, 5).map(l => `連想チェーン: ${l}`),
+    ...memory.tradingBiases.slice(0, 5).map(l => `取引バイアス: ${l}`),
+    ...memory.strategyNotes.slice(0, 4).map(l => `戦略ノート: ${l}`),
+  ]
+  return { hasData: items.length > 0, count: items.length, items }
+}
+
 // ── Trigger learning generation every tick if data exists ─────────────────
 export function shouldLearnNow(memory: LearningMemory, currentTickCount: number): boolean {
   // Generate learning every tick as long as there's any closed trade

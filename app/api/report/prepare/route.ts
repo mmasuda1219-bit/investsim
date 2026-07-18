@@ -16,7 +16,7 @@ import { parseCompositeCondition, ValidationError } from '@/lib/report/validate'
 import { describeCompositeCondition } from '@/lib/report/prompt'
 import { collectAiTraderEvidence } from '@/lib/report/evidence'
 import { listSessions } from '@/lib/ai-trader/store'
-import { normalizeLearningMemory, buildLearningContext } from '@/lib/ai-trader/memory'
+import { normalizeLearningMemory, buildLearningContext, summarizeDistilledLessons } from '@/lib/ai-trader/memory'
 import type { HistoricalBar } from '@/types'
 import type { FundamentalGateResult, DerivedGateResult } from '@/lib/backtest/fundamental'
 import type { DerivedFundamentals } from '@/lib/statements/types'
@@ -27,6 +27,7 @@ import type {
   ChartData,
   PrepareResponse,
   SourceRef,
+  LearningUsage,
 } from '@/lib/report/types'
 
 export const runtime = 'nodejs'
@@ -118,16 +119,53 @@ function summarizeTechnicals(bars: HistoricalBar[], price: number): string {
   return [trend, rsiSig, macdSig, bbSig].filter(Boolean).join(' | ') + ` (${detail})`
 }
 
-// Latest session's learning context (cross-symbol). Missing sessions are fine
-// ('' — this only READS the ai-trader store).
-async function collectLearningContext(): Promise<string> {
+// Latest session's learning context (cross-symbol) PLUS the honest usage
+// disclosure. Both are derived from the SAME session's memory so the
+// learningUsage population is exactly what the prompt receives (原則9 — never
+// display unused lessons as "used"). Missing sessions are fine ('' + hasData:
+// false — this only READS the ai-trader store).
+const LEARNING_SCOPE = '最新AIセッション1件の学習メモリ（全銘柄横断・全セッション横断の集計ではありません）'
+
+async function collectLearning(): Promise<{ learningContext: string; learningUsage: LearningUsage }> {
+  const empty: LearningUsage = {
+    hasData: false,
+    usedLessons: [],
+    scope: 'AIセッションなし',
+    note: '蓄積された教訓はまだありません。本レポートでは教訓を使用していません。',
+  }
   try {
     const sessions = await listSessions() // sorted newest-first
     const latest = sessions[0]
-    if (!latest) return ''
-    return buildLearningContext(normalizeLearningMemory(latest.learning))
+    if (!latest) return { learningContext: '', learningUsage: empty }
+    const memory = normalizeLearningMemory(latest.learning)
+    const learningContext = buildLearningContext(memory)
+    // Same selection + slice limits as buildLearningContext (see memory.ts).
+    const distilled = summarizeDistilledLessons(memory)
+    if (!distilled.hasData) {
+      const hasRaw = memory.closedTrades.length > 0 || memory.allDecisions.length > 0
+      return {
+        learningContext,
+        learningUsage: {
+          hasData: false,
+          usedLessons: [],
+          scope: LEARNING_SCOPE,
+          note: hasRaw
+            ? '蒸留された教訓はまだありません。本レポートでは教訓を使用していません（学習コンテキストには生の取引記録・統計のみ参照）。'
+            : '蓄積された教訓はまだありません。本レポートでは教訓を使用していません。',
+        },
+      }
+    }
+    return {
+      learningContext,
+      learningUsage: {
+        hasData: true,
+        usedLessons: distilled.items,
+        scope: LEARNING_SCOPE,
+        note: `プロンプトへ実際に渡した蒸留教訓は${distilled.count}件（学習コンテキストと同一の選定・上限）。`,
+      },
+    }
   } catch {
-    return ''
+    return { learningContext: '', learningUsage: empty }
   }
 }
 
@@ -253,12 +291,13 @@ export async function POST(req: Request) {
     const technicals = summarizeTechnicals(recentBars, quote.price)
 
     // ── 4. AI evidence + learning + news + macro (parallel) ────────────
-    const [aiEvidence, learningContext, news, macro] = await Promise.all([
+    const [aiEvidence, learning, news, macro] = await Promise.all([
       collectAiTraderEvidence(symbol),
-      collectLearningContext(),
+      collectLearning(),
       getNews(symbol, 6),   // real headlines with links ([] on failure)
       collectMacro(),       // US market backdrop (null on failure)
     ])
+    const { learningContext, learningUsage } = learning
 
     // ── 5. Structured, linkable citations (URLs are app-supplied) ──────
     const quoteUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`
@@ -292,6 +331,7 @@ export async function POST(req: Request) {
       current: { quote, technicals, fundamentals },
       aiEvidence,
       learningContext,
+      learningUsage,
       news,
       macro,
       sources,

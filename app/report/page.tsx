@@ -740,6 +740,40 @@ export default function ReportPage() {
         </div>
       )}
 
+      {/* Learning-usage honest disclosure（原則9 — 使っていない教訓を使ったと
+          見せない）。PDFにも残す価値があるため no-print にはしない。 */}
+      {bundle && (
+        <div className="bg-panel border border-border rounded-xl p-5 space-y-2">
+          <h2 className="text-white font-semibold text-sm">教訓の使用状況（AI学習メモリ）</h2>
+          {bundle.learningUsage?.hasData ? (
+            <>
+              <p className="text-xs text-muted">
+                集計範囲: {bundle.learningUsage.scope}
+              </p>
+              <ul className="space-y-1">
+                {bundle.learningUsage.usedLessons.map((lesson, i) => (
+                  <li key={i} className="flex gap-2 text-xs text-slate-300">
+                    <span className="text-blue-400 shrink-0">•</span>
+                    <span>{lesson}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted/70">{bundle.learningUsage.note}</p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-slate-300">
+                蓄積された教訓はまだ無く、本レポートでは未使用です。
+              </p>
+              <p className="text-xs text-muted/70">
+                {bundle.learningUsage?.note ?? '蓄積された教訓はまだありません。本レポートでは教訓を使用していません。'}
+                {' '}AIセッションで仮想売買を重ねると教訓が蒸留され、以後のレポートに反映されます。
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       {/* PDF (print) — browser Save-as-PDF keeps charts + references + Japanese */}
       {report && phase === 'done' && (
         <div className="no-print flex justify-end">

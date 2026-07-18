@@ -123,6 +123,23 @@ export interface MacroContext {
   items: MacroItem[]
 }
 
+/**
+ * Honest disclosure of which distilled lessons actually reached the Opus
+ * prompt. The population MUST equal what `learningContext` feeds the prompt
+ * (same session, same slice limits) — claiming unused lessons as "used" is a
+ * 原則9 violation (no fabricated data).
+ */
+export interface LearningUsage {
+  /** Whether any distilled lessons exist (and were passed to the prompt). */
+  hasData: boolean
+  /** The lessons actually included in the prompt (summary texts). */
+  usedLessons: string[]
+  /** Where the lessons came from (e.g. 「最新AIセッション1件」). */
+  scope: string
+  /** Honest-display note (JA) — shown as-is in the UI and to Opus. */
+  note: string
+}
+
 /** A citation the report links to. URL is always app-supplied (never from Opus). */
 export interface SourceRef {
   id: number
@@ -163,6 +180,13 @@ export interface PreparedBundle {
   aiEvidence: AiTraderEvidence
   /** Learning context distilled from the latest AI session ('' if none). */
   learningContext: string
+  /**
+   * Structured disclosure of the distilled lessons actually used in the
+   * prompt — population identical to `learningContext` (原則9: no fake usage).
+   * Optional because bundles prepared before this field existed can still hit
+   * /api/report/generate (mid-deploy) — consumers must handle `undefined`.
+   */
+  learningUsage?: LearningUsage
   /** R3: recent real news headlines for the symbol (with links). */
   news: NewsItem[]
   /** R3: current + over-window macro/market backdrop (null if unavailable). */

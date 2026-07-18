@@ -164,3 +164,10 @@
 - 理由: ロックは5分TTLのリース＋count先行保存で「過少実行側に倒す」設計のため切断されても壊れないが、宣言値と実挙動の乖離を解消して明快にする（原則8）。個人利用で同時セッションは少数のため1件/回で実害なし。
 - 検証: npx tsc --noEmit 緑。runTick/auto.ts本体は不変。
 - 影響ファイル: app/api/cron/tick/route.ts。
+
+## 2026-07-18: /report 改善は「根拠・教訓使用・理論一貫性の明示」を第1スライスにする
+- 背景: オーナー7項目のうち「根拠が弱い」が最大の不満で、教訓の使用状況は原則9（偽装禁止）に直結する。
+- 決定: 新データ源・新APIルート・決済を増やさず、既存の単一レポート経路のプロンプト＋UIパネルだけで完結する項目1+4+6を第1スライスに束ねる。PreparedBundle.learningUsage{hasData,usedLessons,scope,note}を追加し、プロンプトに根拠チェーン（事実→解釈→推論）と一貫性自己点検を必須化、UIに教訓使用状況パネル。投資家別(3)・銘柄未指定(5)は無料/課金フォーク(7)の後段に回す。
+- 理由: end-to-endで最小・最低リスクかつ原則11（学習ループの可視化）に最も近い。実課金(Stripe)は今回スコープ外。learningUsageの母集団はlearningContextと一致させ「未使用の偽装表示」を構造的に防ぐ。
+- 検証: npx tsc --noEmit 緑。スモークテスト（tsx・合成データはテスト用途のみ）23項目全PASS: summarizeDistilledLessonsとbuildLearningContextの母集団一致（slice上限10/6/6/5/5/4の超過分が両者から同様に除外されることを裏取り）、空メモリ/生取引のみ/insight類のみ（レビュー指摘の縁ケース — buildLearningContextと同一の入口ゲートclosedTrades/lessons/allDecisionsをヘルパに追加し、ゲート閉鎖時はhasData:false）でhasData=false、buildReportPromptが教訓あり/なし/undefined（旧bundle耐性 — learningUsageはoptional型）を正直に反映、9セクション構成据え置き、根拠チェーン必須化・一貫性チェック・教訓正直表示の指示文言をプロンプトに確認。maxTokens(4500)・セクション構成・generate経路は不変。根拠チェーン強化による出力肥大での末尾切れリスクは出荷前スモークで実レポートを確認する運用対応。
+- 影響ファイル: lib/report/types.ts, app/api/report/prepare/route.ts, lib/report/prompt.ts, app/report/page.tsx, lib/ai-trader/memory.ts
