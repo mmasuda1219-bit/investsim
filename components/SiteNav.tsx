@@ -11,6 +11,7 @@ const NAV = [
   { href: '/markets',     label: 'マーケット' },
   { href: '/screener',    label: 'スクリーナー' },
   { href: '/simulate',    label: 'バックテスト' },
+  { href: '/lab',         label: 'ラボ' },
   { href: '/report',      label: 'AIレポート' },
   { href: '/portfolio',   label: 'ポートフォリオ' },
 ]

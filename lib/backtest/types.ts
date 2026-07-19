@@ -192,6 +192,51 @@ export interface CompositeCondition {
 /** Supported backtest windows (daily bars). '5y' added for /report R1. */
 export type BacktestPeriod = '1y' | '5y'
 
+// ── /lab S1: 3-way exclusive condition mode ─────────────────────────────────
+// The lab request is a discriminated union on `mode`. Exactly ONE of the three
+// condition sources is allowed per request; the API rejects (400) any request
+// that mixes a needs-preset with a custom technical condition. Existing types
+// above are UNCHANGED.
+
+/** Needs-axis preset IDs (definitions live in lib/backtest/presets.ts). */
+export type NeedsPresetId = 'stable' | 'income' | 'aggressive'
+
+/** The three mutually exclusive condition modes of /lab. */
+export type LabMode = 'technical' | 'needs' | 'investor'
+
+/** Legacy /lab behaviour: single MA-cross technical rule on 1y daily bars. */
+export interface LabTechnicalRequest {
+  mode: 'technical'
+  symbol: string
+  condition: MaCrossCondition
+  initialCapital: number
+}
+
+/**
+ * Needs-axis preset run: the SERVER derives the CompositeCondition from
+ * `presetId` (single, required). Client-supplied custom conditions are
+ * rejected by the API guard.
+ */
+export interface LabNeedsRequest {
+  mode: 'needs'
+  symbol: string
+  presetId: NeedsPresetId
+  initialCapital: number
+}
+
+/** Investor-model run — placeholder (S2). The API answers 501 for now. */
+export interface LabInvestorRequest {
+  mode: 'investor'
+  symbol: string
+  initialCapital: number
+}
+
+/** /lab request — discriminated on `mode`. */
+export type LabBacktestRequest =
+  | LabTechnicalRequest
+  | LabNeedsRequest
+  | LabInvestorRequest
+
 /** Input to a single backtest run. */
 export interface BacktestParams {
   symbol: string

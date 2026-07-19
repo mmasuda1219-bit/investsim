@@ -171,3 +171,10 @@
 - 理由: end-to-endで最小・最低リスクかつ原則11（学習ループの可視化）に最も近い。実課金(Stripe)は今回スコープ外。learningUsageの母集団はlearningContextと一致させ「未使用の偽装表示」を構造的に防ぐ。
 - 検証: npx tsc --noEmit 緑。スモークテスト（tsx・合成データはテスト用途のみ）23項目全PASS: summarizeDistilledLessonsとbuildLearningContextの母集団一致（slice上限10/6/6/5/5/4の超過分が両者から同様に除外されることを裏取り）、空メモリ/生取引のみ/insight類のみ（レビュー指摘の縁ケース — buildLearningContextと同一の入口ゲートclosedTrades/lessons/allDecisionsをヘルパに追加し、ゲート閉鎖時はhasData:false）でhasData=false、buildReportPromptが教訓あり/なし/undefined（旧bundle耐性 — learningUsageはoptional型）を正直に反映、9セクション構成据え置き、根拠チェーン必須化・一貫性チェック・教訓正直表示の指示文言をプロンプトに確認。maxTokens(4500)・セクション構成・generate経路は不変。根拠チェーン強化による出力肥大での末尾切れリスクは出荷前スモークで実レポートを確認する運用対応。
 - 影響ファイル: lib/report/types.ts, app/api/report/prepare/route.ts, lib/report/prompt.ts, app/report/page.tsx, lib/ai-trader/memory.ts
+
+## 2026-07-19: /lab 条件設定を3択排他モード化＋ニーズ軸プリセット（S1）
+- 背景: 著名投資家モデル（柱1・排他選択）と初心者向けニーズ軸絞り込み（柱2）を /lab に組み込む依頼。過去ファンダは取得不可・Vercel 60秒/レート制限あり
+- 決定: 未出荷の /lab を土台に、条件を「テクニカル/ニーズ軸プリセット/投資家モデル」の単一 mode 排他へ再構成。S1はニーズ軸3種（低リスク安定=大型marketCap≥1000億+MA20/50クロス、インカム=配当利回り≥3%+MA200、積極=中小型≤100億+Donchianブレイク20日）を既存 CompositeCondition+evaluateFundamentalGate+runBacktest に写像して実装（ニーズ軸はMA200のwarm-up確保のため5年日足・テクニカルモードは従来どおり1年）。ファンダは現在値の静的ゲート（過去非遡及・fail-closed）でありUIに明記。投資家モデルは disabled プレースホルダ（API側は501）。デイトレは日中足データ源なしで範囲外
+- 理由: 新エンジン不要で最小の縦切り（原則2）。排他はUIグレーアウト＋API側モードガードの二重化（プリセット時はサーバーが条件導出しカスタム注入を400）。投資家モデル写像は将来 /report R4 と共有するため lib/backtest/investor-presets.ts に集約予定（S1では未実装・早すぎる抽象化回避）
+- 検証: scripts/check-lab-presets.ts（tsx・合成バーはテスト用途のみ）43項目全PASS — プリセット3種が実在evaluator/実在FundamentalMetricのみ使用、needsへのcondition同梱・presetId配列/複数・未知ID/未知modeの400拒否、mode省略時は従来technical動作維持、ゲートfail（実測値つき）とno_data（fail-closed）でバックテスト不実行の前提成立。npx tsc --noEmit 緑
+- 影響ファイル: app/lab/page.tsx, app/api/lab/backtest/route.ts, lib/backtest/{types,presets(新)}.ts, components/SiteNav.tsx, scripts/check-lab-presets.ts(新), DECISIONS.md
