@@ -111,7 +111,16 @@ export async function POST(req: Request) {
       // 不正ティッカー・履歴不足など入力起因 => 422
       return NextResponse.json({ error: err.message }, { status: 422 })
     }
-    const message = err instanceof Error ? err.message : 'Backtest failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    // データ源の障害など想定外の失敗: 生の内部エラー（英語・プロバイダ名）を
+    // そのままUIに出さない。詳細は detail とサーバーログに残す。
+    const detail = err instanceof Error ? err.message : 'Backtest failed'
+    console.error('[lab/backtest] unexpected failure:', detail)
+    return NextResponse.json(
+      {
+        error: '実データの取得に失敗しました。データ源が一時的に利用できない可能性があります。時間をおいて再試行してください。',
+        detail,
+      },
+      { status: 500 },
+    )
   }
 }

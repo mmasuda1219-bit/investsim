@@ -70,7 +70,22 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
   // callers identical; '5y' ≈ 1250 bars — the pure-JS loop below stays in the
   // low-millisecond range). allowMock:false => throw on fetch failure rather
   // than returning fake data.
-  const rawBars = await getHistory(symbol, period, { allowMock: false })
+  let rawBars: Awaited<ReturnType<typeof getHistory>>
+  try {
+    rawBars = await getHistory(symbol, period, { allowMock: false })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    // Providers report unknown/delisted tickers inside a generic fetch error
+    // ("No data found, symbol may be delisted" etc.) — that is an INPUT
+    // problem (422), not a data-source outage, so surface the friendly
+    // bad-ticker message instead of raw provider internals.
+    if (/no data found|delisted|invalid symbol|not found/i.test(msg)) {
+      throw new BacktestDataError(
+        `銘柄「${symbol}」の価格履歴が見つかりませんでした。ティッカーシンボル（例: AAPL, 7203.T）が正しいか確認してください。`,
+      )
+    }
+    throw err
+  }
   // Guard against bad/zero/non-finite closes so NaN/Infinity can't propagate
   // into share sizing, the equity curve, or the metrics.
   const bars = rawBars.filter(b => Number.isFinite(b.close) && b.close > 0)

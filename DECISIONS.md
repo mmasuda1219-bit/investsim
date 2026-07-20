@@ -178,3 +178,10 @@
 - 理由: 新エンジン不要で最小の縦切り（原則2）。排他はUIグレーアウト＋API側モードガードの二重化（プリセット時はサーバーが条件導出しカスタム注入を400）。投資家モデル写像は将来 /report R4 と共有するため lib/backtest/investor-presets.ts に集約予定（S1では未実装・早すぎる抽象化回避）
 - 検証: scripts/check-lab-presets.ts（tsx・合成バーはテスト用途のみ）43項目全PASS — プリセット3種が実在evaluator/実在FundamentalMetricのみ使用、needsへのcondition同梱・presetId配列/複数・未知ID/未知modeの400拒否、mode省略時は従来technical動作維持、ゲートfail（実測値つき）とno_data（fail-closed）でバックテスト不実行の前提成立。npx tsc --noEmit 緑
 - 影響ファイル: app/lab/page.tsx, app/api/lab/backtest/route.ts, lib/backtest/{types,presets(新)}.ts, components/SiteNav.tsx, scripts/check-lab-presets.ts(新), DECISIONS.md
+
+## 2026-07-20: /lab バックテストのエラー表示を「入力起因(422)」と「データ源障害(500)」で分離
+- 背景: バックテスト失敗時に生のプロバイダ内部エラー（英語・"No data found, symbol may be delisted" 等）がそのままUIへ漏れ、原因が不明瞭だった。不正ティッカーもデータ源の一時障害も一律500で区別できなかった。
+- 決定: runBacktest内で getHistory の fetch エラーを検査し、`/no data found|delisted|invalid symbol|not found/i` に一致する＝ティッカー入力起因なら BacktestDataError（422）へ変換して日本語フレンドリーメッセージ（正しいティッカー例つき）を返す。それ以外の想定外失敗は route.ts で500のまま扱うが、UIには「実データの取得に失敗（データ源が一時的に利用できない可能性）」の定型日本語のみを返し、生の内部エラーは `detail` フィールドとサーバーログ（console.error）へ逃がす。
+- 理由: 不正ティッカーはユーザーが直せる入力エラー（422が適切）、データ源障害はリトライ案内が適切で、両者を区別することでUXと運用ログの両方が改善する。プロバイダ名・英語内部文字列をエンドユーザーに見せない。
+- 検証: scripts/check-lab-presets.ts 43項目全PASS（回帰）、npx tsc --noEmit 緑。
+- 影響ファイル: lib/backtest/run.ts, app/api/lab/backtest/route.ts
