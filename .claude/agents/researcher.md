@@ -2,7 +2,7 @@
 name: researcher
 description: Yahoo Finance/Twelve Data/J-Quants/Anthropic SDK/Supabaseなど外部API・仕様を調べるときに使う。要点ダイジェストを出典付きで返す。コードは書かない。
 tools: Read, WebFetch, WebSearch
-model: haiku
+model: opus
 skills:
   - market-data-conventions
 ---

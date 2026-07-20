@@ -2,7 +2,7 @@
 name: builder
 description: investsimでarchitectが決めた1スライスの実装をするときに使う。コード・テストを書く。プログラミング・データの作成/管理はすべてこの役割（エンジニア部）に集約する。計画に含まれるファイルだけを変更する。
 tools: Read, Edit, Write, Bash
-model: sonnet
+model: fable
 skills:
   - investsim-conventions
   - market-data-conventions

@@ -2,7 +2,7 @@
 name: reviewer
 description: investsimの直近のdiffをレビューするときに使う。バグ・セキュリティ・スコープ逸脱・モックデータ混入を重大度別に返す。コードは書かない。
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 skills:
   - review-checklist
 ---

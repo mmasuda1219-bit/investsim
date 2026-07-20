@@ -2,7 +2,7 @@
 name: architect
 description: investsimで新機能や変更の実装方針を立てるときに使う。コードは書かず、方針・変更ファイル計画・リスク・ADR-lite案を返す。「何をどう実装するか決めたい」ときに使う。
 tools: Read, Grep, Glob
-model: sonnet
+model: opus
 skills:
   - decision-log
   - investsim-conventions
