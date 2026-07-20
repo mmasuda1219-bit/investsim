@@ -185,3 +185,10 @@
 - 理由: 不正ティッカーはユーザーが直せる入力エラー（422が適切）、データ源障害はリトライ案内が適切で、両者を区別することでUXと運用ログの両方が改善する。プロバイダ名・英語内部文字列をエンドユーザーに見せない。
 - 検証: scripts/check-lab-presets.ts 43項目全PASS（回帰）、npx tsc --noEmit 緑。
 - 影響ファイル: lib/backtest/run.ts, app/api/lab/backtest/route.ts
+
+## 2026-07-20: /lab と /report を統合入口 /analyze に集約（S1＝クイックモードの背骨）
+- 背景: 「ラボ（純計算バックテスト）」と「AIレポート」を単一ワークフローに束ね、投資家モデル選択も連動させたい。両者は既に同一 CompositeCondition を共有していた
+- 決定: /lab・/report を消さず新入口 app/analyze/page.tsx で包む。S1はクイックモード（ニーズ軸プリセット）のみ end-to-end 配線＝lab で数字プレビュー→同一プリセット condition を既存 /api/report/prepare→generate へ渡し専門レポート化。新データ源・新APIルートゼロ。プロ/投資家/銘柄なしはプレースホルダ（/lab の investor 無効化と同手法）。過去ファンダ取得不可のため「過去成果」は現在ファンダゲート＋過去テクニカル実測の意味に固定しUI/プロンプトに明記（原則9）
+- 理由: 2つは同一条件を食う2段パイプであり最小の縦切りで背骨が通る（原則2）。lab=無料の数字段/report=課金のAI段の役割分担でOpusトークン前にユーザー判断が可能。4択フラットでなくクイック/プロ2モードで初心者離脱を回避
+- 検証: scripts/check-analyze-s1.ts（tsx）28項目全PASS — getNeedsPresetCondition がプリセットのCompositeConditionをそのまま返す（参照同一）、それが /api/report/prepare の parseCompositeCondition を未加工で通る（technical/fundamentalFilters/derivedFiltersとも変化なし）、クイック→レポート組み立てリクエストのsymbol正規化・initialCapitalが prepare の受け入れ条件を満たす、ANALYZE_MODE_TABS/ANALYZE_SCOPE_OPTIONSでプロ・投資家モデル・銘柄指定なしがdisabledのまま（未配線）であることを確認。npx tsc --noEmit 緑
+- 影響ファイル: app/analyze/page.tsx(新), components/SiteNav.tsx, lib/backtest/presets.ts, scripts/check-analyze-s1.ts(新), DECISIONS.md

@@ -105,6 +105,14 @@ export function isNeedsPresetId(v: unknown): v is NeedsPresetId {
   return typeof v === 'string' && v in NEEDS_PRESETS
 }
 
+// ── /analyze S1: ニーズ軸プリセット → /api/report/prepare 用 CompositeCondition ──
+// NeedsPreset.condition は既に CompositeCondition 型そのものなので変換ロジックは
+// 無い（新しい投資条件を発明しない・COMPANY.md 原則9）。/lab の無料プレビューと
+// /report の専門レポートが「同一条件」を食うことを保証する単一の取り出し口。
+export function getNeedsPresetCondition(id: NeedsPresetId): CompositeCondition {
+  return NEEDS_PRESETS[id].condition
+}
+
 // ── /lab リクエストの検証＋排他ガード（純関数・APIとスモークで共用） ────────
 // 排他の二重化のサーバー側: mode='needs'/'investor' でクライアントがカスタム
 // condition を同梱してきたら 400。presetId が配列・複数・未知IDでも 400。

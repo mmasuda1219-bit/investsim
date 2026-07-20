@@ -8,6 +8,7 @@ import { AuthMenu } from './AuthMenu'
 const NAV = [
   { href: '/',            label: '投資家シミュレーション' },
   { href: '/ai-session',  label: 'AI TRADER' },
+  { href: '/analyze',     label: '分析' },
   { href: '/markets',     label: 'マーケット' },
   { href: '/screener',    label: 'スクリーナー' },
   { href: '/simulate',    label: 'バックテスト' },
