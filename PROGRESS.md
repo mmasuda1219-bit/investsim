@@ -20,13 +20,29 @@
 
 ---
 
+## 2026-07-21
+
+- **今日のゴール**: S4「/analyze 透明性カード＋リーガルトーン制御」を出荷する。
+- **やったこと**:
+  - S4実装・テスト・出荷完了。コミット `e4ddd6e`。
+  - S4内容: (1)透明性カード=lib/report/transparency.ts の新規純関数 buildTransparencyCard で、PreparedBundleの実測ファンダ値＋テクニカルルール説明＋5年バックテスト実測から「なぜこの銘柄か」を生成。no_data/未実行は捏造せず正直表示、「現在値の静的判定（過去に遡及しない）」の恒久注記を必須化（原則9）。app/analyze/page.tsxにカード描画＋恒久ディスクレーマ常時表示。(2)リーガルトーン=lib/report/prompt.ts の buildReportPrompt を「投資助言でなくプロの分析プロセスの再現」に再フレーム＋断定回避・免責を追記。9セクション見出し・順序・maxTokens=4500は不変。
+  - テスト: tsc --noEmit 緑、scripts/check-analyze-s4.ts 12項目全PASS、回帰でcheck-analyze-s1(27)・check-report-r1(26)もPASS。
+  - reviewer(Fable) critical/warning ゼロ・suggestion のみ（誤字修正済み）。
+  - スライス優先順序: オーナー指示で S4 を S2 より優先して先行実施。
+- **現在の状態**: S4 出荷済み。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
+- **次の一手**: S2（プロモード集約=既存/reportの条件ピッカーを/analyzeプロモードに取り込み、分析タイプ軸ファンダ/テクニカル/ハイブリッドで出し分け）の計画をarchitectが作成中。計画をオーナーに提示し人間ゲート①（計画承認）を待つ。
+- **未解決・ブロッカー**: なし。backlog(reviewer suggestion)は Markdown描画の/reportとの共通化、getNeedsPresetCondition の Readonly/mutate禁止ガード。
+
+---
+
 ## 2026-07-20
 
-- **今日のゴール**: 「ラボ×AIレポート統合」の要望を受け、計画立案と秘書部門の立ち上げを開始する。
+- **今日のゴール**: 「ラボ×AIレポート統合」S1（クイックモード=ニーズ軸プリセット背骨）を出荷する。
 - **やったこと**:
-  - オーナーから統合の詳細要件＋自ら出した修正案（2モード化・リーガルトーン・勝率データ・ランキング化・ニーズ軸透明性）を受領。
-  - MCが architect に統合実装計画を委譲（縦切りスライス分割・ADR-lite案を作成中）。
-  - 秘書部門を新設: `.claude/agents/secretary.md` ＋ 本ファイル `PROGRESS.md` を作成。
-- **現在の状態**: 計画立案フェーズ。人間ゲート①（計画承認）待ちに向けて architect の出力を待機中。実装コードは未着手。
-- **次の一手**: architect の計画をMCが要約し、オーナーに提示して承認を得る（人間ゲート①）。承認後にS1を builder へ。
-- **未解決・ブロッカー**: 統合フローのスライス順序・スコープはオーナー承認待ち。過去ファンダ取得不可の制約と「過去成果算出」要件の折り合いは計画で要明示。
+  - S1実装・テスト・出荷完了。コミット `429b466`（/analyze 統合入口）・`0c6a44d`（秘書部門＋組織変更）。
+  - S1内容: /analyze 新入口でクイックモード（ニーズ軸3プリセット）のみ end-to-end 配線。プリセット選択→/api/lab/backtest で数字プレビュー→同一CompositeConditionを既存/api/report/prepare→generate へ渡し専門レポート表示。プロ/投資家モード・銘柄指定なしはプレースホルダ（disabled）。新データ源・新API ゼロ。
+  - テスト: tsc --noEmit 緑、scripts/check-analyze-s1.ts 28項目全PASS、reviewer(Fable) critical/warning ゼロ・suggestion のみ。
+  - 運用変更: builder/reviewer の担当を Fable に確定。architect=Opus/researcher=Opus。
+- **現在の状態**: /analyze S1 出荷済み。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）のまま。
+- **次の一手**: S2 着手または S4（ニーズ軸透明性カード＋リーガルトーン強化）の前倒しをMCがオーナーへ確認し、判定結果に基づきスライス実装を次のセッションで開始。
+- **未解決・ブロッカー**: S2 vs S4 優先順序がオーナー確認待ち。Markdown描画共通化・getNeedsPresetCondition のReadonly/mutate禁止ガード は backlog(reviewer suggestion)。
