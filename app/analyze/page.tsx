@@ -22,6 +22,7 @@ import {
 import { describeFundamentalFilter, formatMetricValue } from '@/lib/backtest/fundamental'
 import type { PreparedBundle, PrepareResponse } from '@/lib/report/types'
 import { describeCompositeCondition } from '@/lib/report/prompt'
+import { buildTransparencyCard } from '@/lib/report/transparency'
 import { US_UNIVERSE } from '@/lib/market/us-universe'
 
 type AnalyzeMode = 'quick' | 'pro' | 'investor'
@@ -248,6 +249,9 @@ export default function AnalyzePage() {
   const returnPositive = (m?.totalReturnPct ?? 0) >= 0
   const gate = bundle?.fundamentalGate
   const bm = bundle?.backtest?.metrics
+  // 透明性カード（S4）: bundle 確定時に PreparedBundle の3要素だけから再計算する
+  // 純関数（I/Oなし・新データ源なし）。bundle が無ければ表示しない。
+  const transparency = bundle ? buildTransparencyCard(bundle) : null
   // ニーズ軸プリセットは米国株（USD建て）想定（/lab と同じ静的ゲートの限界）。
   const nonUsWarning = quickActive && symbol.trim().toUpperCase().endsWith('.T')
 
@@ -261,6 +265,12 @@ export default function AnalyzePage() {
           同じ条件でAIレポート（現状分析・根拠つき未来予想）を生成します。
         </p>
       </div>
+
+      {/* 恒久ディスクレーマ（免責）— 設定中・プレビュー中・ストリーミング中も常に表示 */}
+      <p className="text-xs text-amber-300/90 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-2 leading-relaxed">
+        本ページのAIレポートは投資助言ではありません。プロの投資アナリストが実データをもとにどう分析プロセスを
+        組み立てるかを、実データに基づき再現したものです。投資判断はご自身の責任で行ってください。
+      </p>
 
       {/* Config */}
       <div className="bg-panel border border-border rounded-xl p-5 space-y-5">
@@ -621,6 +631,47 @@ export default function AnalyzePage() {
                 `（勝率${bundle.aiEvidence.winRate.toFixed(0)}%・平均${bundle.aiEvidence.avgPnlPct >= 0 ? '+' : ''}${bundle.aiEvidence.avgPnlPct.toFixed(2)}%）`}
               — 詳細はレポート本文の「AIトレーダーの実績」参照
             </p>
+          )}
+        </div>
+      )}
+
+      {/* Transparency card（S4）: なぜこの銘柄/戦略が選ばれたかを、bundleの3要素
+          （テクニカルトリガー・ファンダゲート実測・バックテスト要約）だけから可視化。
+          新しいデータ源は追加していない（原則9）。 */}
+      {bundle && transparency && (
+        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
+          <h2 className="text-white font-semibold text-sm">なぜこの銘柄・戦略が選ばれたか（透明性）</h2>
+
+          {transparency.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {transparency.tags.map((tag, i) => (
+                <span key={i} className="text-[11px] font-mono px-2 py-1 rounded-full bg-blue-950/40 border border-blue-800/50 text-blue-300">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {transparency.reasons.length > 0 && (
+            <ul className="space-y-1">
+              {transparency.reasons.map((reason, i) => (
+                <li key={i} className="flex gap-2 text-xs text-slate-300">
+                  <span className="text-green-400 shrink-0">✓</span>
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {transparency.caveats.length > 0 && (
+            <ul className="space-y-1 pt-1 border-t border-border/60">
+              {transparency.caveats.map((caveat, i) => (
+                <li key={i} className="flex gap-2 text-xs text-amber-400/90">
+                  <span className="shrink-0">※</span>
+                  <span>{caveat}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}
