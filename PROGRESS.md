@@ -39,9 +39,15 @@
     - UI実装：components/analyze/InvestorModelPicker.tsx新設。investorモード有効化。prepare/generate 2段はS2再利用。lab-backtest無改修。
     - テスト：tsc緑（暖機後・iCloud I/Oで初回9分半だが正常）、scripts/check-analyze-s3.ts全PASS、回帰(s1/s4/pro・report-r1)全PASS。保護対象8ファイル無差分確認。
     - reviewer(Fable) critical/warningゼロ・「原則9まわり非常に丁寧」。suggestion(types.tsのlongPeriodコメント陳腐化)は修正済み。
-- **現在の状態**: S1/S4/S2/S3出荷済み。次はS5（銘柄なし＝ユニバース探索→ランキングTOP5-10。US_UNIVERSE約104銘柄×60秒制約が最大の壁）の計画をarchitectが作成中で人間ゲート①待ちへ。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
-- **次の一手**: S5の計画（60秒制約の実現可能性）をオーナーに提示し人間ゲート①（計画承認）を待つ。
-- **未解決・ブロッカー**: なし。S5は60秒制約の実現可能性が最大の不確実要因（architectが定量評価中）。backlog（reviewer継続指摘）: 条件ピッカーの/reportとの抽出共通化（S2で複製した2コピー目・DECISIONSで次スライス予約済み）、Markdown描画共通化、getNeedsPresetConditionのReadonlyガード。
+  - S5c-1出荷完了。コミット `8b21333`。
+    - ユニバース・ファンダのキャッシュ土台(Supabase)。背景: ライブ104銘柄走査は本番60秒制約で不可（Yahoo恒常429→Twelve Data≈8req/分で約13分）→事前計算キャッシュ前提に。オーナー承認済み。
+    - 内容: universe_fundamentals テーブル（マイグレーション記録 supabase/migrations/0002）、lib/screen/cache.ts（store.tsパターン=Supabase service-role正・ローカルJSONフォールバック、getCached/listCached/upsertCached/listStaleTargets）、lib/screen/types.ts(CachedFundamentalRow)、scripts/seed-fundamentals.ts（オーナーがローカルで約3分実行・no_dataスキップ・架空補完なし）。レビュー対応でservice-role判定を lib/supabase/env.ts に一本化し二重管理解消（admin.tsは純粋抽出で挙動不変）。
+    - テスト: tsc緑、scripts/check-screen-cache.ts 13項目PASS、保護対象無差分。
+    - reviewer critical/warningゼロ(解消後)。
+    - **オーナーの手動作業（未完・要実施）**: (1)Supabase SQL Editorで supabase/migrations/0002_universe_fundamentals.sql を実行、(2)ローカルで npx tsx scripts/seed-fundamentals.ts を実行(約3分)、(3)universe_fundamentals に約104行入ったか確認。これが済むまでS5のスクリーニングは実データで動かない。
+- **現在の状態**: S1/S4/S2/S3/S5c-1出荷済み。S5a（screen API＋ランキング＋no-symbol UI）をbuilderが実装中。S5c-2（refresh cron＋専用ワークフロー）も残る。その後S5b（TOP行→prepare遷移）、最後にS6（勝率データ）。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
+- **次の一手**: (1)オーナーがSupabase SQL EditorでS5c-1用マイグレーションを実行・ローカルでシード実行(約3分)してuniverse_fundamentalsに約104行入ったか確認、(2)その後S5a実装をreviewerに提示。S5a完了後にS5c-2（cron+ワークフロー）。
+- **未解決・ブロッカー**: S5の実データ動作確認はオーナーのシード実行待ち（Supabase SQL Editor→seed-fundamentals.ts→約104行確認）。backlog: 条件ピッカーの/report抽出共通化、cache.tsのmetricsキャスト軽量ガード（S5aで検討）、check-screen-cacheの後始末。
 
 ---
 
