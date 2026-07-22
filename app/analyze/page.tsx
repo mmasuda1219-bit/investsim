@@ -25,19 +25,24 @@
 
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { CompositeCondition, NeedsPresetId } from '@/lib/backtest/types'
+import type { CompositeCondition, InvestorModelId, NeedsPresetId } from '@/lib/backtest/types'
 import {
   NEEDS_PRESETS,
   NEEDS_PRESET_IDS,
   getNeedsPresetCondition,
   type LabNeedsResponse,
 } from '@/lib/backtest/presets'
-import { getInvestorPresetCondition, INVESTOR_PRESET_IDS } from '@/lib/backtest/investor-presets'
+import {
+  INVESTOR_PRESETS,
+  INVESTOR_PRESET_IDS,
+  getInvestorPresetCondition,
+} from '@/lib/backtest/investor-presets'
 import { describeFundamentalFilter, formatMetricValue } from '@/lib/backtest/fundamental'
 import type { PreparedBundle, PrepareResponse } from '@/lib/report/types'
 import { describeCompositeCondition } from '@/lib/report/prompt'
 import { buildTransparencyCard } from '@/lib/report/transparency'
 import { US_UNIVERSE } from '@/lib/market/us-universe'
+import type { ScreenResponse } from '@/lib/screen/types'
 import ProConditionPicker from '@/components/analyze/ProConditionPicker'
 import InvestorModelPicker from '@/components/analyze/InvestorModelPicker'
 
@@ -45,7 +50,9 @@ type AnalyzeMode = 'quick' | 'pro' | 'investor'
 type AnalyzeScope = 'with-symbol' | 'no-symbol'
 
 // S3で投資家モデルを有効化（バフェット/グレアム/リンチの3モデル）。
-// 銘柄指定なしは引き続きプレースホルダ。
+// S5aで銘柄指定なし（自動スクリーニング）を有効化。ただしスクリーニングは
+// quick/investorのみ対応（プロ＝カスタム条件は/api/analyze/screen非対応。
+// UI側は mode==='pro' の場合その旨のメッセージを表示する）。
 export const ANALYZE_MODE_TABS: { id: AnalyzeMode; label: string; disabled?: boolean }[] = [
   { id: 'quick',    label: 'クイック' },
   { id: 'pro',      label: 'プロ' },
@@ -54,7 +61,7 @@ export const ANALYZE_MODE_TABS: { id: AnalyzeMode; label: string; disabled?: boo
 
 export const ANALYZE_SCOPE_OPTIONS: { id: AnalyzeScope; label: string; disabled?: boolean }[] = [
   { id: 'with-symbol', label: '銘柄指定あり' },
-  { id: 'no-symbol',   label: '銘柄指定なし（自動スクリーニング）', disabled: true },
+  { id: 'no-symbol',   label: '銘柄指定なし（自動スクリーニング）' },
 ]
 
 type PreviewPhase = 'idle' | 'loading' | 'done'
@@ -213,6 +220,17 @@ export default function AnalyzePage() {
   const [report, setReport] = useState('')
   const runningReportRef = useRef(false)
 
+  // ── S5a: 銘柄指定なし（自動スクリーニング）。quick/investorのみ対応（プロは
+  // /api/analyze/screen非対応）。プリセット選択はここでは screenNeedsPresetId /
+  // screenInvestorId として独立管理する（with-symbol側の presetId / investorCondition
+  // とは別の状態 — 混ぜると「今表示している結果がどちらの入力由来か」が曖昧になる
+  // ため。TOP行選択時は銘柄だけを with-symbol 側へ渡す最小導線に留める）。
+  const [screenNeedsPresetId, setScreenNeedsPresetId] = useState<NeedsPresetId>('stable')
+  const [screenInvestorId, setScreenInvestorId] = useState<InvestorModelId>(INVESTOR_PRESET_IDS[0])
+  const [screenPhase, setScreenPhase] = useState<PreviewPhase>('idle')
+  const [screenError, setScreenError] = useState<string | null>(null)
+  const [screenRes, setScreenRes] = useState<ScreenResponse | null>(null)
+
   // リクエストID方式（レビュー指摘・原則9）: resetDownstream() の呼び出しの
   // たび（＝モード切替ハンドラ・銘柄/資金/プリセット変更・プロ条件変更のすべて）
   // にインクリメントする。runPreview/runReport/runProPreview/runProGenerate は
@@ -235,6 +253,9 @@ export default function AnalyzePage() {
     setReportError(null)
     setBundle(null)
     setReport('')
+    setScreenPhase('idle')
+    setScreenError(null)
+    setScreenRes(null)
   }
 
   const runPreview = async () => {
@@ -266,6 +287,48 @@ export default function AnalyzePage() {
       setPreviewError(e instanceof Error ? e.message : 'エラーが発生しました')
       setPreviewPhase('idle')
     }
+  }
+
+  // ── S5a: 銘柄指定なしのスクリーニング実行。/api/analyze/screen はキャッシュのみ
+  // 読み（ライブ取得なし）・quick/investorのみ対応。空/薄いキャッシュでも200で
+  // 「評価0件」を正直に返す実装のため、ここでは通常のエラーパス（HTTP以外)は
+  // ネットワーク断など本当の障害のみを扱う。
+  const runScreen = async () => {
+    if (scope !== 'no-symbol' || (mode !== 'quick' && mode !== 'investor') || screenPhase === 'loading') return
+    resetDownstream()
+    const requestId = requestIdRef.current
+    setScreenPhase('loading')
+    try {
+      const body =
+        mode === 'quick'
+          ? { mode: 'quick', presetId: screenNeedsPresetId }
+          : { mode: 'investor', presetId: screenInvestorId }
+      const res = await fetch('/api/analyze/screen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? `HTTP ${res.status}`)
+      }
+      const data = (await res.json()) as ScreenResponse
+      if (requestIdRef.current !== requestId) return // 待機中にモード切替/条件変更 → 結果を破棄
+      setScreenRes(data)
+      setScreenPhase('done')
+    } catch (e) {
+      if (requestIdRef.current !== requestId) return
+      setScreenError(toUserMessage(e))
+      setScreenPhase('idle')
+    }
+  }
+
+  // TOP行クリック → その銘柄を「銘柄指定あり」の単一銘柄フローに渡す最小導線。
+  // プリセット選択の同期・自動プレビュー実行はS5bのスコープ（ここでは銘柄のみ渡す）。
+  const pickCandidateSymbol = (sym: string) => {
+    setSymbol(sym)
+    setScope('with-symbol')
+    resetDownstream()
   }
 
   const runReport = async () => {
@@ -465,7 +528,12 @@ export default function AnalyzePage() {
             {ANALYZE_SCOPE_OPTIONS.map(opt => (
               <button
                 key={opt.id}
-                onClick={() => !opt.disabled && setScope(opt.id)}
+                onClick={() => {
+                  if (opt.disabled || opt.id === scope) return
+                  setScope(opt.id)
+                  // 範囲を切り替えたら古い結果（別範囲の入力に基づく）は破棄する（原則9）。
+                  resetDownstream()
+                }}
                 disabled={opt.disabled}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   scope === opt.id
@@ -484,6 +552,12 @@ export default function AnalyzePage() {
           </div>
         </div>
 
+        {/* 銘柄指定あり: 既存の銘柄シンボル/初期資金＋quick/pro/investorパネル
+            （S1/S2/S3のまま無改修）。銘柄指定なし: S5aのスクリーニングパネル
+            （下）に完全に切り替える — 両者は互いに独立した分岐なので、この
+            branch自体が「既存の銘柄指定あり挙動を壊さない」ことの構造的な保証になる。 */}
+        {scope === 'with-symbol' && (
+        <>
         {/* 銘柄シンボル/初期資金（クイック・プロ共通・対象範囲=銘柄指定ありのみ機能） */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -630,7 +704,173 @@ export default function AnalyzePage() {
             </p>
           )}
         </div>
+        </>
+        )}
+
+        {/* ── S5a: 銘柄指定なし（自動スクリーニング）。キャッシュ済みユニバース
+            （lib/screen/cache.ts）に quick/investor の条件を適用し、適合度TOPを
+            表示する。ライブ取得は一切しない（原則9・60秒制約）。プロ（カスタム
+            条件）は非対応 — 導出規約（先頭フィルタで第2キーを決める）と汎用
+            カスタム条件は相性が悪いため対象外にし、その旨をメッセージで明示する。 */}
+        {scope === 'no-symbol' && (
+          <div className="border border-border rounded-lg p-4 space-y-4">
+            {mode === 'pro' ? (
+              <p className="text-sm text-amber-300 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-3 leading-relaxed">
+                銘柄指定なし（自動スクリーニング）はプロ（カスタム条件）に対応していません。
+                クイックまたは投資家モデルのタブに切り替えてご利用ください。
+              </p>
+            ) : (
+              <>
+                <div>
+                  <p className="text-sm text-white font-medium mb-1">
+                    {mode === 'quick' ? 'ニーズ軸プリセットで適合銘柄を探す' : '投資家モデルで適合銘柄を探す'}
+                  </p>
+                  <p className="text-xs text-muted leading-relaxed">
+                    事前計算済みキャッシュ（現在値ファンダメンタル）にのみ条件を適用します。ライブ取得・バックテスト・決算派生の評価はここでは行いません。
+                  </p>
+                </div>
+
+                {mode === 'quick' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {NEEDS_PRESET_IDS.map(id => {
+                      const p = NEEDS_PRESETS[id]
+                      const selected = screenNeedsPresetId === id
+                      return (
+                        <label
+                          key={id}
+                          className={`block rounded-lg border p-3 cursor-pointer transition-colors ${
+                            selected ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+                          }`}
+                        >
+                          <span className="flex items-start gap-2">
+                            <input
+                              type="radio"
+                              name="screen-needs-preset"
+                              checked={selected}
+                              onChange={() => { setScreenNeedsPresetId(id); resetDownstream() }}
+                              className="mt-1 accent-blue-500"
+                            />
+                            <span>
+                              <span className="block text-sm text-white font-medium">{p.label}</span>
+                              <span className="block text-xs text-muted mt-1 leading-relaxed">「{p.description}」</span>
+                            </span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {INVESTOR_PRESET_IDS.map(id => {
+                      const p = INVESTOR_PRESETS[id]
+                      const selected = screenInvestorId === id
+                      return (
+                        <label
+                          key={id}
+                          className={`block rounded-lg border p-3 cursor-pointer transition-colors ${
+                            selected ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+                          }`}
+                        >
+                          <span className="flex items-start gap-2">
+                            <input
+                              type="radio"
+                              name="screen-investor-preset"
+                              checked={selected}
+                              onChange={() => { setScreenInvestorId(id); resetDownstream() }}
+                              className="mt-1 accent-blue-500"
+                            />
+                            <span className="block text-sm text-white font-medium">{p.label}</span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <button
+                  onClick={runScreen}
+                  disabled={screenPhase === 'loading'}
+                  className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                    screenPhase === 'loading' ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+                  }`}
+                >
+                  {screenPhase === 'loading' ? 'スクリーニング実行中...' : 'スクリーニング実行（キャッシュのみ・AIは使いません）'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Screening: error / loading（S5a・銘柄指定なし） */}
+      {scope === 'no-symbol' && screenError && (
+        <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-red-300 text-sm">
+          {screenError}
+        </div>
+      )}
+      {scope === 'no-symbol' && screenPhase === 'loading' && (
+        <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin mx-auto" />
+          <p className="text-muted text-sm">キャッシュ済みユニバースを評価中...</p>
+        </div>
+      )}
+
+      {/* Screening: ranking result（S5a） */}
+      {scope === 'no-symbol' && screenRes && screenPhase === 'done' && (
+        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
+          <h2 className="text-white font-semibold text-sm">
+            「{screenRes.presetLabel}」の適合度ランキング（キャッシュ評価・現在値）
+          </h2>
+          <p className="text-xs text-muted leading-relaxed">
+            {screenRes.universeSize}銘柄中 {screenRes.meta.evaluatedCount}件を評価
+            ・鮮度切れ{screenRes.meta.excludedStaleCount}件除外
+            ・データ欠損{screenRes.meta.excludedNoDataCount}件除外
+            ・未キャッシュ{screenRes.excludedMissingCount}件除外
+            （鮮度閾値: {screenRes.staleDaysThreshold}日）
+          </p>
+
+          {screenRes.candidates.length === 0 ? (
+            <p className="text-sm text-amber-300 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-3 leading-relaxed">
+              条件に適合する銘柄が見つかりませんでした（評価対象が0件、または該当銘柄が無い可能性があります）。
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {screenRes.candidates.map((c, i) => (
+                <button
+                  key={c.symbol}
+                  onClick={() => pickCandidateSymbol(c.symbol)}
+                  className="w-full text-left bg-surface/50 hover:bg-surface border border-border hover:border-blue-600 rounded-lg px-3 py-2.5 transition-colors"
+                >
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-xs font-mono text-muted w-5 shrink-0">{i + 1}</span>
+                    <span className="text-sm font-mono font-semibold text-white">{c.symbol}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded shrink-0 ${
+                      c.allPassed ? 'bg-green-900/50 text-green-400' : 'bg-amber-900/50 text-amber-400'
+                    }`}>
+                      {c.passedCount}/{c.totalFilters}件成立
+                    </span>
+                    <span className="text-xs text-muted ml-auto shrink-0">
+                      取得: {new Date(c.fetchedAt).toLocaleDateString('ja-JP')}（{c.source}）
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 pl-8">{c.reason}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="pt-1 border-t border-border/60">
+            <p className="text-xs text-muted mb-1.5 mt-2">このプリセットの実際の条件:</p>
+            <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside leading-relaxed">
+              {screenRes.conditionNotes.map((note, i) => <li key={i}>{note}</li>)}
+            </ul>
+          </div>
+
+          <p className="text-xs text-muted/60">
+            銘柄をクリックすると「銘柄指定あり」に切り替わり、その銘柄でプレビュー・AIレポート生成を実行できます。
+          </p>
+        </div>
+      )}
 
       {/* Preview: error / loading */}
       {previewError && (
@@ -945,7 +1185,7 @@ export default function AnalyzePage() {
       )}
 
       {/* Disclaimer */}
-      {(report || bundle || previewRes) && (
+      {(report || bundle || previewRes || screenRes) && (
         <p className="text-xs text-muted/60 leading-relaxed">
           ※ 数字プレビュー・AIレポートともに過去の実市場データに基づく参考情報です。
           ファンダメンタル条件は現在値の静的評価であり、過去5年のバックテスト期間には遡及しません。

@@ -99,10 +99,11 @@ console.log('クイック→レポート入力整合 — symbol/initialCapital �
   }
 }
 
-// ── 4. モードガード — 銘柄指定なしのみ未配線のまま ──────────────────────────
-// S2でプロモード、S3で投資家モデルが有効化されたため、両者の disabled 期待値は
-// 更新済み（S1時点の期待値は逆に「未配線」だったが、これはS2/S3の承認済みスコープ変更）。
-console.log('ANALYZE_MODE_TABS / ANALYZE_SCOPE_OPTIONS — S3時点で機能するのはクイック・プロ・投資家モデル×銘柄指定ありのみ')
+// ── 4. モードガード — S5aで銘柄指定なし(スクリーニング)も配線済み ──────────────
+// S2でプロモード、S3で投資家モデル、S5aで銘柄指定なし(quick/investorのスクリーニング)
+// が有効化されたため、disabled 期待値は全て更新済み（S1時点の期待値は逆に
+// 「未配線」だったが、これはS2/S3/S5aの承認済みスコープ変更）。
+console.log('ANALYZE_MODE_TABS / ANALYZE_SCOPE_OPTIONS — S5a時点で機能するのはクイック・プロ・投資家モデル × 銘柄指定あり/なし')
 {
   check('モードは3種（quick/pro/investor）', ANALYZE_MODE_TABS.length === 3)
   const quick = ANALYZE_MODE_TABS.find(t => t.id === 'quick')
@@ -116,7 +117,7 @@ console.log('ANALYZE_MODE_TABS / ANALYZE_SCOPE_OPTIONS — S3時点で機能す�
   const withSymbol = ANALYZE_SCOPE_OPTIONS.find(o => o.id === 'with-symbol')
   const noSymbol = ANALYZE_SCOPE_OPTIONS.find(o => o.id === 'no-symbol')
   check('with-symbol は disabled でない（S1で機能する）', withSymbol !== undefined && !withSymbol.disabled)
-  check('no-symbol は disabled（S5まで未配線）', noSymbol !== undefined && noSymbol.disabled === true)
+  check('no-symbol は disabled でない（S5aでquick/investorのスクリーニングが機能する。proは非対応でUI内メッセージ表示）', noSymbol !== undefined && !noSymbol.disabled)
 }
 
 // ── 結果 ─────────────────────────────────────────────────────────────────────
