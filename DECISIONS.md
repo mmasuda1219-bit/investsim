@@ -192,3 +192,11 @@
 - 理由: 2つは同一条件を食う2段パイプであり最小の縦切りで背骨が通る（原則2）。lab=無料の数字段/report=課金のAI段の役割分担でOpusトークン前にユーザー判断が可能。4択フラットでなくクイック/プロ2モードで初心者離脱を回避
 - 検証: scripts/check-analyze-s1.ts（tsx）28項目全PASS — getNeedsPresetCondition がプリセットのCompositeConditionをそのまま返す（参照同一）、それが /api/report/prepare の parseCompositeCondition を未加工で通る（technical/fundamentalFilters/derivedFiltersとも変化なし）、クイック→レポート組み立てリクエストのsymbol正規化・initialCapitalが prepare の受け入れ条件を満たす、ANALYZE_MODE_TABS/ANALYZE_SCOPE_OPTIONSでプロ・投資家モデル・銘柄指定なしがdisabledのまま（未配線）であることを確認。npx tsc --noEmit 緑
 - 影響ファイル: app/analyze/page.tsx(新), components/SiteNav.tsx, lib/backtest/presets.ts, scripts/check-analyze-s1.ts(新), DECISIONS.md
+
+## 2026-07-21: /analyze プロモード有効化（S2）— 分析タイプ軸で条件ピッカー出し分け・prepareをプレビュー流用
+- 背景: disabled だった /analyze プロモードを有効化し、/report のテクニカル＋ファンダ＋決算派生ピッカーを分析タイプ軸(ファンダ/テクニカル/ハイブリッド)で出し分けたい
+- 決定: pro のプレビューは lab-backtest を使わず /api/report/prepare(非AI段)を流用（lab-backtest無改修）。ピッカーは /report から複製(抽出は次スライスに予約)。CompositeCondition.technical 必須のためファンダ型はベースライントリガー(買い持ち/MA200/MA50等・エンジンが実サポートする条件のみ)をユーザー選択で明示適用。透明性カードは derivedGate も反復するよう小改修し決算派生条件も反映
+- 理由: prepare は任意 CompositeCondition のゲート＋5年バックテストを非AIで返すため最大再利用・新エンジンゼロ(原則2/8)。technicalモードは ma_cross 固定でカスタム条件を通せず prepare 流用が低サーフェス。複製は S1(MarkdownView)先例＋サーバー単一検証源(parseCompositeCondition)でドリフト無害。ベースライントリガーはユーザー選択＋UI明記で原則9の誤認回避
+- 補足: 「買い持ち（常時保有）」はバックテストエンジン（lib/backtest/rules.ts）に評価器が存在しないため、ベースライントリガーの選択肢からは除外した（原則9: 未サポートの売買基準を別トリガーで偽装しない）。実際に採用したベースライントリガーは MA200クロス／MA50クロス／ゴールデンクロス(50×200)の3種で、いずれも既存 evaluateTechnical にそのまま写像できる実装済み条件のみ（scripts/check-analyze-pro.ts で合成バーによる実行検証済み）
+- 検証: scripts/check-analyze-pro.ts（tsx・新規）全PASS — 分析タイプ軸(fundamental/technical/hybrid)がそれぞれ妥当な CompositeCondition を生成、ベースライントリガー3種が実在evaluatorへ例外なく写像、不正入力(非数値・短期MA≥長期MA・未知トリガーID)が{error}になる、透明性カード改修でderivedGateのpass/no_dataが正直に反映されることを確認。回帰: scripts/check-analyze-s1.ts（pro disabled期待値をS2の意図的な有効化に合わせて更新・28項目全PASS）、scripts/check-analyze-s4.ts（15項目全PASS）、scripts/check-report-r1.ts（全PASS）。npx tsc --noEmit 緑。保護対象ファイル（app/api/lab/backtest/route.ts, app/api/report/{prepare,generate}/route.ts, app/report/page.tsx, lib/backtest/run.ts, lib/backtest/types.ts, lib/report/claude.ts, lib/ai-trader/*）は無差分
+- 影響ファイル: app/analyze/page.tsx, components/analyze/ProConditionPicker.tsx(新), lib/report/transparency.ts, scripts/check-analyze-pro.ts(新), scripts/check-analyze-s1.ts, DECISIONS.md

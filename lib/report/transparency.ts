@@ -4,8 +4,9 @@
 // 3要素だけから可視化する。新しいデータ源・新しいAPI・新規データ取得は
 // 一切増やさない（COMPANY.md 原則9）。
 //
-// データ源はこの3つに限定する:
+// データ源はこの4つに限定する:
 //   (a) bundle.fundamentalGate.evaluations — 現在値ファンダの実測 pass/fail/no_data
+//   (a2) bundle.derivedGate.evaluations    — 決算派生（earnings-trend）の実測 pass/fail/no_data（/analyze S2）
 //   (b) bundle.request.condition.technical — 既存の describeCondition() で文章化
 //   (c) bundle.backtest?.metrics           — 5年実データバックテストの要約指標
 //
@@ -16,7 +17,12 @@
 
 import type { PreparedBundle } from './types'
 import { describeCondition } from './prompt'
-import { describeFundamentalFilter, formatMetricValue } from '@/lib/backtest/fundamental'
+import {
+  describeFundamentalFilter,
+  formatMetricValue,
+  describeDerivedFilter,
+  formatDerivedValue,
+} from '@/lib/backtest/fundamental'
 
 export interface TransparencyCard {
   /** なぜこの銘柄/戦略が選ばれたかの要点（実測できた事実のみ）。 */
@@ -45,6 +51,24 @@ export function buildTransparencyCard(bundle: PreparedBundle): TransparencyCard 
       continue
     }
     const actual = ev.actual != null ? formatMetricValue(ev.filter.metric, ev.actual) : 'データなし'
+    if (ev.result === 'pass') {
+      reasons.push(`参加条件成立: ${cond}（実測 ${actual}）`)
+      tags.push(`${cond}: 実測${actual}`)
+    } else {
+      caveats.push(`参加条件不成立: ${cond}（実測 ${actual}）`)
+    }
+  }
+
+  // (a2) 決算派生（earnings-trend）ゲート（年次実績・静的・fail-closed）。
+  // 従来 fundamentalGate.evaluations しか反復しておらず derivedFilters（/report R2）
+  // の判定結果がカードから欠落していたため、S2で同じ扱いを追加する。
+  for (const ev of bundle.derivedGate.evaluations) {
+    const cond = describeDerivedFilter(ev.filter)
+    if (ev.result === 'no_data') {
+      caveats.push(`${cond} → データなし（決算データ不足のため判定不能・不成立扱い）`)
+      continue
+    }
+    const actual = ev.actual != null ? formatDerivedValue(ev.filter.metric, ev.actual) : 'データなし'
     if (ev.result === 'pass') {
       reasons.push(`参加条件成立: ${cond}（実測 ${actual}）`)
       tags.push(`${cond}: 実測${actual}`)

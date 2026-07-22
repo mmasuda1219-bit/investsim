@@ -1,18 +1,25 @@
 'use client'
 
-// /analyze S1 — /lab（無料の数字プレビュー）と /report（AIレポート）を単一の
-// 統合入口に束ねる背骨。このスライスは「クイックモード（ニーズ軸プリセット）＋
-// 銘柄指定あり」だけを完全配線する。プロ/投資家モデル/銘柄指定なしはプレース
-// ホルダ（/lab の investor 無効化と同手法）— S2以降で順次配線する。
+// /analyze — /lab（無料の数字プレビュー）と /report（AIレポート）を単一の
+// 統合入口に束ねる背骨。
 //
-// フロー: ニーズ軸プリセット選択 → /api/lab/backtest(needsモード) で無料プレビュー
+// S1: クイックモード（ニーズ軸プリセット）＋銘柄指定あり。
+//   フロー: ニーズ軸プリセット選択 → /api/lab/backtest(needsモード) で無料プレビュー
 //   → 「この条件でAIレポート生成」→ 同じプリセットの CompositeCondition をそのまま
 //   /api/report/prepare → /api/report/generate へ渡し、既存の専門レポートを表示する。
+//
+// S2: プロモード（銘柄指定あり）。ProConditionPicker（分析タイプ軸: ファンダ/
+//   テクニカル/ハイブリッド）で CompositeCondition を組み立て、lab-backtest は
+//   使わずに「プレビュー」ボタン→/api/report/prepare（非AI・ゲート＋5年バックテスト）、
+//   「AIレポート生成」ボタン→/api/report/generate、と2段を別ボタンに分割して呼ぶ。
+//   結果表示（bundle要約・透明性カード・教訓使用状況・引用元）はクイックと共通再利用。
+//
+// 投資家モデル・銘柄指定なしは引き続きプレースホルダ（/lab の investor 無効化と同手法）。
 // 新しいAPIルート・新しいデータ源はゼロ（既存 /lab・/report をそのまま再利用）。
 
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { NeedsPresetId } from '@/lib/backtest/types'
+import type { CompositeCondition, NeedsPresetId } from '@/lib/backtest/types'
 import {
   NEEDS_PRESETS,
   NEEDS_PRESET_IDS,
@@ -24,14 +31,16 @@ import type { PreparedBundle, PrepareResponse } from '@/lib/report/types'
 import { describeCompositeCondition } from '@/lib/report/prompt'
 import { buildTransparencyCard } from '@/lib/report/transparency'
 import { US_UNIVERSE } from '@/lib/market/us-universe'
+import ProConditionPicker from '@/components/analyze/ProConditionPicker'
 
 type AnalyzeMode = 'quick' | 'pro' | 'investor'
 type AnalyzeScope = 'with-symbol' | 'no-symbol'
 
-// このスライスで実際に機能するのはクイック×銘柄指定ありのみ。他はプレースホルダ。
+// S2でプロモードを有効化（分析タイプ軸で条件ピッカーを出し分け）。
+// 投資家モデル・銘柄指定なしは引き続きプレースホルダ。
 export const ANALYZE_MODE_TABS: { id: AnalyzeMode; label: string; disabled?: boolean }[] = [
   { id: 'quick',    label: 'クイック' },
-  { id: 'pro',      label: 'プロ',       disabled: true },
+  { id: 'pro',      label: 'プロ' },
   { id: 'investor', label: '投資家モデル', disabled: true },
 ]
 
@@ -41,7 +50,9 @@ export const ANALYZE_SCOPE_OPTIONS: { id: AnalyzeScope; label: string; disabled?
 ]
 
 type PreviewPhase = 'idle' | 'loading' | 'done'
-type ReportPhase = 'idle' | 'preparing' | 'generating' | 'done'
+// 'prepared' はプロモード専用: prepare段階（無料プレビュー相当）が終わり、
+// AIレポート生成ボタンの実行待ちになっている状態（S2）。
+type ReportPhase = 'idle' | 'preparing' | 'prepared' | 'generating' | 'done'
 
 function formatMoney(v: number, currency: string) {
   return v.toLocaleString(currency === 'JPY' ? 'ja-JP' : 'en-US', {
@@ -101,6 +112,81 @@ function MarkdownView({ text }: { text: string }) {
   )
 }
 
+// ── Stage 1/2 の共有ヘルパ（S2: プロモードはボタンを2つに分割して使う） ──────
+// クイックモードの runReport（1ボタンで prepare→generate を連続実行）と、
+// プロモードの runProPreview/runProGenerate（別ボタンで分割実行）の両方から
+// 同じ実装を呼ぶ。新しいAPIルート・新しいデータ源は増やさない（原則2/8/9）。
+
+async function prepareBundle(input: {
+  symbol: string
+  condition: CompositeCondition
+  initialCapital?: number
+}): Promise<PreparedBundle> {
+  const prepRes = await fetch('/api/report/prepare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!prepRes.ok) {
+    const err = await prepRes.json().catch(() => ({}))
+    throw new Error(err.error ?? `準備に失敗しました (HTTP ${prepRes.status})`)
+  }
+  const { bundle } = (await prepRes.json()) as PrepareResponse
+  return bundle
+}
+
+async function streamGeneratedReport(
+  bundle: PreparedBundle,
+  onChunk: (chunk: string) => void,
+): Promise<void> {
+  const genRes = await fetch('/api/report/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bundle }),
+  })
+  if (!genRes.ok || !genRes.body) {
+    const err = await genRes.json().catch(() => ({}))
+    throw new Error(err.error ?? `生成に失敗しました (HTTP ${genRes.status})`)
+  }
+
+  const reader = genRes.body.getReader()
+  const decoder = new TextDecoder()
+  let received = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      if (chunk) {
+        received += chunk.length
+        onChunk(chunk)
+      }
+    }
+    const tail = decoder.decode()
+    if (tail) {
+      received += tail.length
+      onChunk(tail)
+    }
+  } catch {
+    // サーバー側streamエラー or ネットワーク切断。部分表示は残したまま通知する。
+    throw new Error(
+      received > 0
+        ? 'レポート生成が途中で中断されました（表示中の内容は部分的な結果です）。再試行してください。'
+        : 'レポートの受信に失敗しました。ネットワークを確認して再試行してください。',
+    )
+  }
+  if (received === 0) {
+    throw new Error('AIからのレポートが空でした。少し待ってから再試行してください。')
+  }
+}
+
+// fetch自体の失敗（ネットワーク断など）は英語の "Failed to fetch" になるため翻訳する
+function toUserMessage(e: unknown): string {
+  return e instanceof TypeError
+    ? 'サーバーに接続できませんでした。ネットワークを確認して再試行してください。'
+    : e instanceof Error ? e.message : 'エラーが発生しました'
+}
+
 export default function AnalyzePage() {
   const [mode, setMode] = useState<AnalyzeMode>('quick')
   const [scope, setScope] = useState<AnalyzeScope>('with-symbol')
@@ -119,10 +205,21 @@ export default function AnalyzePage() {
   const [report, setReport] = useState('')
   const runningReportRef = useRef(false)
 
+  // リクエストID方式（レビュー指摘・原則9）: resetDownstream() の呼び出しの
+  // たび（＝モード切替ハンドラ・銘柄/資金/プリセット変更・プロ条件変更のすべて）
+  // にインクリメントする。runPreview/runReport/runProPreview/runProGenerate は
+  // 開始時にこのIDを捕捉し、各 await の直後・setState の前に「現在のIDと一致するか」
+  // を確認してから書き込む。不一致（＝待機中にモード切替や条件変更が起きた）なら
+  // 結果を捨てて即 return する。これにより、fetch進行中に quick⇄pro を切り替えても
+  // 古いリクエストの結果が別モード・別条件の共通表示ブロック（transparency/sources/
+  // learningUsage 等）へ書き戻されることを防ぐ。
+  const requestIdRef = useRef(0)
+
   // 条件（銘柄/資金/プリセット）を変えたら、古いプレビュー・古いレポートは
   // その条件の結果ではなくなるため必ず捨てる（原則9: 古い結果を新条件の結果と
   // 誤認させない）。
   const resetDownstream = () => {
+    requestIdRef.current += 1
     setPreviewPhase('idle')
     setPreviewError(null)
     setPreviewRes(null)
@@ -135,6 +232,7 @@ export default function AnalyzePage() {
   const runPreview = async () => {
     if (mode !== 'quick' || previewPhase === 'loading') return
     resetDownstream()
+    const requestId = requestIdRef.current
     setPreviewPhase('loading')
     try {
       const res = await fetch('/api/lab/backtest', {
@@ -152,9 +250,11 @@ export default function AnalyzePage() {
         throw new Error(err.error ?? `HTTP ${res.status}`)
       }
       const data = (await res.json()) as LabNeedsResponse
+      if (requestIdRef.current !== requestId) return // 待機中にモード切替/条件変更 → 結果を破棄
       setPreviewRes(data)
       setPreviewPhase('done')
     } catch (e) {
+      if (requestIdRef.current !== requestId) return
       setPreviewError(e instanceof Error ? e.message : 'エラーが発生しました')
       setPreviewPhase('idle')
     }
@@ -163,6 +263,7 @@ export default function AnalyzePage() {
   const runReport = async () => {
     if (mode !== 'quick' || !previewRes || runningReportRef.current) return
     runningReportRef.current = true
+    const requestId = requestIdRef.current
     setReportError(null)
     setBundle(null)
     setReport('')
@@ -172,70 +273,88 @@ export default function AnalyzePage() {
       const condition = getNeedsPresetCondition(presetId)
 
       // ── Stage 1: prepare（ゲート評価＋5年実データバックテスト）──────
-      const prepRes = await fetch('/api/report/prepare', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symbol,
-          condition,
-          initialCapital: Number(capital) || undefined,
-        }),
-      })
-      if (!prepRes.ok) {
-        const err = await prepRes.json().catch(() => ({}))
-        throw new Error(err.error ?? `準備に失敗しました (HTTP ${prepRes.status})`)
-      }
-      const { bundle: prepared } = (await prepRes.json()) as PrepareResponse
+      const prepared = await prepareBundle({ symbol, condition, initialCapital: Number(capital) || undefined })
+      if (requestIdRef.current !== requestId) return // 待機中にモード切替/条件変更 → 結果を破棄
       setBundle(prepared)
 
       // ── Stage 2: generate（Opusストリーミング・ゲート不成立でも実行）──
       setReportPhase('generating')
-      const genRes = await fetch('/api/report/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bundle: prepared }),
+      await streamGeneratedReport(prepared, chunk => {
+        if (requestIdRef.current === requestId) setReport(prev => prev + chunk)
       })
-      if (!genRes.ok || !genRes.body) {
-        const err = await genRes.json().catch(() => ({}))
-        throw new Error(err.error ?? `生成に失敗しました (HTTP ${genRes.status})`)
-      }
-
-      const reader = genRes.body.getReader()
-      const decoder = new TextDecoder()
-      let received = 0
-      try {
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          const chunk = decoder.decode(value, { stream: true })
-          if (chunk) {
-            received += chunk.length
-            setReport(prev => prev + chunk)
-          }
-        }
-        const tail = decoder.decode()
-        if (tail) {
-          received += tail.length
-          setReport(prev => prev + tail)
-        }
-      } catch {
-        throw new Error(
-          received > 0
-            ? 'レポート生成が途中で中断されました（表示中の内容は部分的な結果です）。再試行してください。'
-            : 'レポートの受信に失敗しました。ネットワークを確認して再試行してください。',
-        )
-      }
-      if (received === 0) {
-        throw new Error('AIからのレポートが空でした。少し待ってから再試行してください。')
-      }
+      if (requestIdRef.current !== requestId) return
       setReportPhase('done')
     } catch (e) {
-      const message =
-        e instanceof TypeError
-          ? 'サーバーに接続できませんでした。ネットワークを確認して再試行してください。'
-          : e instanceof Error ? e.message : 'エラーが発生しました'
-      setReportError(message)
+      if (requestIdRef.current !== requestId) return
+      setReportError(toUserMessage(e))
       setReportPhase('idle')
+    } finally {
+      runningReportRef.current = false
+    }
+  }
+
+  // ── プロモード（S2）: プレビュー（prepare のみ・非AI）とAIレポート生成
+  // （generate のみ）を別ボタンに分割する。lab-backtest は使わない（無改修）。
+  const [proCondition, setProCondition] = useState<CompositeCondition | { error: string }>({
+    error: '条件を読み込み中です',
+  })
+
+  // ProConditionPicker の内部条件が変わるたびに呼ばれる。古い結果は新条件の
+  // 結果ではなくなるため必ず捨てる（quick と同じ原則9の扱い・resetDownstream流用
+  // ＝ここで requestIdRef もインクリメントされる）。
+  const handleProConditionChange = (condition: CompositeCondition | { error: string }) => {
+    setProCondition(condition)
+    resetDownstream()
+  }
+
+  const runProPreview = async () => {
+    if (mode !== 'pro' || runningReportRef.current) return
+    if ('error' in proCondition) {
+      setReportError(proCondition.error)
+      return
+    }
+    runningReportRef.current = true
+    const requestId = requestIdRef.current
+    setReportError(null)
+    setBundle(null)
+    setReport('')
+    setReportPhase('preparing')
+    try {
+      const prepared = await prepareBundle({
+        symbol,
+        condition: proCondition,
+        initialCapital: Number(capital) || undefined,
+      })
+      if (requestIdRef.current !== requestId) return // 待機中にモード切替/条件変更 → 結果を破棄
+      setBundle(prepared)
+      setReportPhase('prepared')
+    } catch (e) {
+      if (requestIdRef.current !== requestId) return
+      setReportError(toUserMessage(e))
+      setReportPhase('idle')
+    } finally {
+      runningReportRef.current = false
+    }
+  }
+
+  const runProGenerate = async () => {
+    if (mode !== 'pro' || !bundle || reportPhase !== 'prepared' || runningReportRef.current) return
+    runningReportRef.current = true
+    const requestId = requestIdRef.current
+    setReportError(null)
+    setReport('')
+    setReportPhase('generating')
+    try {
+      await streamGeneratedReport(bundle, chunk => {
+        if (requestIdRef.current === requestId) setReport(prev => prev + chunk)
+      })
+      if (requestIdRef.current !== requestId) return // 待機中にモード切替/条件変更 → 結果を破棄
+      setReportPhase('done')
+    } catch (e) {
+      if (requestIdRef.current !== requestId) return
+      setReportError(toUserMessage(e))
+      // prepared済みのbundleは維持し、再生成だけやり直せるようにする（prepareのやり直しは不要）。
+      setReportPhase('prepared')
     } finally {
       runningReportRef.current = false
     }
@@ -261,8 +380,9 @@ export default function AnalyzePage() {
       <div>
         <h1 className="text-2xl font-bold text-white">分析</h1>
         <p className="text-muted text-sm mt-1">
-          ニーズ軸プリセットで実データの数字プレビュー（無料・純計算）を確認し、
+          クイックモードはニーズ軸プリセットで実データの数字プレビュー（無料・純計算）を確認し、
           同じ条件でAIレポート（現状分析・根拠つき未来予想）を生成します。
+          プロモードはテクニカル・ファンダメンタル・決算トレンド条件を自分で組み合わせて検証できます。
         </p>
       </div>
 
@@ -281,7 +401,14 @@ export default function AnalyzePage() {
             {ANALYZE_MODE_TABS.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => !tab.disabled && setMode(tab.id)}
+                onClick={() => {
+                  if (tab.disabled || tab.id === mode) return
+                  setMode(tab.id)
+                  // モードを切り替えたら古い結果（別モードの条件に基づく）は破棄する（原則9）。
+                  // resetDownstream() が requestIdRef もインクリメントするため、進行中の
+                  // fetch（runReport/runProPreview/runProGenerate等）は解決しても無視される。
+                  resetDownstream()
+                }}
                 disabled={tab.disabled}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   mode === tab.id
@@ -326,35 +453,36 @@ export default function AnalyzePage() {
           </div>
         </div>
 
-        {/* ── Quick panel（銘柄指定あり・S1で唯一機能する組み合わせ） ── */}
-        <div className={`border border-border rounded-lg p-4 space-y-4 transition-opacity ${quickActive ? '' : 'opacity-50 pointer-events-none'}`}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-muted mb-2">銘柄シンボル</label>
-              <input
-                value={symbol}
-                onChange={e => { setSymbol(e.target.value.toUpperCase()); resetDownstream() }}
-                placeholder="AAPL / MSFT"
-                list="us-universe"
-                className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
-              />
-              <datalist id="us-universe">
-                {US_UNIVERSE.map(s => (
-                  <option key={s.symbol} value={s.symbol}>{`${s.name}（${s.sector}）`}</option>
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-2">初期資金（仮想）</label>
-              <input
-                type="number" min="1000" step="1000"
-                value={capital}
-                onChange={e => { setCapital(e.target.value); resetDownstream() }}
-                className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
-              />
-            </div>
+        {/* 銘柄シンボル/初期資金（クイック・プロ共通・対象範囲=銘柄指定ありのみ機能） */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-muted mb-2">銘柄シンボル</label>
+            <input
+              value={symbol}
+              onChange={e => { setSymbol(e.target.value.toUpperCase()); resetDownstream() }}
+              placeholder="AAPL / MSFT"
+              list="us-universe"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+            />
+            <datalist id="us-universe">
+              {US_UNIVERSE.map(s => (
+                <option key={s.symbol} value={s.symbol}>{`${s.name}（${s.sector}）`}</option>
+              ))}
+            </datalist>
           </div>
+          <div>
+            <label className="block text-xs text-muted mb-2">初期資金（仮想）</label>
+            <input
+              type="number" min="1000" step="1000"
+              value={capital}
+              onChange={e => { setCapital(e.target.value); resetDownstream() }}
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
 
+        {/* ── Quick panel（銘柄指定あり・ニーズ軸プリセット） ── */}
+        <div className={`border border-border rounded-lg p-4 space-y-4 transition-opacity ${quickActive ? '' : 'opacity-50 pointer-events-none'}`}>
           <div>
             <p className="text-sm text-white font-medium mb-2">ニーズ軸で選ぶ（5年・銘柄の参加条件つき）</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -404,16 +532,43 @@ export default function AnalyzePage() {
           </button>
         </div>
 
-        {/* ── Pro / Investor placeholders（S1では非機能） ── */}
-        {mode === 'pro' && (
-          <div className="border border-border rounded-lg p-4 opacity-70">
-            <p className="text-sm text-white font-medium">
-              プロモード
-              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 align-middle">近日対応</span>
+        {/* ── Pro panel（S2: 分析タイプ軸で条件ピッカーを出し分け・銘柄指定ありのみ） ── */}
+        <div className={`border border-border rounded-lg p-4 space-y-4 transition-opacity ${mode === 'pro' ? '' : 'opacity-50 pointer-events-none'}`}>
+          <ProConditionPicker onConditionChange={handleProConditionChange} />
+
+          {'error' in proCondition && (
+            <p className="text-xs text-amber-400 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-2">
+              {proCondition.error}
             </p>
-            <p className="text-xs text-muted mt-1">テクニカル・ファンダ・決算トレンド条件を自由に組み合わせるモードを準備中です。それまでは <a href="/report" className="text-blue-400 underline">AIレポート</a> ページをご利用ください。</p>
+          )}
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={runProPreview}
+              disabled={busyReport || mode !== 'pro'}
+              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                busyReport || mode !== 'pro' ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+              }`}
+            >
+              {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
+            </button>
+            <button
+              onClick={runProGenerate}
+              disabled={busyReport || reportPhase !== 'prepared'}
+              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                busyReport || reportPhase !== 'prepared' ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
+            </button>
           </div>
-        )}
+          {mode === 'pro' && reportPhase === 'prepared' && (
+            <p className="text-xs text-muted">
+              プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます。
+            </p>
+          )}
+        </div>
+
         {mode === 'investor' && (
           <div className="border border-border rounded-lg p-4 opacity-70">
             <p className="text-sm text-white font-medium">
@@ -519,8 +674,8 @@ export default function AnalyzePage() {
         </div>
       )}
 
-      {/* AIレポート生成ボタン（無料プレビュー完了後のみ・同じプリセット条件を流用） */}
-      {previewRes && previewPhase === 'done' && (
+      {/* AIレポート生成ボタン（無料プレビュー完了後のみ・同じプリセット条件を流用・クイックモード専用） */}
+      {mode === 'quick' && previewRes && previewPhase === 'done' && (
         <div className="bg-panel border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
           <p className="text-sm text-slate-300">
             この条件（プリセット「{preset.label}」・{symbol}）でAIがレポート（現状分析・AIトレーダー実績・根拠つき未来予想）を執筆します。
@@ -551,8 +706,12 @@ export default function AnalyzePage() {
             <div className="w-5 h-5 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
             <div className="text-sm text-slate-300">
               {reportPhase === 'preparing'
-                ? 'ステップ1/2: 条件を検証し、Yahoo Financeの過去5年実データでバックテスト中...'
-                : 'ステップ2/2: Opusがレポートを執筆中（少しずつ表示されます）...'}
+                ? (mode === 'pro'
+                    ? '条件を検証し、Yahoo Financeの過去5年実データでバックテスト中（プレビュー）...'
+                    : 'ステップ1/2: 条件を検証し、Yahoo Financeの過去5年実データでバックテスト中...')
+                : (mode === 'pro'
+                    ? 'Opusがレポートを執筆中（少しずつ表示されます）...'
+                    : 'ステップ2/2: Opusがレポートを執筆中（少しずつ表示されます）...')}
             </div>
           </div>
         </div>
