@@ -20,6 +20,25 @@
 
 ---
 
+## 2026-07-22
+
+- **今日のゴール**: S2「/analyze プロモード集約」を出荷する。
+- **やったこと**:
+  - S2出荷完了。コミット `6342712`。
+  - プロモード有効化：disabledだったプロモードを有効化。分析タイプ軸（ファンダ/テクニカル/ハイブリッド）で条件ピッカーを出し分け。components/analyze/ProConditionPicker.tsx（/reportから複製）新規作成。
+  - ボタン分割：プレビュー→/api/report/prepare、AIレポート→/api/report/generate の2ボタン。lab-backtestは無改修。
+  - ファンダ型のベースラインはユーザー選択（MA200/MA50/ゴールデンクロス。買い持ちは評価器不在ゆえ非提示＝原則9）。
+  - 透明性カード改修：lib/report/transparency.ts をderivedGateも反映するよう小改修。
+  - reviewer対応：モード切替中のfetch競合をrequestIdガード（resetDownstreamでインクリメント・await後とonChunk内で不一致なら破棄）で修正。
+  - suggestion対応：ProConditionPickerのnum()無言フォールバックをparsePeriodで{error}返す方式に統一。
+  - テスト：tsc緑、scripts/check-analyze-pro.ts（新5アサーション含む）全PASS、回帰でcheck-analyze-s1/s4・check-report-r1もPASS。
+  - 保護対象8ファイル無差分確認。
+- **現在の状態**: S1/S4/S2出荷済み。次はS3（投資家モデル連動＝lib/backtest/investor-presets.ts新設・著名投資家をCompositeConditionに写像・investorモード有効化）の計画をarchitectが作成中で人間ゲート①待ちへ。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
+- **次の一手**: S3の計画をオーナーに提示し人間ゲート①（計画承認）を待つ。
+- **未解決・ブロッカー**: なし。backlog（reviewer継続指摘）: 条件ピッカーの/reportとの抽出共通化（S2で複製した2コピー目・DECISIONSで次スライス予約済み）、Markdown描画共通化、getNeedsPresetConditionのReadonlyガード。
+
+---
+
 ## 2026-07-21
 
 - **今日のゴール**: S4「/analyze 透明性カード＋リーガルトーン制御」を出荷する。
