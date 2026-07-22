@@ -22,7 +22,7 @@
 
 ## 2026-07-22
 
-- **今日のゴール**: S2「/analyze プロモード集約」を出荷した後、S3「/analyze 投資家モデル連動」も出荷する。
+- **今日のゴール**: S2「/analyze プロモード集約」「S3「/analyze 投資家モデル連動」「S5a「screen API＋ランキング＋no-symbol UI」をすべて出荷する。
 - **やったこと**:
   - S2出荷完了。コミット `6342712`。
     - プロモード有効化：disabledだったプロモードを有効化。分析タイプ軸（ファンダ/テクニカル/ハイブリッド）で条件ピッカーを出し分け。components/analyze/ProConditionPicker.tsx（/reportから複製）新規作成。
@@ -44,10 +44,20 @@
     - 内容: universe_fundamentals テーブル（マイグレーション記録 supabase/migrations/0002）、lib/screen/cache.ts（store.tsパターン=Supabase service-role正・ローカルJSONフォールバック、getCached/listCached/upsertCached/listStaleTargets）、lib/screen/types.ts(CachedFundamentalRow)、scripts/seed-fundamentals.ts（オーナーがローカルで約3分実行・no_dataスキップ・架空補完なし）。レビュー対応でservice-role判定を lib/supabase/env.ts に一本化し二重管理解消（admin.tsは純粋抽出で挙動不変）。
     - テスト: tsc緑、scripts/check-screen-cache.ts 13項目PASS、保護対象無差分。
     - reviewer critical/warningゼロ(解消後)。
-    - **オーナーの手動作業（未完・要実施）**: (1)Supabase SQL Editorで supabase/migrations/0002_universe_fundamentals.sql を実行、(2)ローカルで npx tsx scripts/seed-fundamentals.ts を実行(約3分)、(3)universe_fundamentals に約104行入ったか確認。これが済むまでS5のスクリーニングは実データで動かない。
-- **現在の状態**: S1/S4/S2/S3/S5c-1出荷済み。S5a（screen API＋ランキング＋no-symbol UI）をbuilderが実装中。S5c-2（refresh cron＋専用ワークフロー）も残る。その後S5b（TOP行→prepare遷移）、最後にS6（勝率データ）。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
-- **次の一手**: (1)オーナーがSupabase SQL EditorでS5c-1用マイグレーションを実行・ローカルでシード実行(約3分)してuniverse_fundamentalsに約104行入ったか確認、(2)その後S5a実装をreviewerに提示。S5a完了後にS5c-2（cron+ワークフロー）。
-- **未解決・ブロッカー**: S5の実データ動作確認はオーナーのシード実行待ち（Supabase SQL Editor→seed-fundamentals.ts→約104行確認）。backlog: 条件ピッカーの/report抽出共通化、cache.tsのmetricsキャスト軽量ガード（S5aで検討）、check-screen-cacheの後始末。
+    - **オーナーの手動作業（未完・継続）**: (1)Supabase SQL Editorで supabase/migrations/0002_universe_fundamentals.sql を実行、(2)ローカルで npx tsx scripts/seed-fundamentals.ts を実行(約3分)、(3)universe_fundamentals に約104行入ったか確認。これが済むまでS5のスクリーニングは実データで動かない。
+  - S5a出荷完了。コミット `2584202`。
+    - /analyze の「銘柄指定なし」scope有効化。quick/investorプリセットをキャッシュ済みユニバース(universe_fundamentals)に適用し適合度ランキングTOP10表示。
+    - ランキングは架空スコアなし＝evaluateFundamentalGate通過数(第1キー)→先頭fundamentalFilter指標の辞書式(gte/gt降順・lte/lt昇順が第2キー。stable=marketCap降順/graham=pe昇順等が自動導出)。
+    - 欠/古/no_dataはfail-closed除外し「N件評価/古M件・欠K件除外」を正直表示。
+    - screenはキャッシュ読みのみでライブ取得なし(本番60秒厳守)、空キャッシュでも200で0件応答。
+    - TOP行クリックで銘柄を単一銘柄フローへ渡す最小導線。
+    - pro×no-symbolは非対応(400+UI表示)。
+    - 新規ファイル: lib/screen/rank.ts, app/api/analyze/screen/route.ts, scripts/check-screen-rank.ts。
+    - テスト: tsc緑、check-screen-rank 25項目PASS、回帰(analyze-s1/s4/pro/s3・screen-cache・report-r1)全PASS、保護対象無差分確認。
+    - reviewer(Fable) critical/warningゼロ・suggestionのみ(対応不要)。
+- **現在の状態**: S1/S4/S2/S3/S5c-1/S5a出荷済み。S5c-2（refresh-fundamentals cron＋専用GitHub Actionsワークフロー）をbuilderが実装中。その後S5b（TOP行→prepare本配線）、最後にS6（勝率データ）。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
+- **次の一手**: (1)S5c-2の実装継続、(2)その完了後にS5b着手。
+- **未解決・ブロッカー**: S5の実データ動作確認はオーナーのシード実行待ち（Supabase SQL Editor→seed-fundamentals.ts→約104行確認）。
 
 ---
 
