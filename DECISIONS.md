@@ -207,3 +207,10 @@
 - 理由: 新API・新データ源ゼロで最小の縦切り（原則2）。投資家名非注入で「本人が買う」断定を構造的に排除（原則9・S4トーン整合）。PEG/グレアムナンバー等の複合指標は発明せず個別実在指標のANDで近似しnotes/UIに明記。信念と実装のギャップ(例:一生保有はエンジン非対応→長期トレンド維持で代理)も正直注記
 - 検証: scripts/check-analyze-s3.ts（tsx・新規）全PASS — 3モデルが実在FundamentalMetric/DerivedMetric/technical8種のみを使用し、technical必須・条件が有効・不正presetIdが弾かれることを確認。回帰: scripts/check-analyze-s1.ts（investor disabled期待値をS3の意図的な有効化に合わせて更新）、scripts/check-analyze-s4.ts、scripts/check-analyze-pro.ts、scripts/check-report-r1.ts 全PASS。npx tsc --noEmit 緑。保護対象ファイル（app/api/lab/backtest/route.ts, lib/backtest/presets.ts, lib/report/transparency.ts, app/api/report/{prepare,generate}/route.ts, lib/backtest/run.ts, lib/report/claude.ts, app/report/page.tsx, lib/ai-trader/*）は無差分
 - 影響ファイル: lib/backtest/investor-presets.ts(新), components/analyze/InvestorModelPicker.tsx(新), app/analyze/page.tsx, lib/backtest/types.ts, scripts/check-analyze-s3.ts(新), DECISIONS.md
+
+## 2026-07-22: S5c-1 ユニバース・ファンダのキャッシュ土台（Supabase universe_fundamentals）
+- 背景: ライブ104銘柄走査は本番60秒制約で不可のため、事前計算キャッシュを土台にする（S5全体はキャッシュ前提）。その最初の縦切り。
+- 決定: Supabase に universe_fundamentals テーブルを追加し、lib/screen/cache.ts をstore.tsパターン(service-role正・ローカルJSONフォールバック)で新設。初期充填は scripts/seed-fundamentals.ts をオーナーがローカル実行(居住IP=Yahoo健全・~3分)。no_data(`{}`)はスキップし架空データを入れない(原則9)。screen API・cron・UIは後続スライス。
+- 理由: screenを軽量化して60sを死守する設計の土台。シード先行でcron単独初期充填(6日で非実用)問題を回避。
+- 補足: scripts/seed-fundamentals.ts は lib/screen/cache.ts の upsertCached を直接呼ばず、Supabaseクライアントを自前生成して同一テーブル/列へ書き込む。`lib/supabase/admin.ts` は `import 'server-only'` を含み、tsx（プレーンNode実行）から読み込むと即座に例外を投げるため（scripts/seed-sessions.ts と同じ既存制約）。cache.ts自体はServer Component/APIルート（S5aで追加予定）からの利用を想定。
+- 影響ファイル: supabase/migrations/0002_universe_fundamentals.sql(新), lib/screen/{types,cache}.ts(新), scripts/seed-fundamentals.ts(新), DECISIONS.md, .gitignore

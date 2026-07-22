@@ -2,15 +2,14 @@
 // SUPABASE_SERVICE_ROLE_KEY は秘密。絶対に NEXT_PUBLIC_ を付けないこと。
 import 'server-only'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { hasServiceRole } from './env'
 
 let client: SupabaseClient | null = null
 
-/** service-roleキーが設定されているか（Supabase永続化を使えるか）。 */
-export function hasServiceRole(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-  )
-}
+// hasServiceRole() の実体は server-only を含まない ./env に切り出し済み
+// （lib/screen/cache.ts 等、tsxから読む必要があるモジュールと共有するため）。
+// ここでは既存の呼び出し元互換のため再exportするだけ。
+export { hasServiceRole }
 
 /**
  * RLSをバイパスするserver専用クライアント。認証セッションは不要なので永続化しない。
