@@ -22,20 +22,26 @@
 
 ## 2026-07-22
 
-- **今日のゴール**: S2「/analyze プロモード集約」を出荷する。
+- **今日のゴール**: S2「/analyze プロモード集約」を出荷した後、S3「/analyze 投資家モデル連動」も出荷する。
 - **やったこと**:
   - S2出荷完了。コミット `6342712`。
-  - プロモード有効化：disabledだったプロモードを有効化。分析タイプ軸（ファンダ/テクニカル/ハイブリッド）で条件ピッカーを出し分け。components/analyze/ProConditionPicker.tsx（/reportから複製）新規作成。
-  - ボタン分割：プレビュー→/api/report/prepare、AIレポート→/api/report/generate の2ボタン。lab-backtestは無改修。
-  - ファンダ型のベースラインはユーザー選択（MA200/MA50/ゴールデンクロス。買い持ちは評価器不在ゆえ非提示＝原則9）。
-  - 透明性カード改修：lib/report/transparency.ts をderivedGateも反映するよう小改修。
-  - reviewer対応：モード切替中のfetch競合をrequestIdガード（resetDownstreamでインクリメント・await後とonChunk内で不一致なら破棄）で修正。
-  - suggestion対応：ProConditionPickerのnum()無言フォールバックをparsePeriodで{error}返す方式に統一。
-  - テスト：tsc緑、scripts/check-analyze-pro.ts（新5アサーション含む）全PASS、回帰でcheck-analyze-s1/s4・check-report-r1もPASS。
-  - 保護対象8ファイル無差分確認。
-- **現在の状態**: S1/S4/S2出荷済み。次はS3（投資家モデル連動＝lib/backtest/investor-presets.ts新設・著名投資家をCompositeConditionに写像・investorモード有効化）の計画をarchitectが作成中で人間ゲート①待ちへ。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
-- **次の一手**: S3の計画をオーナーに提示し人間ゲート①（計画承認）を待つ。
-- **未解決・ブロッカー**: なし。backlog（reviewer継続指摘）: 条件ピッカーの/reportとの抽出共通化（S2で複製した2コピー目・DECISIONSで次スライス予約済み）、Markdown描画共通化、getNeedsPresetConditionのReadonlyガード。
+    - プロモード有効化：disabledだったプロモードを有効化。分析タイプ軸（ファンダ/テクニカル/ハイブリッド）で条件ピッカーを出し分け。components/analyze/ProConditionPicker.tsx（/reportから複製）新規作成。
+    - ボタン分割：プレビュー→/api/report/prepare、AIレポート→/api/report/generate の2ボタン。lab-backtestは無改修。
+    - ファンダ型のベースラインはユーザー選択（MA200/MA50/ゴールデンクロス。買い持ちは評価器不在ゆえ非提示＝原則9）。
+    - 透明性カード改修：lib/report/transparency.ts をderivedGateも反映するよう小改修。
+    - reviewer対応：モード切替中のfetch競合をrequestIdガード（resetDownstreamでインクリメント・await後とonChunk内で不一致なら破棄）で修正。
+    - suggestion対応：ProConditionPickerのnum()無言フォールバックをparsePeriodで{error}返す方式に統一。
+    - テスト：tsc緑、scripts/check-analyze-pro.ts（新5アサーション含む）全PASS、回帰でcheck-analyze-s1/s4・check-report-r1もPASS。
+    - 保護対象8ファイル無差分確認。
+  - S3出荷完了。コミット `f0e9b51`。
+    - 投資家モデル新設：lib/backtest/investor-presets.ts に3モデル（バフェット/グレアム/リンチ）を定義。各モデルは言語化された投資理論(philosophy)を土台に、実在ファンダ(roe/debtToEquity/pe/pb/currentRatio/earningsGrowth/revenueGrowth)＋実在決算派生(fcfPositiveYears/epsCagr3y/equityRatio/revenueCagr3y)＋テクニカル8種へ写像。
+    - 透明性確保：信念と実装のギャップ（バフェット一生保有→200日MA代理・グレアムPER×PBR/リンチPEG→個別指標で近似）をapproximationNotesに正直注記。投資家名はAIプロンプトに非注入で断定を構造的に排除（原則9）。
+    - UI実装：components/analyze/InvestorModelPicker.tsx新設。investorモード有効化。prepare/generate 2段はS2再利用。lab-backtest無改修。
+    - テスト：tsc緑（暖機後・iCloud I/Oで初回9分半だが正常）、scripts/check-analyze-s3.ts全PASS、回帰(s1/s4/pro・report-r1)全PASS。保護対象8ファイル無差分確認。
+    - reviewer(Fable) critical/warningゼロ・「原則9まわり非常に丁寧」。suggestion(types.tsのlongPeriodコメント陳腐化)は修正済み。
+- **現在の状態**: S1/S4/S2/S3出荷済み。次はS5（銘柄なし＝ユニバース探索→ランキングTOP5-10。US_UNIVERSE約104銘柄×60秒制約が最大の壁）の計画をarchitectが作成中で人間ゲート①待ちへ。data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
+- **次の一手**: S5の計画（60秒制約の実現可能性）をオーナーに提示し人間ゲート①（計画承認）を待つ。
+- **未解決・ブロッカー**: なし。S5は60秒制約の実現可能性が最大の不確実要因（architectが定量評価中）。backlog（reviewer継続指摘）: 条件ピッカーの/reportとの抽出共通化（S2で複製した2コピー目・DECISIONSで次スライス予約済み）、Markdown描画共通化、getNeedsPresetConditionのReadonlyガード。
 
 ---
 
