@@ -14,7 +14,13 @@
 //   「AIレポート生成」ボタン→/api/report/generate、と2段を別ボタンに分割して呼ぶ。
 //   結果表示（bundle要約・透明性カード・教訓使用状況・引用元）はクイックと共通再利用。
 //
-// 投資家モデル・銘柄指定なしは引き続きプレースホルダ（/lab の investor 無効化と同手法）。
+// S3: 投資家モデル（銘柄指定あり）。InvestorModelPicker（バフェット/グレアム/
+//   リンチの3モデル・lib/backtest/investor-presets.ts）で CompositeCondition を
+//   選択し、S2のプロモードと全く同じ2段ボタン（プレビュー→AIレポート生成）に流す。
+//   投資家名は表示のみに使い、generate へのプロンプトには注入しない（AIが「本人が
+//   買う」と断定できない構造を維持・COMPANY.md 原則9）。
+//
+// 銘柄指定なしは引き続きプレースホルダ（/lab の investor 無効化と同手法）。
 // 新しいAPIルート・新しいデータ源はゼロ（既存 /lab・/report をそのまま再利用）。
 
 import { useRef, useState } from 'react'
@@ -26,22 +32,24 @@ import {
   getNeedsPresetCondition,
   type LabNeedsResponse,
 } from '@/lib/backtest/presets'
+import { getInvestorPresetCondition, INVESTOR_PRESET_IDS } from '@/lib/backtest/investor-presets'
 import { describeFundamentalFilter, formatMetricValue } from '@/lib/backtest/fundamental'
 import type { PreparedBundle, PrepareResponse } from '@/lib/report/types'
 import { describeCompositeCondition } from '@/lib/report/prompt'
 import { buildTransparencyCard } from '@/lib/report/transparency'
 import { US_UNIVERSE } from '@/lib/market/us-universe'
 import ProConditionPicker from '@/components/analyze/ProConditionPicker'
+import InvestorModelPicker from '@/components/analyze/InvestorModelPicker'
 
 type AnalyzeMode = 'quick' | 'pro' | 'investor'
 type AnalyzeScope = 'with-symbol' | 'no-symbol'
 
-// S2でプロモードを有効化（分析タイプ軸で条件ピッカーを出し分け）。
-// 投資家モデル・銘柄指定なしは引き続きプレースホルダ。
+// S3で投資家モデルを有効化（バフェット/グレアム/リンチの3モデル）。
+// 銘柄指定なしは引き続きプレースホルダ。
 export const ANALYZE_MODE_TABS: { id: AnalyzeMode; label: string; disabled?: boolean }[] = [
   { id: 'quick',    label: 'クイック' },
   { id: 'pro',      label: 'プロ' },
-  { id: 'investor', label: '投資家モデル', disabled: true },
+  { id: 'investor', label: '投資家モデル' },
 ]
 
 export const ANALYZE_SCOPE_OPTIONS: { id: AnalyzeScope; label: string; disabled?: boolean }[] = [
@@ -299,6 +307,17 @@ export default function AnalyzePage() {
     error: '条件を読み込み中です',
   })
 
+  // ── 投資家モデル（S3）: InvestorModelPicker は自由入力を持たない（ラジオ選択の
+  // み）ため、常に有効な CompositeCondition を返す（エラー状態が無い）。プロモード
+  // と全く同じ prepare→generate の2段ボタンに流すため、以下では mode に応じて
+  // proCondition/investorCondition のどちらを「今アクティブな条件」として使うかを
+  // activeCondition ひとつにまとめ、runProPreview/runProGenerate を両モード共用にする。
+  // 選択されたモデルID自体は保持しない（投資家名をレポート生成へ一切渡さないため・
+  // 表示は InvestorModelPicker 内部で完結する）。
+  const [investorCondition, setInvestorCondition] = useState<CompositeCondition>(
+    getInvestorPresetCondition(INVESTOR_PRESET_IDS[0]),
+  )
+
   // ProConditionPicker の内部条件が変わるたびに呼ばれる。古い結果は新条件の
   // 結果ではなくなるため必ず捨てる（quick と同じ原則9の扱い・resetDownstream流用
   // ＝ここで requestIdRef もインクリメントされる）。
@@ -307,10 +326,22 @@ export default function AnalyzePage() {
     resetDownstream()
   }
 
+  // InvestorModelPicker の選択が変わるたびに呼ばれる（同じ原則9の扱い）。
+  const handleInvestorConditionChange = (condition: CompositeCondition) => {
+    setInvestorCondition(condition)
+    resetDownstream()
+  }
+
+  // 「今アクティブな条件」— プロモードなら proCondition、投資家モデルなら
+  // investorCondition。それ以外（quick）では使われない（クイックは
+  // getNeedsPresetCondition を直接使う既存経路のまま・無改修）。
+  const activeCondition: CompositeCondition | { error: string } =
+    mode === 'investor' ? investorCondition : proCondition
+
   const runProPreview = async () => {
-    if (mode !== 'pro' || runningReportRef.current) return
-    if ('error' in proCondition) {
-      setReportError(proCondition.error)
+    if ((mode !== 'pro' && mode !== 'investor') || runningReportRef.current) return
+    if ('error' in activeCondition) {
+      setReportError(activeCondition.error)
       return
     }
     runningReportRef.current = true
@@ -322,7 +353,7 @@ export default function AnalyzePage() {
     try {
       const prepared = await prepareBundle({
         symbol,
-        condition: proCondition,
+        condition: activeCondition,
         initialCapital: Number(capital) || undefined,
       })
       if (requestIdRef.current !== requestId) return // 待機中にモード切替/条件変更 → 結果を破棄
@@ -338,7 +369,7 @@ export default function AnalyzePage() {
   }
 
   const runProGenerate = async () => {
-    if (mode !== 'pro' || !bundle || reportPhase !== 'prepared' || runningReportRef.current) return
+    if ((mode !== 'pro' && mode !== 'investor') || !bundle || reportPhase !== 'prepared' || runningReportRef.current) return
     runningReportRef.current = true
     const requestId = requestIdRef.current
     setReportError(null)
@@ -569,15 +600,36 @@ export default function AnalyzePage() {
           )}
         </div>
 
-        {mode === 'investor' && (
-          <div className="border border-border rounded-lg p-4 opacity-70">
-            <p className="text-sm text-white font-medium">
-              投資家モデル
-              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 align-middle">近日対応</span>
-            </p>
-            <p className="text-xs text-muted mt-1">著名投資家の投資スタイルを条件に写像して検証する機能を準備中です。</p>
+        {/* ── Investor panel（S3: 投資家モデル・銘柄指定ありのみ・プロと同じ2段ボタン） ── */}
+        <div className={`border border-border rounded-lg p-4 space-y-4 transition-opacity ${mode === 'investor' ? '' : 'opacity-50 pointer-events-none'}`}>
+          <InvestorModelPicker onConditionChange={handleInvestorConditionChange} />
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={runProPreview}
+              disabled={busyReport || mode !== 'investor'}
+              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                busyReport || mode !== 'investor' ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+              }`}
+            >
+              {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
+            </button>
+            <button
+              onClick={runProGenerate}
+              disabled={busyReport || reportPhase !== 'prepared' || mode !== 'investor'}
+              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                busyReport || reportPhase !== 'prepared' || mode !== 'investor' ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
+            </button>
           </div>
-        )}
+          {mode === 'investor' && reportPhase === 'prepared' && (
+            <p className="text-xs text-muted">
+              プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます（投資家名はAIへは伝えません）。
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Preview: error / loading */}
@@ -706,10 +758,10 @@ export default function AnalyzePage() {
             <div className="w-5 h-5 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
             <div className="text-sm text-slate-300">
               {reportPhase === 'preparing'
-                ? (mode === 'pro'
+                ? (mode === 'pro' || mode === 'investor'
                     ? '条件を検証し、Yahoo Financeの過去5年実データでバックテスト中（プレビュー）...'
                     : 'ステップ1/2: 条件を検証し、Yahoo Financeの過去5年実データでバックテスト中...')
-                : (mode === 'pro'
+                : (mode === 'pro' || mode === 'investor'
                     ? 'Opusがレポートを執筆中（少しずつ表示されます）...'
                     : 'ステップ2/2: Opusがレポートを執筆中（少しずつ表示されます）...')}
             </div>

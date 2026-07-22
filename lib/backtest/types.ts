@@ -53,7 +53,7 @@ export interface BbBreakCondition {
  * Dual moving-average cross (report slice 2):
  * buy when the SHORT MA crosses above the LONG MA (golden cross),
  * sell when it crosses below (dead cross).
- * Constraint: shortPeriod < longPeriod; longPeriod <= 100 (1y-daily warm-up).
+ * Constraint: shortPeriod < longPeriod; longPeriod <= 200 (validated in lib/report/validate.ts; 5y-daily provides ample warm-up).
  */
 export interface MaCrossDualCondition {
   type: 'technical'
@@ -200,6 +200,9 @@ export type BacktestPeriod = '1y' | '5y'
 
 /** Needs-axis preset IDs (definitions live in lib/backtest/presets.ts). */
 export type NeedsPresetId = 'stable' | 'income' | 'aggressive'
+
+/** Investor-model IDs (definitions live in lib/backtest/investor-presets.ts — /analyze S3). */
+export type InvestorModelId = 'buffett' | 'graham' | 'lynch'
 
 /** The three mutually exclusive condition modes of /lab. */
 export type LabMode = 'technical' | 'needs' | 'investor'
