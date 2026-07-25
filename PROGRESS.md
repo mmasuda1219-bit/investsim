@@ -20,6 +20,25 @@
 
 ---
 
+## 2026-07-25
+
+- **今日のゴール**: S5c-2「ユニバース・ファンダの鮮度top-up cron」を出荷する。
+- **やったこと**:
+  - S5c-2出荷完了。コミット `0202a8c`（4ファイル=lib/screen/refresh.ts, app/api/cron/refresh-fundamentals/route.ts, .github/workflows/refresh-fundamentals.yml, scripts/check-screen-refresh.ts）。
+    - ユニバース・ファンダの鮮度top-up cron：S5c-1（初期キャッシュ）後の universe_fundamentals テーブルを日次更新。オーナー承認済み。
+    - 内容：refresh-fundamentals cronエンドポイント（Bearer CRON_SECRET・maxDuration 60・tickパターン踏襲）、lib/screen/refresh.ts（refreshStaleFundamentals=listStaleTargets(6)で古い順に小バッチ→逐次1.5s spacing→getFundamentals→upsertCached・TIME_BUDGET 50s打ち切り・no_data/例外は既存キャッシュ温存でskip・依存注入でネット無しスモーク可）、専用GitHub Actions workflow（US平日13-21時UTC毎時・分:15固定でauto-tick(:37/:23/:48)と衝突回避・既存Secrets PROD_URL/CRON_SECRET流用・約54件/日で104銘柄を約2日一巡）。
+    - テスト：tsc 緑、スモーク＋回帰PASS、reviewer critical/warning ゼロ。
+  - **作業スタック（未コミット・要決定）**:
+    - B. auto-tick 504 ホットフィックス（builderが追加・未レビュー）: app/api/cron/tick/route.ts + lib/ai-trader/engine.ts（Claude呼び出しにtimeout 20s/maxRetries 1）。本番恒常504障害（Vercel 60秒kill＋SDK既定10分timeout）の修正。
+    - C. 投資家ペルソナ機能（別セッション・未検証）: personas.ts(新) + engine.ts大部分 + app/ai-session/*・types/index.ts。engine.ts でB/Cが不可分混在。
+    - D. 新部署5つ（オーナー追加）: COMPANY.md + .claude/agents/{qa,designer,data-engineer,strategist,scout}.md + KNOWLEDGE.md + DECISIONS 2件。
+    - DECISIONS.md はA/B/Dのエントリ混在・確定時に一緒コミット予定。data/sessions.json は除外継続。
+- **現在の状態**: S1/S4/S2/S3/S5c-1/S5a/S5c-2（コードのみ）出荷済み。B（本番504修正・高価値）・C（engine.ts中核・未レビュー・同一コミット必須）・D（組織）が未コミット。S5b（TOP行→prepare本配線）・S6（勝率データ）が残スライス。
+- **次の一手**: (1)B/C/Dの扱いをオーナーと決定。特にCはreviewerで確認後に推奨。engine.ts中核のためB/Cは同一コミット入り。(2)refresh-fundamentals.yml初回workflow_dispatch疎通確認。(3)確定後S5b着手。
+- **未解決・ブロッカー**: (1)オーナーのSupabaseシード実行待ち（マイグレーション0002＋seed-fundamentals実行→約104行確認）→スクリーニング実データ化。(2)B/C/Dのコミット方針未定。(3)refresh-fundamentals.yml初回workflow_dispatch疎通確認待ち。
+
+---
+
 ## 2026-07-22
 
 - **今日のゴール**: S2「/analyze プロモード集約」「S3「/analyze 投資家モデル連動」「S5a「screen API＋ランキング＋no-symbol UI」をすべて出荷する。
