@@ -8,6 +8,7 @@ import ReferencePanel from '@/components/ReferencePanel'
 import type { AISession, AIDecision, AITrade, Holding, EquityPoint } from '@/lib/ai-trader/engine'
 import type { ClosedTrade } from '@/lib/ai-trader/memory'
 import { normalizeLearningMemory } from '@/lib/ai-trader/memory'
+import type { InvestorId } from '@/types'
 
 const TradingChart = dynamic(() => import('@/components/TradingChart'), {
   ssr: false,
@@ -95,9 +96,16 @@ function toChartTrades(aiTrades: AITrade[], symbol: string): Trade[] {
   return result
 }
 
+// 投資家人格の選択肢。スライス1はバフェット＋汎用の2択のみ（他4人は後続スライスでテキスト追加）。
+const PERSONA_OPTIONS: Array<{ id: InvestorId | undefined; label: string }> = [
+  { id: undefined,   label: '汎用AIファンドマネージャー' },
+  { id: 'buffett',   label: 'ウォーレン・バフェット' },
+]
+
 // ── Start screen ──────────────────────────────────────────────────────────
-function StartScreen({ onStart }: { onStart: (capital: number) => void }) {
+function StartScreen({ onStart }: { onStart: (capital: number, persona?: InvestorId) => void }) {
   const [capital, setCapital] = useState(100000)
+  const [persona, setPersona] = useState<InvestorId | undefined>(undefined)
   const [loading, setLoading] = useState(false)
 
   return (
@@ -147,8 +155,26 @@ function StartScreen({ onStart }: { onStart: (capital: number) => void }) {
               </button>
             ))}
           </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-2">投資家人格</label>
+            <div className="grid grid-cols-2 gap-2">
+              {PERSONA_OPTIONS.map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={() => setPersona(opt.id)}
+                  className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
+                    persona === opt.id
+                      ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
+                      : 'border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button
-            onClick={() => { setLoading(true); onStart(capital) }}
+            onClick={() => { setLoading(true); onStart(capital, persona) }}
             disabled={loading}
             className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm transition-colors"
           >
@@ -290,13 +316,13 @@ export function AISessionClient() {
     }
   }, [])
 
-  const startSession = useCallback(async (capital: number) => {
+  const startSession = useCallback(async (capital: number, persona?: InvestorId) => {
     setError(null)
     try {
       const res = await fetch('/api/ai-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ capital }),
+        body: JSON.stringify({ capital, persona }),
       })
       const data: AISession = await res.json()
       setSession(data)

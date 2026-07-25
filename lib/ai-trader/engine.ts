@@ -13,7 +13,8 @@ import {
   type ClosedTrade,
   type DecisionRecord,
 } from './memory'
-import type { StockQuote, FundamentalsData } from '@/types'
+import type { StockQuote, FundamentalsData, InvestorId } from '@/types'
+import { getPersonaText } from './personas'
 
 // AIモデルID（環境変数で上書き可）。tickは頻繁・高速・低コストが要件なので Haiku を既定に。
 // sonnet-4-6 だと1呼び出し+データ取得で約55秒かかり Vercel の60秒関数タイムアウトを不定期に
@@ -154,6 +155,8 @@ export interface AISession {
   // 自律学習ループ（サーバー側自動tick）の状態。enabled=trueのセッションのみcron/tickで実行される。
   // date は NY市場日付(YYYY-MM-DD)、count は当日の自動tick回数（日次上限のカウンタ）。
   auto?: { enabled: boolean; date: string; count: number }
+  // 投資家人格（バフェット等）。未指定は汎用プロンプト（従来挙動）にフォールバックする。
+  persona?: InvestorId
 }
 
 // 永続化はstore.tsに集約（Supabase JSONB blob / キー未設定ローカルはファイルにフォールバック）。
@@ -278,6 +281,18 @@ function fmtFundamentals(f: FundamentalsData): string {
   return parts.join(' | ')
 }
 
+// リスク管理・学習は人格に関わらず不変（COMPANY.mdで定めたリスク管理ルールとJSON出力契約の一部）。
+// persona.criteria の項目数は人格ごとに異なる（バフェットは5項目・汎用は3項目）ため、番号はここで
+// 一貫して振り直す。人格側テキストに固定の "4."/"5." を決め打ちで追記すると項目数が違う人格で
+// 番号が重複するため（レビュー指摘で修正）、常にこの関数を経由して番号を割り当てる。
+const RISK_MANAGEMENT_CRITERION = 'リスク管理: 1銘柄=資本の15-20%以内、最大5銘柄、現金20%以上維持'
+const LEARNING_CRITERION = '学習: 過去の失敗パターンを避け、成功パターンを踏襲する'
+
+function buildCriteriaBlock(persona: { criteria: string[] }): string {
+  const items = [...persona.criteria, RISK_MANAGEMENT_CRITERION, LEARNING_CRITERION]
+  return items.map((item, i) => `${i + 1}. ${item}`).join('\n')
+}
+
 async function askClaude(
   session: AISession,
   stockData: StockContext[]
@@ -297,8 +312,9 @@ async function askClaude(
   ).join('\n')
 
   const learningCtx = buildLearningContext(session.learning)
+  const persona = getPersonaText(session.persona)
 
-  const prompt = `あなたはAIファンドマネージャーです。リアルタイム市場データ・チャート分析・バフェットコード相当ファンダメンタル・ニュースを総合的に分析し、仮想ポートフォリオの自律的な売買判断を行います。
+  const prompt = `${persona.roleLine}
 
 【現在のポートフォリオ状態】
 • 現金: $${session.cash.toFixed(2)} / 初期資本: $${session.capital.toFixed(2)}
@@ -313,11 +329,7 @@ ${stocksText}
 ${learningCtx}
 
 【判断基準】
-1. テクニカル: RSI売られすぎ(<30)は反発候補、買われすぎ(>70)は利確候補。MACD強気転換はエントリーシグナル。BBブレイクアウトに注意。
-2. ファンダメンタル(バフェットコード基準): ROE>15%・ROA>8%・営業利益率>15%を優良企業目安。PEGが1未満は割安。D/E>2は財務リスク。
-3. ニュース: 直近ヘッドライン感情 (ポジティブ/ネガティブ/中立)
-4. リスク管理: 1銘柄=資本の15-20%以内、最大5銘柄、現金20%以上維持
-5. 学習: 過去の失敗パターンを避け、成功パターンを踏襲する
+${buildCriteriaBlock(persona)}
 
 各銘柄についてJSON形式で判断を返してください:
 
@@ -605,7 +617,7 @@ function updateStats(session: AISession) {
   s.winRate = session.learning.stats.winRate
 }
 
-export async function startSession(capital = 100000): Promise<AISession> {
+export async function startSession(capital = 100000, persona?: InvestorId): Promise<AISession> {
   let benchmarkStart: number | null = null
   try {
     const spy = await getQuote('SPY')
@@ -633,6 +645,7 @@ export async function startSession(capital = 100000): Promise<AISession> {
     benchmarkStart,
     stats:          emptyStats(),
     auto:           { enabled: false, date: '', count: 0 },
+    persona,
   }
   await upsertSession(session)
   return session

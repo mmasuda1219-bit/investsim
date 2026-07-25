@@ -2,6 +2,12 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-07-24: AIセッションへの投資家人格注入（配管＋バフェット1人の縦切り）
+- 背景: 中核機能 `/ai-session` が単一の汎用ファンドマネージャープロンプトで判断しており、KNOWLEDGE.mdに蓄えた5投資家哲学が活かされていなかった（scout調査で判明）。`lib/investors/` の5モデルはルールベースの `analyze()` で `/simulate`・`/analyze` 専用、AIセッションからは切り離されていた
+- 決定: 人格テキストは `lib/investors` のルール式analyze()と分離し新設 `lib/ai-trader/personas.ts` に置く。人格は `startSession` で `AISession.persona` に固定し、既にセッション単位の `learning` をそのまま per-persona学習として使う（memory.ts不改変）。まずバフェット＋汎用デフォルトでend-to-end、残り4人は後続スライスのテキスト追加のみ。人格が差し替えるのは判断基準1〜3のみで、リスク管理ルール（1銘柄15-20%・最大5銘柄・現金20%維持）とJSON出力契約は不変。項番衝突を避けるため `buildCriteriaBlock` で一貫採番
+- 理由: memory構造を触らず原則11(学習ループ)を保護／JSON契約とリスク管理を不変にし回帰を防ぐ／信念と実装のギャップ(内在価値・PEG・堀スコアを `fmtFundamentals` が出さない)は捏造せず人格テキストに正直注記(原則9)。代替案「lib/investorsにpersonaPrompt追加」は/simulateのルール式と癒着するため却下
+- 影響ファイル: types/index.ts, lib/ai-trader/personas.ts(新), lib/ai-trader/engine.ts, app/api/ai-session/route.ts, app/ai-session/client.tsx
+
 ## 2026-07-24: 知識開拓部門（scout）を追加
 - 背景: オーナー要望で「投資の知識やYouTube・ニュースを開拓し、蓄えた知識をもとにサイト向上を目指す」専門家が欲しかった。researcher（API/技術仕様の調査）とも strategist（投資家モデル設計）とも守備範囲が違う
 - 決定: `.claude/agents/scout.md` を追加。WebSearch/WebFetchで投資知識を開拓・蒸留し、`KNOWLEDGE.md`（新設）にのみ蓄積、そこからサイト改善案を出す。secretaryが `PROGRESS.md` を専有するのと同じ「1部署=1ドキュメント専有」パターンを踏襲。実装はbuilder、モデル設計はstrategist、方針はarchitect/MCへ委譲

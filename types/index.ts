@@ -42,6 +42,8 @@ export interface FundamentalsData {
   week52Low?: number
 }
 
+export type InvestorId = 'buffett' | 'soros' | 'lynch' | 'graham' | 'dalio'
+
 export interface SearchResult {
   symbol: string
   name: string
