@@ -1,0 +1,26 @@
+# S5c-2: ユニバース・ファンダ（universe_fundamentals）の鮮度top-upを定期発火する。
+# 1回のcron実行では fetched_at が最も古いN銘柄（REFRESH_BATCH件・lib/screen/refresh.ts）だけを
+# 実データで更新し、複数回のcronで全104銘柄を巡回更新する（初期充填は別途オーナーがシード済み）。
+#
+# 必要な GitHub Secrets（auto-tick.ymlと共用・新規追加なし）:
+#   PROD_URL     … 本番のオリジン（例: https://investsim-nine.vercel.app、末尾スラッシュ無し）
+#   CRON_SECRET  … cronエンドポイントの Bearer トークン。Vercel の Env と同じ値にすること。
+#
+# スケジュールは auto-tick.yml（分: 37/23/48）と衝突しないよう :15 に固定し、
+# US平日の米国市場時間帯（13-21時UTC ≒ 9-17時ET前後）に毎時1回発火する。
+name: refresh-fundamentals
+
+on:
+  schedule:
+    - cron: '15 13-21 * * 1-5' # 毎時:15（auto-tickの分オフセットと非衝突）・US平日
+  workflow_dispatch: {}          # 手動発火（初回疎通確認・動作確認用）
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire cron refresh-fundamentals
+        run: |
+          curl -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PROD_URL }}/api/cron/refresh-fundamentals"
