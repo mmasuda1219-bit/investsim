@@ -36,8 +36,13 @@
 | **reviewer** | バグ・セキュリティ・スコープ逸脱・モックデータ混入を探す | 読み取りのみ | 重大度別の指摘リスト（critical/warning/suggestion） |
 | **researcher**（任意・並列・安価モデル） | Yahoo Finance/Twelve Data/J-Quants/Anthropic SDK/Supabaseなど外部API・仕様を調べる | 読み取りのみ | 要点ダイジェスト（出典付き） |
 | **secretary（秘書部門・安価モデル）** | その日の進捗を `PROGRESS.md` に日次記録し、翌日ゼロから続きを再開できる状態を残す。コード・仕様は書かない | 書込（`PROGRESS.md`のみ） | 日次エントリ1件（今日のゴール／やったこと／現在の状態／次の一手／ブロッカー） |
+| **qa（テスター/QA部門）** | 実装を実際に動かして品質を担保する。テストシナリオ設計・E2E検証・回帰チェック。reviewerの静的レビューとは別に「動かして」確認。テストコードの記述はbuilderに委譲 | 読み取り＋実行（Bash） | テストシナリオ＋実行結果（pass/fail）＋不具合の再現手順 |
+| **designer（デザイナー/UX部門）** | 画面・チャート・レポートの見た目とUXを設計/批評する。実装（コンポーネント/CSS）はbuilderに委譲 | 読み取りのみ | UX改善案＋ビジュアル方針＋可視化設計＋builder向け実装仕様 |
+| **data-engineer（データエンジニア部門）** | 市場データ取得・キャッシュ・ユニバース/ファンダのパイプラインを設計する。実装はbuilderに委譲 | 読み取りのみ | データ取得戦略＋キャッシュ/鮮度方針＋スキーマ案＋builder向け実装仕様 |
+| **strategist（AI戦略/プロンプト部門）** | 投資家モデルの信念定義・プロンプト設計・AI判断ロジックを設計する。実装はbuilderに委譲 | 読み取りのみ | 投資理論の言語化＋判断基準＋プロンプト仕様＋builder向け実装仕様 |
+| **scout（知識開拓部門）** | 投資の知識をYouTube・ニュース・書籍から継続的に開拓・蒸留し、`KNOWLEDGE.md` に蓄積。その知識をもとにサイト改善案を出す。researcher（API/仕様）とは別物 | 書込（`KNOWLEDGE.md`のみ） | `KNOWLEDGE.md`への知識エントリ＋出典付き改善案（優先度付き） |
 
-**注**: MCはサブエージェントファイルとしては実装しない。Claude Codeのサブエージェントは現状ネストして他のサブエージェントを呼び出せないため、「MC」は`CLAUDE.md`/本ファイルに従う親セッション（このセッション）自身の振る舞いとして機能する。architect/builder/reviewer/researcher/secretaryは`.claude/agents/`配下の実サブエージェントとして委譲する。**進捗記録の運用**: 作業セッションの締め（スライス出荷後など）にMCが secretary を呼び、`PROGRESS.md` に日次エントリを追記させる。DECISIONS.md（決定の理由）・自動メモリ（恒久事実）とは役割を分け、本ファイルは「日次の作業ログと再開ポイント」に徹する。
+**注**: MCはサブエージェントファイルとしては実装しない。Claude Codeのサブエージェントは現状ネストして他のサブエージェントを呼び出せないため、「MC」は`CLAUDE.md`/本ファイルに従う親セッション（このセッション）自身の振る舞いとして機能する。architect/builder/reviewer/researcher/secretary/qa/designer/data-engineer/strategist/scoutは`.claude/agents/`配下の実サブエージェントとして委譲する。**実装の集約（原則8）**: qa/designer/data-engineer/strategistは設計・助言・検証に徹し、実際のコード・データの書き込みはbuilderに集約する（qaのみ検証実行のためBashを持つが、テストコードの記述はbuilderに渡す）。**進捗記録の運用**: 作業セッションの締め（スライス出荷後など）にMCが secretary を呼び、`PROGRESS.md` に日次エントリを追記させる。DECISIONS.md（決定の理由）・自動メモリ（恒久事実）とは役割を分け、本ファイルは「日次の作業ログと再開ポイント」に徹する。
 
 ---
 
@@ -48,7 +53,7 @@
 - `decision-log` … ADR-lite（`DECISIONS.md`への1エントリの書き方）
 - `review-checklist` … バグ/セキュリティ/スコープ/モックデータ混入のチェック項目
 
-対応: architect→`decision-log` `investsim-conventions` / builder→`investsim-conventions` `market-data-conventions` / reviewer→`review-checklist` / researcher→`market-data-conventions`
+対応: architect→`decision-log` `investsim-conventions` / builder→`investsim-conventions` `market-data-conventions` / reviewer→`review-checklist` / researcher→`market-data-conventions` / qa→`review-checklist` / designer→`dataviz` `artifact-design` `investsim-conventions` / data-engineer→`market-data-conventions` `investsim-conventions` / strategist→`investsim-conventions` / scout→`investsim-conventions`
 
 ---
 

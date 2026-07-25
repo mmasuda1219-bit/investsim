@@ -2,6 +2,18 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-07-24: 知識開拓部門（scout）を追加
+- 背景: オーナー要望で「投資の知識やYouTube・ニュースを開拓し、蓄えた知識をもとにサイト向上を目指す」専門家が欲しかった。researcher（API/技術仕様の調査）とも strategist（投資家モデル設計）とも守備範囲が違う
+- 決定: `.claude/agents/scout.md` を追加。WebSearch/WebFetchで投資知識を開拓・蒸留し、`KNOWLEDGE.md`（新設）にのみ蓄積、そこからサイト改善案を出す。secretaryが `PROGRESS.md` を専有するのと同じ「1部署=1ドキュメント専有」パターンを踏襲。実装はbuilder、モデル設計はstrategist、方針はarchitect/MCへ委譲
+- 理由: 知識蓄積の置き場を単一ファイルに固定して運用を単純化し、原則8（実装はbuilderに集約）を崩さないため。出典URL必須・未確認情報は蓄積しないルールで実データ方針（原則9）と整合。モデルは投資知識の質判断を優先しopus
+- 影響ファイル: `COMPANY.md`, `DECISIONS.md`, `.claude/agents/scout.md`, `KNOWLEDGE.md`
+
+## 2026-07-24: 部署を4つ追加（qa / designer / data-engineer / strategist）
+- 背景: オーナー要望で会社体制を拡張。テスト実行・UX/可視化・データパイプライン・AI戦略/プロンプトの各領域を専門部署として切り出したかった
+- 決定: `.claude/agents/` に qa/designer/data-engineer/strategist を追加し、`COMPANY.md` の部署表・スキル対応を更新。原則8（実装はbuilderに集約）を守るため、新4部署は設計・助言・検証に徹し、実際のコード/データ書き込みはbuilderに委譲する。qaのみ検証実行のためBashを持つが、テストコードの記述はbuilderに渡す
+- 理由: builder集約原則を崩さずに専門性を足すため、新部署は読み取り中心（qaは読み取り＋Bash）とした。モデルはqa=sonnet、他3部署=opus（設計判断の質を優先）
+- 影響ファイル: `COMPANY.md`, `DECISIONS.md`, `.claude/agents/qa.md`, `.claude/agents/designer.md`, `.claude/agents/data-engineer.md`, `.claude/agents/strategist.md`
+
 ## 2026-07-05: AI開発カンパニー体制（部署・スキル）の導入
 - 背景: investsimの開発をMC（親セッション）が方向性推定→部署振り分けする体制にし、他プロジェクト（Instagram DM SaaS向けの`ai-dev-company.md`）と混在させないようにする必要があった
 - 決定: `COMPANY.md` にinvestsim専用の原則・部署定義・運用ループを新設し、`.claude/agents/`に architect/builder/reviewer/researcher の4部署、`.claude/skills/`に4スキルを作成。MCはサブエージェント化せず親セッションの役割とした
