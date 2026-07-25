@@ -14,6 +14,45 @@ function authorized(req: NextRequest): boolean {
   return req.headers.get('authorization') === `Bearer ${secret}`
 }
 
+// HOTFIX(2026-07-24): TIME_BUDGET_MSは「次のセッションを開始するか」しか見ておらず、
+// 実行中の1件（runAutoTick）自体の長さは無制限だった。外部呼び出し(Claude API・市場データ)が
+// 想定外に長引くと、この関数がVercelのmaxDuration(60s)そのものでハードkillされ、
+// GitHub Actions側には504/curlのタイムアウトとして現れ「エラーになったのか成功したのか」が
+// 一切わからなくなっていた（実際に自動tickが繰り返し504で失敗していた根本原因の一つ）。
+// runAutoTickは中断できないため真のキャンセルではないが、残余バジェットで確実に応答を返し、
+// 「時間切れで今回は見送った」ことを正直に返せるようにする（過少実行側に倒す・既存方針を維持）。
+// レビュー指摘(2026-07-25): withDeadlineはtimeoutで応答を打ち切るが、元のpromise(runAutoTick)自体は
+// キャンセルされず裏で走り続ける。学習ティックはClaude呼び出しが2回で最悪~80秒になり得るため、
+// 「timeoutと報告したのに裏で完走(売買・当日カウント消費)」というズレが起き得る。504自体は解消済み
+// だが実態把握のため、打ち切り後もpromiseの最終決着(完走/失敗)をログに残す（二重resolve/rejectはしない）。
+function withDeadline<T>(
+  promise: Promise<T>,
+  ms: number,
+  onTimeout: () => T,
+  onLateSettle?: (result: { ok: true; value: T } | { ok: false; error: unknown }) => void,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      resolve(onTimeout())
+    }, ms)
+    promise.then(
+      (v) => {
+        if (!settled) { settled = true; clearTimeout(timer); resolve(v); return }
+        // 応答はtimeoutで既に返した後の遅延完走。呼び出し側にafter-deadlineの決着を通知する。
+        onLateSettle?.({ ok: true, value: v })
+      },
+      // 実際のエラーはtimeoutで揉み消さず素通しする（呼び出し側の既存catchが'error'として扱う）。
+      (err) => {
+        if (!settled) { settled = true; clearTimeout(timer); reject(err); return }
+        onLateSettle?.({ ok: false, error: err })
+      },
+    )
+  })
+}
+
 async function handle(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -34,7 +73,23 @@ async function handle(req: NextRequest) {
         continue
       }
       try {
-        const r = await runAutoTick(t.id)
+        // 残余バジェットで打ち切る（runAutoTick自体は中断できないが、応答は必ず時間内に返す）。
+        const remaining = Math.max(1_000, TIME_BUDGET_MS - (Date.now() - startedAt))
+        const r = await withDeadline(
+          runAutoTick(t.id),
+          remaining,
+          () => ({ ran: false as const, reason: 'timeout' }),
+          (late) => {
+            if (late.ok) {
+              console.log(
+                '[cron/tick] session %s completed AFTER deadline: ran=%s reason=%s',
+                t.id, late.value.ran, late.value.reason,
+              )
+            } else {
+              console.error(`[cron/tick] session ${t.id} failed AFTER deadline:`, late.error)
+            }
+          },
+        )
         results.push({ id: t.id, ran: r.ran, reason: r.reason, lockDegraded: r.lockDegraded })
       } catch (err) {
         console.error(`[cron/tick] session ${t.id} failed:`, err)

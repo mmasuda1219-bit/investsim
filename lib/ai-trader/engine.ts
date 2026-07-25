@@ -31,15 +31,27 @@ function callClaude(prompt: string): Promise<string> {
   return process.env.ANTHROPIC_API_KEY ? callClaudeApi(prompt) : callClaudeCli(prompt)
 }
 
+// HOTFIX(2026-07-24): @anthropic-ai/sdkの既定値はtimeout=10分・maxRetries=2（429/5xx等を
+// 自動でバックオフ再試行）。これはVercel Hobbyの関数上限(maxDuration=60s)を大きく超えており、
+// tick中のClaude呼び出しが少しでも遅延・エラーになると自動tickが「エラーとして速やかに失敗する」
+// のではなく「無音のままハングし続け、最終的にVercelのプラットフォームに強制killされて504」に
+// なっていた（cron/tick/route.tsのTIME_BUDGET_MSは「次のセッションを開始するか」しか見ておらず、
+// 実行中の1呼び出しの長さ自体は縛っていなかったため）。ここで明示的にtimeout/maxRetriesを絞り、
+// 遅延時は「速く失敗して次tickに委ねる」（過少実行側に倒す・auto.tsの既存方針と同じ）に倒す。
+const CLAUDE_TIMEOUT_MS = 20_000
+
 async function callClaudeApi(prompt: string): Promise<string> {
   // 動的import: APIキー未設定のローカル環境ではSDKを読み込まない
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const client = new Anthropic()
-  const res = await client.messages.create({
-    model: AI_MODEL,
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
-  })
+  const res = await client.messages.create(
+    {
+      model: AI_MODEL,
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    },
+    { timeout: CLAUDE_TIMEOUT_MS, maxRetries: 1 },
+  )
   return res.content
     .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
     .map((b) => b.text)
