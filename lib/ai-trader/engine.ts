@@ -27,30 +27,48 @@ const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-4-5'
 // キーはオーナー自身のAnthropicアカウントで購入したAPIクレジットで課金される（Claude Codeサブスクとは別系統）。
 // キーが無ければローカルのclaude CLIにフォールバック（ローカル開発専用。Vercel等にclaudeバイナリは無い）。
 // 公開サイトで全AI（tick分析・仮想取引・学習）を動かすには、VercelのEnvにANTHROPIC_API_KEYを設定する。
-function callClaude(prompt: string): Promise<string> {
-  return process.env.ANTHROPIC_API_KEY ? callClaudeApi(prompt) : callClaudeCli(prompt)
+/** Claude呼び出しの上限。呼び出し側の性質（hot path/間引き）で使い分ける。 */
+type CallClaudeOpts = { maxTokens?: number; timeoutMs?: number }
+
+function callClaude(prompt: string, opts: CallClaudeOpts = {}): Promise<string> {
+  return process.env.ANTHROPIC_API_KEY ? callClaudeApi(prompt, opts) : callClaudeCli(prompt)
 }
 
 // HOTFIX(2026-07-24): @anthropic-ai/sdkの既定値はtimeout=10分・maxRetries=2（429/5xx等を
 // 自動でバックオフ再試行）。これはVercel Hobbyの関数上限(maxDuration=60s)を大きく超えており、
 // tick中のClaude呼び出しが少しでも遅延・エラーになると自動tickが「エラーとして速やかに失敗する」
 // のではなく「無音のままハングし続け、最終的にVercelのプラットフォームに強制killされて504」に
-// なっていた（cron/tick/route.tsのTIME_BUDGET_MSは「次のセッションを開始するか」しか見ておらず、
-// 実行中の1呼び出しの長さ自体は縛っていなかったため）。ここで明示的にtimeout/maxRetriesを絞り、
-// 遅延時は「速く失敗して次tickに委ねる」（過少実行側に倒す・auto.tsの既存方針と同じ）に倒す。
-const CLAUDE_TIMEOUT_MS = 20_000
+// なっていた。
+//
+// 修正(2026-07-30): 上の20秒・maxRetries=1は504を消した代わりに、自動tickを7/27以降ずっと
+// 100%失敗させていた（GH Actionsは200を受け取るのでsuccess表示だが、中身は毎回
+// `ran:false, reason:"error"`。Vercelログの実体は `Error: Request timed out.`）。
+// 実測46秒の内訳が「データ取得6秒 + 20秒timeout + リトライ20秒timeout」で、判断1回が
+// 20秒に収まらないのが真因。リトライは2回目も同じ理由で落ちるだけで40秒を溶かすので廃止し、
+// 1回の試行に時間を全部与える。cron側のTIME_BUDGET_MS(50秒)に収まるよう
+// 「データ取得+後処理(約10秒) + 判断35秒」で見積もる。
+// 学習は間引き済み(5tickに1回)かつ失敗してもtickを壊さないので、hot pathを圧迫しない短さに抑える。
+const CLAUDE_TIMEOUT_MS = 35_000
+const CLAUDE_LEARN_TIMEOUT_MS = 20_000
+// 生成時間はほぼ出力トークン数に比例するため、判断側は4096から絞る。ただし絞りすぎると
+// JSONが途中で切れて閉じフェンスが無くなり、呼び出し側の正規表現が無マッチ＝静かに空判断に
+// なる（銘柄数×1オブジェクトぶんの余裕を必ず残す）。学習側は6配列×5件で嵩むため据え置く。
+const DECISION_MAX_TOKENS = 2500
+const LEARN_MAX_TOKENS = 4096
 
-async function callClaudeApi(prompt: string): Promise<string> {
+async function callClaudeApi(prompt: string, opts: CallClaudeOpts = {}): Promise<string> {
   // 動的import: APIキー未設定のローカル環境ではSDKを読み込まない
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const client = new Anthropic()
   const res = await client.messages.create(
     {
       model: AI_MODEL,
-      max_tokens: 4096,
+      max_tokens: opts.maxTokens ?? DECISION_MAX_TOKENS,
       messages: [{ role: 'user', content: prompt }],
     },
-    { timeout: CLAUDE_TIMEOUT_MS, maxRetries: 1 },
+    // maxRetries=0: 429等の一時失敗も1回で諦める。1日3回のcronが古い順に拾い直すので、
+    // ここで粘るより関数上限内に確実に収める方を採る（過少実行側に倒す・auto.tsと同方針）。
+    { timeout: opts.timeoutMs ?? CLAUDE_TIMEOUT_MS, maxRetries: 0 },
   )
   return res.content
     .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
@@ -458,7 +476,10 @@ ${existingBiases}
 \`\`\``
 
   try {
-    const text = await callClaude(prompt)
+    const text = await callClaude(prompt, {
+      maxTokens: LEARN_MAX_TOKENS,
+      timeoutMs: CLAUDE_LEARN_TIMEOUT_MS,
+    })
     const match = text.match(/```json\s*([\s\S]*?)\s*```/)
     if (!match) return empty
     const parsed = JSON.parse(match[1]) as Partial<FullLearning>
@@ -678,7 +699,9 @@ export async function runTick(sessionId: string): Promise<AISession> {
   if (!session.holdings)  session.holdings = {}
   if (!session.watchlist) session.watchlist = []
 
-  const candidates = await selectCandidates(6)
+  // 4件: プロンプトと出力トークンを削り、判断1回をCLAUDE_TIMEOUT_MS内に収めるため（2026-07-30）。
+  // combined = 候補 + 保有銘柄 なので、保有が増えると実際の分析対象はこれより多くなる。
+  const candidates = await selectCandidates(4)
   const combined = Array.from(new Set([...candidates, ...Object.keys(session.holdings)]))
   session.watchlist = combined
 

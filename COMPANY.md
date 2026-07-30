@@ -41,8 +41,12 @@
 | **data-engineer（データエンジニア部門）** | 市場データ取得・キャッシュ・ユニバース/ファンダのパイプラインを設計する。実装はbuilderに委譲 | 読み取りのみ | データ取得戦略＋キャッシュ/鮮度方針＋スキーマ案＋builder向け実装仕様 |
 | **strategist（AI戦略/プロンプト部門）** | 投資家モデルの信念定義・プロンプト設計・AI判断ロジックを設計する。実装はbuilderに委譲 | 読み取りのみ | 投資理論の言語化＋判断基準＋プロンプト仕様＋builder向け実装仕様 |
 | **scout（知識開拓部門）** | 投資の知識をYouTube・ニュース・書籍から継続的に開拓・蒸留し、`KNOWLEDGE.md` に蓄積。その知識をもとにサイト改善案を出す。researcher（API/仕様）とは別物 | 書込（`KNOWLEDGE.md`のみ） | `KNOWLEDGE.md`への知識エントリ＋出典付き改善案（優先度付き） |
+| **cmo（マーケティング統括部）** | investsimを収益事業にするためのマーケ戦略を統括。誰に・何を約束し・どう買ってもらうかの全体設計（ターゲット/ポジショニング/チャネル/ファネル/KPI）。個別制作・価格・法務は他部署へ委譲 | 読み取りのみ | ターゲット定義＋ポジショニング＋チャネル戦略＋ファネル設計＋週次KPI |
+| **content-creator（コンテンツ/SNS制作部）** | cmoの戦略をFB/IG/短尺の実コンテンツ（投稿文・構成・投稿カレンダー）に落とす制作の手。公開はオーナーが手動 | 読み取りのみ | 投稿案＋構成台本＋投稿カレンダー＋A/B当て所 |
+| **monetization（収益化/価格戦略部）** | 価格・課金モデル・オファー・ユニットエコノミクス（LTV/CAC）を設計。集客はcmo、法的可否はlegal-complianceへ委譲 | 読み取りのみ | 課金モデル＋価格設計＋オファー設計＋損益試算＋出荷可否の数値ゲート |
+| **legal-compliance（法務/コンプライアンス部）** | 事業化前の法的リスク（金商法の投資助言・代理業／景表法／特商法／情報商材リスク）を洗い出す。弁護士ではなく、専門家相談が要る論点の特定と回避設計まで | 読み取りのみ | 該当リスク（重大度別）＋回避のための設計制約＋builder向け必須表記＋弁護士確認論点リスト |
 
-**注**: MCはサブエージェントファイルとしては実装しない。Claude Codeのサブエージェントは現状ネストして他のサブエージェントを呼び出せないため、「MC」は`CLAUDE.md`/本ファイルに従う親セッション（このセッション）自身の振る舞いとして機能する。architect/builder/reviewer/researcher/secretary/qa/designer/data-engineer/strategist/scoutは`.claude/agents/`配下の実サブエージェントとして委譲する。**実装の集約（原則8）**: qa/designer/data-engineer/strategistは設計・助言・検証に徹し、実際のコード・データの書き込みはbuilderに集約する（qaのみ検証実行のためBashを持つが、テストコードの記述はbuilderに渡す）。**進捗記録の運用**: 作業セッションの締め（スライス出荷後など）にMCが secretary を呼び、`PROGRESS.md` に日次エントリを追記させる。DECISIONS.md（決定の理由）・自動メモリ（恒久事実）とは役割を分け、本ファイルは「日次の作業ログと再開ポイント」に徹する。
+**注**: MCはサブエージェントファイルとしては実装しない。Claude Codeのサブエージェントは現状ネストして他のサブエージェントを呼び出せないため、「MC」は`CLAUDE.md`/本ファイルに従う親セッション（このセッション）自身の振る舞いとして機能する。architect/builder/reviewer/researcher/secretary/qa/designer/data-engineer/strategist/scout/cmo/content-creator/monetization/legal-complianceは`.claude/agents/`配下の実サブエージェントとして委譲する。**実装の集約（原則8）**: qa/designer/data-engineer/strategist/cmo/content-creator/monetization/legal-complianceは設計・助言・検証に徹し、実際のコード・データ（LP・課金・特商法表記・免責等の実装を含む）の書き込みはbuilderに集約する（qaのみ検証実行のためBashを持つが、テストコードの記述はbuilderに渡す）。**事業サイド部署の連携（2026-07-25設立）**: cmo（戦略）→content-creator（弾）／monetization（値付け）／legal-compliance（可否）の順で回し、訴求・価格・オファーは出す前に必ずlegal-complianceを通す。**進捗記録の運用**: 作業セッションの締め（スライス出荷後など）にMCが secretary を呼び、`PROGRESS.md` に日次エントリを追記させる。DECISIONS.md（決定の理由）・自動メモリ（恒久事実）とは役割を分け、本ファイルは「日次の作業ログと再開ポイント」に徹する。
 
 ---
 
@@ -53,7 +57,7 @@
 - `decision-log` … ADR-lite（`DECISIONS.md`への1エントリの書き方）
 - `review-checklist` … バグ/セキュリティ/スコープ/モックデータ混入のチェック項目
 
-対応: architect→`decision-log` `investsim-conventions` / builder→`investsim-conventions` `market-data-conventions` / reviewer→`review-checklist` / researcher→`market-data-conventions` / qa→`review-checklist` / designer→`dataviz` `artifact-design` `investsim-conventions` / data-engineer→`market-data-conventions` `investsim-conventions` / strategist→`investsim-conventions` / scout→`investsim-conventions`
+対応: architect→`decision-log` `investsim-conventions` / builder→`investsim-conventions` `market-data-conventions` / reviewer→`review-checklist` / researcher→`market-data-conventions` / qa→`review-checklist` / designer→`dataviz` `artifact-design` `investsim-conventions` / data-engineer→`market-data-conventions` `investsim-conventions` / strategist→`investsim-conventions` / scout→`investsim-conventions` / cmo→`investsim-conventions` / content-creator→`artifact-design` `investsim-conventions` / monetization→`investsim-conventions` / legal-compliance→`investsim-conventions`
 
 ---
 

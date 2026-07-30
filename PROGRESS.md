@@ -20,6 +20,22 @@
 
 ---
 
+## 2026-07-30
+
+- **今日のゴール**: 本番スクリーニングの500エラーを解消し、実データランキング表示を確認する。
+- **やったこと**:
+  - 本番 POST /api/analyze/screen（quick/安定重視）の「キャッシュ読み取り失敗」500エラーを解消。
+    - 原因特定：本番 Supabase(プロジェクト ndrstuepugzgiwycsyrf)に universe_fundamentals テーブルが未作成＋ローカルに service_role キーが無かった。空キャッシュなら200「0件」だが、テーブル不在はクエリエラー→500。
+    - 対処：(1)オーナーが Supabase ダッシュボードでマイグレーション0002を実行しテーブル作成、(2)オーナーが service_role キーを .env.local に追記、(3)MCがシード実行。
+    - シードのハマりどころ：既定シェルの Node 20 では @supabase/supabase-js の createClient が「Node.js 20 detected without native WebSocket support」で落ちた。.nvmrc は Node 22指定・nvmにv22.23.1あり。`nvm use 22` で実行して解決（コード変更なし）。
+  - 結果：seed-fundamentals.ts が **105銘柄すべて保存・スキップ0・エラー0**。curl で本番テーブル105行(content-range 0-104/105)確認。本番 POST /api/analyze/screen が HTTP 200 で実データランキング(AAPL 4873.6B→NVDA…時価総額降順)を返すことを確認。meta=105キャッシュ中80評価・データ無し25除外(正直fail-closed)。Vercel本番も同一 Supabase プロジェクトを参照と確認。
+  - ローカル本番ビルド(next build)は7件の ETIMEDOUT で失敗したが全て node_modules/next の読み込み=iCloud I/O由来で、コードエラーではない(本番Vercel は build成功・全機能稼働中)。無視可。
+- **現在の状態**: S1/S4/S2/S3/S5c-1/S5a/S5c-2（本体）＋C（投資家ペルソナスライス1）＋D（新部署5つ）＋B（auto-tick 504修正）がすべてコミット＋push/デプロイ完了。本番環境は origin/main に同期・全機能稼働中。screening は実データで稼働。S5b（TOP行→prepare本配線）・S6（勝率データ）が残スライス。
+- **次の一手**: (1)オーナーがrefresh-fundamentals cron の初回workflow_dispatch 疎通確認を実施（鮮度維持・14日でstale）。(2)auto-tick 504修正のworkflow_dispatch 緑確認もオーナーが実施。(3)S5b着手（TOP行クリック→prepare/generate 本配線・銘柄単一フロー連携）。
+- **未解決・ブロッカー**: (1)refresh-fundamentals workflow_dispatch初回疎通（オーナー手動）。(2)auto-tick workflow_dispatch 504解消確認（オーナー手動・既にコード出荷済）。(3)seed-fundamentals.ts を Node 20でも親切に落ちるようにする（または .nvmrc必須を明記）は低優先backlog。(4)新部署(cmo/monetization/legal-compliance/content-creator)を使う事業化トラック(legal優先)は別線。data/sessions.json は自動tick副産物でコミット除外継続。
+
+---
+
 ## 2026-07-25
 
 - **今日のゴール**: S5c-2「ユニバース・ファンダの鮮度top-up cron」を出荷する。
@@ -28,14 +44,29 @@
     - ユニバース・ファンダの鮮度top-up cron：S5c-1（初期キャッシュ）後の universe_fundamentals テーブルを日次更新。オーナー承認済み。
     - 内容：refresh-fundamentals cronエンドポイント（Bearer CRON_SECRET・maxDuration 60・tickパターン踏襲）、lib/screen/refresh.ts（refreshStaleFundamentals=listStaleTargets(6)で古い順に小バッチ→逐次1.5s spacing→getFundamentals→upsertCached・TIME_BUDGET 50s打ち切り・no_data/例外は既存キャッシュ温存でskip・依存注入でネット無しスモーク可）、専用GitHub Actions workflow（US平日13-21時UTC毎時・分:15固定でauto-tick(:37/:23/:48)と衝突回避・既存Secrets PROD_URL/CRON_SECRET流用・約54件/日で104銘柄を約2日一巡）。
     - テスト：tsc 緑、スモーク＋回帰PASS、reviewer critical/warning ゼロ。
-  - **作業スタック（未コミット・要決定）**:
-    - B. auto-tick 504 ホットフィックス（builderが追加・未レビュー）: app/api/cron/tick/route.ts + lib/ai-trader/engine.ts（Claude呼び出しにtimeout 20s/maxRetries 1）。本番恒常504障害（Vercel 60秒kill＋SDK既定10分timeout）の修正。
-    - C. 投資家ペルソナ機能（別セッション・未検証）: personas.ts(新) + engine.ts大部分 + app/ai-session/*・types/index.ts。engine.ts でB/Cが不可分混在。
-    - D. 新部署5つ（オーナー追加）: COMPANY.md + .claude/agents/{qa,designer,data-engineer,strategist,scout}.md + KNOWLEDGE.md + DECISIONS 2件。
-    - DECISIONS.md はA/B/Dのエントリ混在・確定時に一緒コミット予定。data/sessions.json は除外継続。
-- **現在の状態**: S1/S4/S2/S3/S5c-1/S5a/S5c-2（コードのみ）出荷済み。B（本番504修正・高価値）・C（engine.ts中核・未レビュー・同一コミット必須）・D（組織）が未コミット。S5b（TOP行→prepare本配線）・S6（勝率データ）が残スライス。
-- **次の一手**: (1)B/C/Dの扱いをオーナーと決定。特にCはreviewerで確認後に推奨。engine.ts中核のためB/Cは同一コミット入り。(2)refresh-fundamentals.yml初回workflow_dispatch疎通確認。(3)確定後S5b着手。
-- **未解決・ブロッカー**: (1)オーナーのSupabaseシード実行待ち（マイグレーション0002＋seed-fundamentals実行→約104行確認）→スクリーニング実データ化。(2)B/C/Dのコミット方針未定。(3)refresh-fundamentals.yml初回workflow_dispatch疎通確認待ち。
+  - **B/C/D 全コミット完了**:
+    - B. auto-tick 504 ホットフィックス（本番恒常504障害の修正）→ コミット `efb32c9`。
+      - 原因：@anthropic-ai/sdk既定（timeout 10分/retry 2）がVercel 60秒killを誘発。
+      - 修正：callClaudeApi に timeout 20s/maxRetries 1、app/api/cron/tick/route.ts に withDeadline（残余バジェット応答・実エラー素通し・締切後完走はログのみ）。
+      - 既知の限界（真のキャンセルでない・過少報告側に倒れる）は DECISIONS.md 明記。
+      - reviewer 指摘修正（未実装ペルソナの拒否=原則9、withDeadlineのonLateSettleログ）は committed 確認済み。
+    - C. 投資家ペルソナ機能スライス1（配管＋バフェット）→ コミット `05a78ed`（並行セッション実施）。
+      - personas.ts(新) + engine.ts 中核 + app/ai-session/* + types/index.ts。
+      - engine.ts では B/C が不可分混在のため同一コミット入り。
+    - D. 新部署5つ（オーナー追加）→ コミット `3c4d2fc`。
+      - COMPANY.md + .claude/agents/{qa,designer,data-engineer,strategist,scout}.md + KNOWLEDGE.md + DECISIONS 2件。
+  - **git インデックス破損と復旧**:
+    - 作業中、並行セッション git 操作＋iCloud 上 repo の組み合わせで一時的に .git/index.lock(stale) が残存。全ファイルが削除ステージ＋未追跡表示（インデックス空状態）。
+    - 非破壊の `git reset --mixed` でインデックスを HEAD に復旧。ファイル・コミット一切失わず。
+    - 教訓：同時に git 操作するセッションは1つに絞る（メモリ project-git-icloud-concurrency-hazard 記録）。
+  - **push/デプロイ完了**:
+    - 最終 HEAD `efb32c9` の tsc 緑を確認。
+    - fast-forward (19コミット) で `git push origin main` 実行。origin/main 同期。
+    - Vercel 自動デプロイがトリガー。
+  - data/sessions.json は自動tick副産物のためコミット除外（未ステージ）継続。
+- **現在の状態**: S1/S4/S2/S3/S5c-1/S5a/S5c-2（本体）＋C（投資家ペルソナスライス1）＋D（新部署5つ）＋B（auto-tick 504修正）がすべてコミット＋push/デプロイ完了。本番環境は origin/main に同期。S5b（TOP行→prepare本配線）・S6（勝率データ）が残スライス。
+- **次の一手**: (1)オーナーがデプロイ後のauto-tickをGitHub Actions workflow_dispatchで手動発火→504解消(緑)を確認する。(2)refresh-fundamentals.yml初回workflow_dispatch疎通確認をオーナーが実施。(3)Supabaseマイグレーション0002とseed-fundamentals実行をオーナーが実施→screening実データ化。(4)上記確認後S5b着手。
+- **未解決・ブロッカー**: (1)auto-tick workflow_dispatch 手動発火＋504解消(緑)確認（オーナー手動・本番検証必須）。(2)refresh-fundamentals.yml 初回workflow_dispatch 疎通確認（オーナー手動）。(3)Supabaseマイグレーション0002 + seed-fundamentals 実行→screening実データ化（オーナー手動・約3分・約104行確認）。これら3つがS5b着手の前提条件。
 
 ---
 

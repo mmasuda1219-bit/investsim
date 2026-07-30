@@ -255,3 +255,22 @@
 - オーナーへの手動確認手順: 次回のスケジュール実行（または`workflow_dispatch`での手動発火）で`auto-tick`が緑になることを確認する。万一まだ504が出る場合はVercelの当該Function実行ログ（Vercel Dashboard → investsim → Functions/Logs）で`[cron/tick]`のエラー内容を確認してほしい（本修正はClaude呼び出しの遅延を主因と特定したものだが、市場データ側のプロバイダ障害が別途重なる可能性は残る）
 - 既知の限界（2026-07-25 reviewer指摘を受けて追記）: `withDeadline`は真のキャンセルではなく、学習ティック（tickCount%5==0でClaude呼び出しが2回）等でruntが残余バジェットを超えると、応答をtimeoutとして返した後も元の`runAutoTick`は裏で完走しうる。この場合「timeoutと報告したのに実際には売買・当日カウント消費が起きている」というズレが起こり得る（504自体は解消済み・データ破損ではない）。`lock_until`のリース機構と`count`先行保存により、このズレは二重実行側には倒れず「過少報告（実際は実行済みなのにtimeoutとして記録される）」側に留まる設計になっている。対応として`withDeadline`に`onLateSettle`コールバックを追加し、打ち切り後にpromiseが完走/失敗した場合は`[cron/tick] session %s completed AFTER deadline`（成功時）または対応する`console.error`（失敗時）でログに残すようにした。真のキャンセル（AbortController等でのClaude呼び出し中断）は別スライスとする
 - 影響ファイル: lib/ai-trader/engine.ts, app/api/cron/tick/route.ts, DECISIONS.md
+
+## 2026-07-25: 事業サイド部署の設立＋ローンチ商品のピボット決定
+- 背景: オーナーが「来週末（2026-08-02頃）に一旦ビジネスとして世に出したい」。現行計画は「FB/IGで発信＋Fiverrでアプリ内AIレポート（特定銘柄の売買判断＋将来見通し）を情報商材として有償販売」。事業化に必要な役割が開発サイドしか無かった。
+- 決定（体制）: 事業サイド部署4つを新設し COMPANY.md 部署表に登録した — cmo（マーケ統括）/ content-creator（SNS制作）/ monetization（収益化・価格）/ legal-compliance（法務・コンプラ）。customer-success はフェーズ2（ローンチ後）とし今回は作らない。cmo→content-creator/monetization→legal-compliance の順で回し、訴求・価格・オファーは公開前に必ず legal-compliance を通す運用にした。
+- 決定（商品ピボット）: legal-compliance の洗い出しにより、現行の売り方は金商法の無登録「投資助言・代理業」に正面から触れるリスクが濃い（対価性は有償ゆえ消せず、`/report`の特定銘柄＋将来見通し＋Fiverrの個別提供が助言性・個別性を強める）と判断。対価性は消せないため、助言性・個別性を実質的に落とす方向へ商品の骨格を変更する。(a) 売り物の芯を「特定銘柄の答え（レポート）を売る」から「著名投資家の分析を実データで再現・体験させる InvestSim アプリ本体」に置き換え、本命をアプリ体験とする。(b) 販路の重心を自社LP＋FB/IG中心にし、Fiverrはサブ販路（作り替えた教育/実証コンテンツのみ）に降格。(c) 将来予測より過去実証・仮想資金シミュを前面、顧客ごとの個別最適化はしない（万人向け定型）、最終投資判断はユーザーに残す構造を守る。
+- 理由: 「出すな」ではなく「形を変えれば来週末ローンチは可能」という法務の温度感に沿い、事業存続リスク（個人への刑事罰を含む）を先に潰すため。原則9（実データ）・原則10（仮想資金・実決済非連携）・原則11（学習ループ）と整合。
+- 未確定（弁護士確認事項）: 作り替え後の版が金商法「投資助言」非該当と言い切れる境界、課金ゲート下のコンテンツが出版物適用除外に乗るか、Fiverr等海外PF経由でも日本法適用の前提、国外顧客時の現地規制（米国 Investment Advisers Act 等）、著名投資家名の使用範囲。詳細は legal-compliance の報告に列挙。
+- builder向け必須実装（ローンチ前提・未着手）: 特商法表記ページ／恒久的な免責表示（現行 app/report/page.tsx の簡易免責では不十分）／利用規約への反映／実績表示の裏付け保存／断定・保証・個別推奨表現のガード強化（lib/report/prompt.ts の思想を強制制約に）。
+- 影響ファイル: .claude/agents/{cmo,content-creator,monetization,legal-compliance}.md(新), COMPANY.md, DECISIONS.md
+
+## 2026-07-30: 自動tickが「success なのに毎回失敗」していた問題を修正（7/24 HOTFIXの副作用）
+- 背景: オーナーから「tickが続かない。原因はGitHubにあるのか」と報告。調査の結果、GitHub Actionsは無罪だった（1日3回きちんと発火し、7/27以降は全runがsuccess）。真相は「curlがHTTP 200を受け取るのでワークフローは緑になるが、レスポンス本文が毎回 `{"processed":1,"results":[{"id":"session_1784047411924","ran":false,"reason":"error"}]}`」という無音の失敗。`workflow_dispatch`で手動発火（run 30480131945）して再現し、Vercelランタイムログで実体を特定した: `[cron/tick] session ... failed: Error: Request timed out.`（`status: undefined` ＝ HTTPレスポンス到達前のクライアント側打ち切り。認証エラーでもクレジット切れでもなく、`ANTHROPIC_API_KEY`は設定済み・`claude-haiku-4-5`も有効なエイリアス）
+- 決定: 2026-07-24 HOTFIXで入れた `timeout: 20_000, maxRetries: 1` が、504を消した代わりに自動tickを7/27以降ずっと100%失敗させていた。実測46秒の内訳が「データ取得6秒 + 20秒timeout + リトライ20秒timeout」で、**判断1回が20秒に収まらない**のが真因。(1)`maxRetries: 1 → 0`（2回目も同じ理由で落ちるだけで40秒を溶かすため）、(2)`CLAUDE_TIMEOUT_MS: 20s → 35s`（cron側の`TIME_BUDGET_MS=50秒`に「データ取得+後処理 約10秒 + 判断35秒」で収まる見積り）、(3)`callClaude`に`{maxTokens, timeoutMs}`を追加して呼び出し側ごとに使い分け（判断=2500トークン/35秒、学習=4096トークン/20秒）、(4)`selectCandidates(6) → (4)`。`withDeadline`・auto.tsの日次上限/ロック/count先行保存・runTickの構造は無改修
+- 理由: 生成時間はほぼ出力トークン数に比例するので、効くのは「時間を増やす」より「出力を削る」。ただし`max_tokens`を一律に絞ると学習側（6配列×5件）のJSONが途中で切れ、閉じフェンスが消えて呼び出し側の正規表現が無マッチ＝**静かに空の判断/空の学習**になる（例外も出ない）ため、hot pathだけ絞って学習側は据え置いた。`maxRetries: 0`は「1日3回のcronが古い順に拾い直す」既存設計に委ねる判断で、過少実行側に倒す方針（原則8・auto.tsと同方針）の延長
+- 併せて判明した構造的欠陥: `listAutoTickTargets(1)`は1件しか取らないため、先頭のセッションが失敗し続けると後続が永久に進まない（ヘッドオブラインブロッキング）。今回は対象セッションが1件のみで実害が出ていないが、複数セッション運用時は「失敗したセッションを後回しにする」順序制御が別途必要。今スライスでは触っていない
+- 検証: `npx tsc --noEmit`緑。原因特定は`workflow_dispatch`での実再現＋Vercelランタイムログ（`vercel logs --json`）で確定させた（推測ではない）。**35秒で足りるかは未確認** — 次回cronで`ran:true`になるかの実運用確認が必要（下記）
+- オーナーへの確認手順: 次回スケジュール実行後に `gh run view <id> --log | grep processed` でレスポンス本文を見る。`"ran":true` なら解決。まだ`"reason":"error"`なら`vercel logs --json | grep cron/tick`でエラーを確認し、`Request timed out`が続くようならVercel Hobbyの60秒上限が構造的な壁なので、分析銘柄のさらなる削減かPro移行（maxDuration=300秒）の判断が必要
+- 別件（今回発見・未対応）: `/api/analyze/screen`が本番で500。`Could not find the table 'public.universe_fundamentals' in the schema cache` ＝ Supabaseにテーブル未作成。`PROGRESS.md:81`の「オーナーの手動作業（未完）」（`supabase/migrations/0002_universe_fundamentals.sql`の実行と`scripts/seed-fundamentals.ts`）がそのまま残っている。tickとは無関係のため本スライスでは触っていない
+- 影響ファイル: lib/ai-trader/engine.ts, DECISIONS.md
