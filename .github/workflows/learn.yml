@@ -1,0 +1,32 @@
+# InvestSim 学習ループ: tickが積んだ売買結果からの内省・学習生成を定期発火する。
+# auto.enabled=true かつ shouldLearnNow を満たすセッションだけが対象（cron側で最古1件を学習）。
+#
+# 必要な GitHub Secrets（auto-tick.yml と共用・追加設定は不要）:
+#   PROD_URL     … 本番のオリジン（例: https://investsim-nine.vercel.app、末尾スラッシュ無し）
+#   CRON_SECRET  … cronエンドポイントの Bearer トークン。Vercel の Env と同じ値にすること。
+#
+# 【スケジュールを他cronから離す理由】
+# 学習は tick と同じセッション行を書くため、tickと同じロック(lock_until)を奪う。時刻が近いと
+# ロックが取れず学習が飢える（逆にtickがブロックされる）。そのため auto-tick の :37/:23/:48、
+# refresh-fundamentals の :15 のいずれとも重ならない :05 に置き、かつ米国引け後にしている。
+# 21:05 UTC は夏時間(EDT)なら17:05 ET、冬時間(EST)なら16:05 ET で、どちらも引け後にあたる。
+#
+# 【頻度＝学習頻度】
+# shouldLearnNow は「tickCount > lastLearnTickCount」なので、このcronの発火頻度が
+# そのまま学習頻度になる。まずは1日1回。速く学習を積みたい場合はここを増やす（Claude呼び出しが増える）。
+name: learn
+
+on:
+  schedule:
+    - cron: '5 21 * * 1-5' # 米国引け後（EDT 17:05 / EST 16:05 ET）
+  workflow_dispatch: {}      # 手動発火（動作確認用）
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire cron learn
+        run: |
+          curl -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PROD_URL }}/api/cron/learn"

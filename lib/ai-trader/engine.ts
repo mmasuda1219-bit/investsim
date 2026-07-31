@@ -8,7 +8,6 @@ import {
   recordClosedTrade,
   recordDecisions,
   buildLearningContext,
-  shouldLearnNow,
   type LearningMemory,
   type ClosedTrade,
   type DecisionRecord,
@@ -47,9 +46,10 @@ function callClaude(prompt: string, opts: CallClaudeOpts = {}): Promise<string> 
 // 20秒に収まらないのが真因。リトライは2回目も同じ理由で落ちるだけで40秒を溶かすので廃止し、
 // 1回の試行に時間を全部与える。cron側のTIME_BUDGET_MS(50秒)に収まるよう
 // 「データ取得+後処理(約10秒) + 判断35秒」で見積もる。
-// 学習は間引き済み(5tickに1回)かつ失敗してもtickを壊さないので、hot pathを圧迫しない短さに抑える。
+// 学習(2026-07-31にcron/learnへ分離)は専用エンドポイントの60秒枠を単独で使えるため、
+// tickのhot pathに遠慮する必要がなくなった。20秒では生成が終わらず空振りしていたので広げる。
 const CLAUDE_TIMEOUT_MS = 35_000
-const CLAUDE_LEARN_TIMEOUT_MS = 20_000
+const CLAUDE_LEARN_TIMEOUT_MS = 40_000
 // 生成時間はほぼ出力トークン数に比例するため、判断側は4096から絞る。ただし絞りすぎると
 // JSONが途中で切れて閉じフェンスが無くなり、呼び出し側の正規表現が無マッチ＝静かに空判断に
 // なる（銘柄数×1オブジェクトぶんの余裕を必ず残す）。学習側は6配列×5件で嵩むため据え置く。
@@ -415,7 +415,8 @@ actionは "buy" | "sell" | "hold" | "watch"。buyは現金十分な場合のみ�
   }
 }
 
-interface FullLearning {
+/** 学習1回ぶんの生成結果。cron/learn 経路（learn.ts）がマージして永続化する。 */
+export interface FullLearning {
   lessons: string[]
   fundamentalInsights: string[]
   newsInsights: string[]
@@ -424,7 +425,7 @@ interface FullLearning {
   strategyNotes: string[]
 }
 
-async function generateFullLearning(memory: LearningMemory, session: AISession): Promise<FullLearning> {
+export async function generateFullLearning(memory: LearningMemory, session: AISession): Promise<FullLearning> {
   const empty: FullLearning = {
     lessons: [], fundamentalInsights: [], newsInsights: [],
     causalChains: [], tradingBiases: [], strategyNotes: [],
@@ -759,28 +760,14 @@ export async function runTick(sessionId: string): Promise<AISession> {
   if (!session.stats) session.stats = emptyStats()
   updateStats(session)
 
-  // 学習生成は 2回目の Claude 呼び出しになり、tick を Vercel の関数タイムアウト(60s)超えに
-  // 追い込む主因。売買判断(1回目)は毎tick必須なので、学習は数tickに1回へ間引いて hot path を
-  // 1呼び出しに抑える（tickCount ベースの決定的な判定）。
-  const LEARN_EVERY_N_TICKS = 5
-  if (session.tickCount % LEARN_EVERY_N_TICKS === 0 && shouldLearnNow(session.learning, session.tickCount)) {
-    try {
-      const fl = await generateFullLearning(session.learning, session)
-      if (fl.lessons.length > 0 || fl.fundamentalInsights.length > 0) {
-        // Merge new insights with existing, newest first, capped
-        session.learning.lessons             = [...fl.lessons,             ...session.learning.lessons].slice(0, 15)
-        session.learning.fundamentalInsights = [...fl.fundamentalInsights, ...session.learning.fundamentalInsights].slice(0, 10)
-        session.learning.newsInsights        = [...fl.newsInsights,        ...session.learning.newsInsights].slice(0, 10)
-        session.learning.causalChains        = [...fl.causalChains,        ...session.learning.causalChains].slice(0, 10)
-        session.learning.tradingBiases       = [...fl.tradingBiases,       ...session.learning.tradingBiases].slice(0, 8)
-        session.learning.strategyNotes       = fl.strategyNotes  // replace with latest strategy
-        session.learning.lastLearnTickCount  = session.tickCount
-      }
-    } catch { /* non-critical — learning failure doesn't break tick */ }
-  }
+  // 学習生成(2回目のClaude呼び出し)は 2026-07-31 に `lib/ai-trader/learn.ts` ＋
+  // `/api/cron/learn` へ切り出した。tick内に置くと、売買判断が終わった後に学習が
+  // cron側のTIME_BUDGET_MS(50秒)を食い潰し、(a)応答が`reason:"timeout"`と誤報される、
+  // (b)最終upsertSessionが学習の後ろにあるため売買結果の保存まで道連れになる、
+  // という2つの問題が起きていた（実際 tickCount=10 の回で発生）。
+  // tickは「売買判断1回だけ」に保ち、学習は専用cronの独立した60秒枠で回す。
 
-  // runTickで読み込んだセッションは、変更の有無に関わらず最後に必ず明示保存する
-  // （tickを跨いだ学習の積み上げ＝原則11の学習ループを保証）。
+  // runTickで読み込んだセッションは、変更の有無に関わらず最後に必ず明示保存する。
   await upsertSession(session)
   return session
 }
