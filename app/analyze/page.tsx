@@ -38,7 +38,10 @@ import {
   getInvestorPresetCondition,
 } from '@/lib/backtest/investor-presets'
 import { describeFundamentalFilter, formatMetricValue } from '@/lib/backtest/fundamental'
-import type { PreparedBundle, PrepareResponse } from '@/lib/report/types'
+import type { PreparedBundle, PrepareResponse, ReaderProfile } from '@/lib/report/types'
+import {
+  HORIZON_OPTIONS, TOLERANCE_OPTIONS, STYLE_OPTIONS, CAPACITY_OPTIONS,
+} from '@/lib/report/profile'
 import { describeCompositeCondition } from '@/lib/report/prompt'
 import { buildTransparencyCard } from '@/lib/report/transparency'
 import { US_UNIVERSE } from '@/lib/market/us-universe'
@@ -153,11 +156,14 @@ async function prepareBundle(input: {
 async function streamGeneratedReport(
   bundle: PreparedBundle,
   onChunk: (chunk: string) => void,
+  profile?: ReaderProfile,
 ): Promise<void> {
   const genRes = await fetch('/api/report/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bundle }),
+    // profile が undefined の場合 JSON.stringify がキー自体を落とすため、
+    // 未回答時は今までどおり { bundle } だけが送られる（後方互換）。
+    body: JSON.stringify({ bundle, profile }),
   })
   if (!genRes.ok || !genRes.body) {
     const err = await genRes.json().catch(() => ({}))
@@ -195,6 +201,52 @@ async function streamGeneratedReport(
   }
 }
 
+// ── 読者プロファイル（/analyze S1）: 3ラジオ群＋任意の4問目の見た目を共通化する
+// 小さなヘルパー（stable/income/aggressiveカードと同じ「カード型ラジオ」パターン
+// を流用）。新規ファイルは増やさない（計画スコープ外の横展開禁止）。
+function ProfileRadioGroup<T extends string>({
+  name, options, value, onChange,
+}: {
+  name: string
+  options: { id: T; label: string }[]
+  value: T | ''
+  onChange: (v: T | '') => void
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <label
+        className={`block rounded-lg border px-2.5 py-2 cursor-pointer transition-colors ${
+          value === '' ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <input
+            type="radio" name={name} checked={value === ''}
+            onChange={() => onChange('')} className="accent-blue-500"
+          />
+          <span className="text-xs text-slate-300">指定なし</span>
+        </span>
+      </label>
+      {options.map(opt => (
+        <label
+          key={opt.id}
+          className={`block rounded-lg border px-2.5 py-2 cursor-pointer transition-colors ${
+            value === opt.id ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <input
+              type="radio" name={name} checked={value === opt.id}
+              onChange={() => onChange(opt.id)} className="accent-blue-500"
+            />
+            <span className="text-xs text-slate-300">{opt.label}</span>
+          </span>
+        </label>
+      ))}
+    </div>
+  )
+}
+
 // fetch自体の失敗（ネットワーク断など）は英語の "Failed to fetch" になるため翻訳する
 function toUserMessage(e: unknown): string {
   return e instanceof TypeError
@@ -219,6 +271,20 @@ export default function AnalyzePage() {
   const [bundle, setBundle] = useState<PreparedBundle | null>(null)
   const [report, setReport] = useState('')
   const runningReportRef = useRef(false)
+
+  // ── 読者プロファイル（/analyze S1）: 3問必須＋4問目(資金の性格)は任意。
+  // すべて未回答（''）ならAIレポートはprofileを一切送らない＝既存挙動のまま。
+  // profileはbundleを無効化しない（数値・判定は変わらない強調レンズのため）
+  // ので、変更時に resetDownstream は呼ばない — prepare結果を再利用できる。
+  const [profileHorizon, setProfileHorizon] = useState<ReaderProfile['horizon'] | ''>('')
+  const [profileTolerance, setProfileTolerance] = useState<ReaderProfile['tolerance'] | ''>('')
+  const [profileStyle, setProfileStyle] = useState<ReaderProfile['style'] | ''>('')
+  const [profileCapacity, setProfileCapacity] = useState<NonNullable<ReaderProfile['capacity']> | ''>('')
+  const readerProfile: ReaderProfile | undefined =
+    profileHorizon && profileTolerance && profileStyle
+      ? { horizon: profileHorizon, tolerance: profileTolerance, style: profileStyle, ...(profileCapacity ? { capacity: profileCapacity } : {}) }
+      : undefined
+  const profileAnsweredCount = [profileHorizon, profileTolerance, profileStyle].filter(Boolean).length
 
   // ── S5a: 銘柄指定なし（自動スクリーニング）。quick/investorのみ対応（プロは
   // /api/analyze/screen非対応）。プリセット選択はここでは screenNeedsPresetId /
@@ -352,7 +418,7 @@ export default function AnalyzePage() {
       setReportPhase('generating')
       await streamGeneratedReport(prepared, chunk => {
         if (requestIdRef.current === requestId) setReport(prev => prev + chunk)
-      })
+      }, readerProfile)
       if (requestIdRef.current !== requestId) return
       setReportPhase('done')
     } catch (e) {
@@ -441,7 +507,7 @@ export default function AnalyzePage() {
     try {
       await streamGeneratedReport(bundle, chunk => {
         if (requestIdRef.current === requestId) setReport(prev => prev + chunk)
-      })
+      }, readerProfile)
       if (requestIdRef.current !== requestId) return // 待機中にモード切替/条件変更 → 結果を破棄
       setReportPhase('done')
     } catch (e) {
@@ -583,6 +649,42 @@ export default function AnalyzePage() {
               onChange={e => { setCapital(e.target.value); resetDownstream() }}
               className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
             />
+          </div>
+        </div>
+
+        {/* ── 読者プロファイル（/analyze S1・任意・銘柄指定あり全モード共通）:
+            3問(投資期間/リスク耐性/スタイル志向)＋任意の4問目(資金の性格)。
+            数値・判定・バックテストの中身は一切変えず、AIレポートの強調順序・
+            語り口・意味づけだけを最適化するレンズ。未回答ならprofileを一切
+            送らない（既存挙動のまま・後方互換）。resetDownstreamは呼ばない
+            — bundleは無効化されないため、prepare結果を再利用したまま
+            プロファイルだけ変えて再生成できる。 ── */}
+        <div className="border border-border rounded-lg p-4 space-y-3">
+          <div>
+            <p className="text-sm text-white font-medium">
+              読者プロファイル（任意・{profileAnsweredCount}/3問回答済み）
+            </p>
+            <p className="text-xs text-muted mt-1 leading-relaxed">
+              回答するとAIレポートの強調順序・語り口・意味づけがあなた向けに調整されます。
+              数値・ゲート判定・バックテストの中身は一切変わりません。未回答でも通常どおりレポートは生成されます。
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-muted mb-1.5">投資期間</p>
+            <ProfileRadioGroup name="profile-horizon" options={HORIZON_OPTIONS} value={profileHorizon} onChange={setProfileHorizon} />
+          </div>
+          <div>
+            <p className="text-xs text-muted mb-1.5">リスク許容度</p>
+            <ProfileRadioGroup name="profile-tolerance" options={TOLERANCE_OPTIONS} value={profileTolerance} onChange={setProfileTolerance} />
+          </div>
+          <div>
+            <p className="text-xs text-muted mb-1.5">スタイル志向</p>
+            <ProfileRadioGroup name="profile-style" options={STYLE_OPTIONS} value={profileStyle} onChange={setProfileStyle} />
+          </div>
+          <div>
+            <p className="text-xs text-muted mb-1.5">資金の性格（任意・4問目）</p>
+            <ProfileRadioGroup name="profile-capacity" options={CAPACITY_OPTIONS} value={profileCapacity} onChange={setProfileCapacity} />
           </div>
         </div>
 

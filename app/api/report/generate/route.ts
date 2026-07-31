@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { buildReportPrompt } from '@/lib/report/prompt'
 import { streamReportClaude } from '@/lib/report/claude'
-import type { PreparedBundle } from '@/lib/report/types'
+import { isReaderProfile } from '@/lib/report/profile'
+import type { PreparedBundle, ReaderProfile } from '@/lib/report/types'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -32,7 +33,7 @@ function isBundle(b: unknown): b is PreparedBundle {
 // PreparedBundle in → Opus Markdown report out as a text/plain stream.
 // SDK streaming when ANTHROPIC_API_KEY is set; CLI fallback emits one chunk.
 export async function POST(req: Request) {
-  let body: { bundle?: unknown }
+  let body: { bundle?: unknown; profile?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -43,8 +44,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'bundle is missing or malformed' }, { status: 400 })
   }
 
+  // 読者プロファイル（/analyze S1）はレポートの強調・語り口だけを変えるレンズで
+  // あり、ゲート判定・数値・バックテストには一切関与しない。不正/未知な値は
+  // 400にせず黙って無視する（安全側フォールバック — 未回答時の既存挙動と同じ）。
+  const profile: ReaderProfile | undefined = isReaderProfile(body?.profile) ? body.profile : undefined
+
   try {
-    const prompt = buildReportPrompt(body.bundle)
+    const prompt = buildReportPrompt(body.bundle, profile)
     // 4500 tokens — information density is the R1 priority (fits within
     // maxDuration=300 streaming budget).
     const stream = await streamReportClaude(prompt, { maxTokens: 4500 })

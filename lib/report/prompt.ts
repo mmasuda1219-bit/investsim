@@ -17,7 +17,8 @@ import {
   describeDerivedFilter, formatDerivedValue, DERIVED_METRIC_INFO, DERIVED_METRICS,
 } from '@/lib/backtest/fundamental'
 import type { StatementsData, DerivedFundamentals } from '@/lib/statements/types'
-import type { PreparedBundle, BacktestSummary, AiTraderEvidence, NewsItem, MacroContext, SourceRef, LearningUsage } from './types'
+import type { PreparedBundle, BacktestSummary, AiTraderEvidence, NewsItem, MacroContext, SourceRef, LearningUsage, ReaderProfile } from './types'
+import { describeReaderProfile, buildEmphasisHints } from './profile'
 
 const MAX_TRADES_IN_PROMPT = 20
 
@@ -247,8 +248,30 @@ function fmtSources(sources: SourceRef[]): string {
   return sources.map((s) => `[${s.id}] ${s.label} — ${s.usedFor}`).join('\n')
 }
 
-/** Build the single Opus prompt from a prepared bundle. */
-export function buildReportPrompt(bundle: PreparedBundle): string {
+// ── Reader-profile lens (/analyze S1) ───────────────────────────────────────
+// Optional block: when present, it ONLY instructs emphasis order / tone /
+// meaning-making — never the facts, numbers, gate verdicts, or scenarios
+// themselves (原則9の絶対線). Absent entirely when no profile is supplied
+// (backward compatible — current report behavior is unchanged).
+function fmtReaderProfileBlock(profile: ReaderProfile): string {
+  const hints = buildEmphasisHints(profile).map((h) => `- ${h}`).join('\n')
+  return `
+
+【読者プロファイル（この読者向けの強調・語り口の調整 — 事実・数値・判定は一切変えない）】
+${describeReaderProfile(profile)}
+
+以下は上記プロファイルに基づく強調指針です。**事実・数値・ゲート判定・バックテスト・シナリオの中身は一切変えず、
+取り上げる順序・語り口・意味づけのみ**を調整してください。強み・リスクの両面評価は必ず両方維持すること（どちらか一方を省略しない）:
+${hints}
+
+加えて、常に以下を守ること:
+- この銘柄・条件が読者のプロファイルと食い違う場合（例: インカム重視の読者に対して無配当の銘柄など）、適合しているかのように偽らず、実測値に基づいて不適合であることを正直に述べる。
+- 「あなたに最適です」「あなたに向いています」等、読者個人への助言的な断定はしない。`
+}
+
+/** Build the single Opus prompt from a prepared bundle. Optional reader-profile
+ *  lens (/analyze S1) — when omitted, output is identical to the pre-S1 prompt. */
+export function buildReportPrompt(bundle: PreparedBundle, profile?: ReaderProfile): string {
   const { request, backtest: bt, current, fundamentalGate, aiEvidence, learningContext, sources,
     statements, derived, derivedGate, news, macro } = bundle
   const q = current.quote
@@ -300,7 +323,7 @@ ${fmtLearningUsage(bundle.learningUsage)}
 ${fmtNews(news)}
 
 【マクロ・市場環境（米国市場指標／現在値と過去5年の推移）】
-${fmtMacro(macro)}
+${fmtMacro(macro)}${profile ? '\n\n' + fmtReaderProfileBlock(profile) : ''}
 
 【引用元（参照番号つき — 本文ではこの番号[n]で引用する）】
 ${fmtSources(sources)}
@@ -337,6 +360,7 @@ InvestSim AIトレーダーのこの銘柄での実際の売買実績（回数�
 上記【引用元】の番号付きリストを「[n] ラベル — 用途」の形でそのまま列挙する（本文で使った番号を中心に）。**URLは書かない**（アプリが番号[n]から実際のリンクを表示する）。
 
 厳守事項:
+- **意味づけの徹底（常時・読者プロファイルの有無を問わない）**: 主要な数値（PER/ROE/CAGR/最大DD/自己資本比率等）にはそれが読者にとって何を意味するかを平易な日本語で1文添える。専門用語は初出時に一言の言い換えを付す。数値の羅列で終わらせない。
 - **すべての主張に数値根拠を付けること**。本文中の実データのみを使い、架空の数値を作らない。データに無いことを断定しない（不明なものは不明と書く）。
 - **根拠チェーンの必須化**: 各セクションの冒頭に置く結論・判断には、必ず「事実（実数値または引用元番号[n]）→解釈→推論」の連鎖を本文中で明示的に添える。根拠を示さない断定は禁止（結論だけを先に書く場合も、直後にその連鎖を必ず示す）。
 - **教訓の正直表示**: 教訓への言及は上記【教訓の使用状況】と完全に一致させる。使用0件なら「教訓は未使用」と書き、リストに無い教訓を使用したかのように書かない。

@@ -22,6 +22,11 @@ import type { FundamentalGateResult, DerivedGateResult } from '@/lib/backtest/fu
 import type { StatementsData, DerivedFundamentals } from '@/lib/statements/types'
 import type { StockQuote, FundamentalsData, HistoricalBar } from '@/types'
 
+// 読者プロファイル（/analyze S1）の型はこの層のドメイン型なので、実体
+// （データ＋純関数）は ./profile.ts に置いた上でここに集約 re-export する。
+// PreparedBundle には足さない（prepare/バックテストの中身には影響しないため）。
+export type { ReaderProfile } from './profile'
+
 /** Input of POST /api/report/prepare (v2 — structured condition, no free text). */
 export interface ReportRequest {
   symbol: string
