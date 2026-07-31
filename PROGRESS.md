@@ -22,17 +22,30 @@
 
 ## 2026-07-30
 
-- **今日のゴール**: 本番スクリーニングの500エラーを解消し、実データランキング表示を確認する。
+- **今日のゴール**: 本番スクリーニングの500エラーを解消し、オーナー方針転換（課金延期・初心者向け分析優先）をもとに次スライス計画を承認される。
 - **やったこと**:
-  - 本番 POST /api/analyze/screen（quick/安定重視）の「キャッシュ読み取り失敗」500エラーを解消。
-    - 原因特定：本番 Supabase(プロジェクト ndrstuepugzgiwycsyrf)に universe_fundamentals テーブルが未作成＋ローカルに service_role キーが無かった。空キャッシュなら200「0件」だが、テーブル不在はクエリエラー→500。
-    - 対処：(1)オーナーが Supabase ダッシュボードでマイグレーション0002を実行しテーブル作成、(2)オーナーが service_role キーを .env.local に追記、(3)MCがシード実行。
-    - シードのハマりどころ：既定シェルの Node 20 では @supabase/supabase-js の createClient が「Node.js 20 detected without native WebSocket support」で落ちた。.nvmrc は Node 22指定・nvmにv22.23.1あり。`nvm use 22` で実行して解決（コード変更なし）。
-  - 結果：seed-fundamentals.ts が **105銘柄すべて保存・スキップ0・エラー0**。curl で本番テーブル105行(content-range 0-104/105)確認。本番 POST /api/analyze/screen が HTTP 200 で実データランキング(AAPL 4873.6B→NVDA…時価総額降順)を返すことを確認。meta=105キャッシュ中80評価・データ無し25除外(正直fail-closed)。Vercel本番も同一 Supabase プロジェクトを参照と確認。
-  - ローカル本番ビルド(next build)は7件の ETIMEDOUT で失敗したが全て node_modules/next の読み込み=iCloud I/O由来で、コードエラーではない(本番Vercel は build成功・全機能稼働中)。無視可。
-- **現在の状態**: S1/S4/S2/S3/S5c-1/S5a/S5c-2（本体）＋C（投資家ペルソナスライス1）＋D（新部署5つ）＋B（auto-tick 504修正）がすべてコミット＋push/デプロイ完了。本番環境は origin/main に同期・全機能稼働中。screening は実データで稼働。S5b（TOP行→prepare本配線）・S6（勝率データ）が残スライス。
-- **次の一手**: (1)オーナーがrefresh-fundamentals cron の初回workflow_dispatch 疎通確認を実施（鮮度維持・14日でstale）。(2)auto-tick 504修正のworkflow_dispatch 緑確認もオーナーが実施。(3)S5b着手（TOP行クリック→prepare/generate 本配線・銘柄単一フロー連携）。
-- **未解決・ブロッカー**: (1)refresh-fundamentals workflow_dispatch初回疎通（オーナー手動）。(2)auto-tick workflow_dispatch 504解消確認（オーナー手動・既にコード出荷済）。(3)seed-fundamentals.ts を Node 20でも親切に落ちるようにする（または .nvmrc必須を明記）は低優先backlog。(4)新部署(cmo/monetization/legal-compliance/content-creator)を使う事業化トラック(legal優先)は別線。data/sessions.json は自動tick副産物でコミット除外継続。
+  - 本番 POST /api/analyze/screen（quick/安定重視）の500エラーを解消・実データ確認完了。
+    - 原因特定：本番 Supabase に universe_fundamentals テーブル未作成＋service_role キー無かった。対処：(1)オーナーがマイグレーション0002実行、(2)service_role キーを .env.local に追記、(3)MCがシード実行。
+    - シードハマり：Node 20では WebSocket support エラー→`nvm use 22` で解決（コード変更なし）。
+    - 結果：seed-fundamentals.ts **105銘柄すべて保存・エラー0**。本番テーブル105行確認。本番API HTTP 200で実データランキング返却・meta=80評価/25除外(正直fail-closed)。Vercel本番も同一Supabase参照確認。
+  - **オーナー方針転換承認**:
+    - 課金制度の導入をシステム/UI完成後に延期。
+    - 第一優先を「初心者〜一般個人投資家向けの、一流でパーソナライズされた分析（他社スクリーニングに勝つ差別化）」に設定。
+    - S5b/S6を一旦保留。その代わり新スライス S1（読者プロファイル3-4問＋意味づけ強制）を先行実装→S2/S3/S4/S5と繋ぐ。
+  - **調査フェーズ完了**:
+    - scout による競合調査（Simply Wall St/Seeking Alpha/Finviz/moomoo/Motley Fool/楽天/マネックス/みんかぶ）→投資simが勝てる差別化上位5特定。
+    - KNOWLEDGE.md に「一流の初心者向け分析の型」4エントリ蓄積＋改善案7件（出典付き）。
+  - **戦略的発見**: 日本の初心者向けなら日本株が構造整合。investsim最大弱点「過去ファンダ取得不可」は日本株なら J-Quants(有料)で5-10年財務取得可→解決。ただし US先行→日本株第2弾で合意。
+  - **strategist 設計→オーナー承認**:
+    - 芯=「合成スコアでなく、信念→実指標→意味づけ→読者プロファイル適合の説明できる写像」。
+    - パーソナライズ=初心者向け3-4問（投資期間/リスク耐性/スタイル志向 income-growth-value/（任意）資金性格）。
+    - レンズは見せ方（順序/語り口/意味づけ/適合判定）のみ変え、数値・ゲート・バックテストは不変（原則9）。
+    - DCF/内在価値は評価器不在ゆえ作らない（原則9）。
+  - **人間ゲート①承認**: S1（読者プロファイル3-4問＋意味づけ強制）から着手＋US先行をオーナー承認。
+  - **S1実装をbuilder(Fable)に発注中**: 新規ファイル lib/report/profile.ts＋prompt.ts（任意 profile 引数＋意味づけ強制常時）＋generate/route.ts（body.profile 検証）＋analyze/page.tsx（3-4問UI）＋types.ts＋DECISIONS 記入予定。prepare/ゲート/バックテストは無改修。
+- **現在の状態**: S1（読者プロファイル）実装中（Fable），US先行。本番スクリーニング前段修復済み（105行シード・実データランキング稼働）。残スライス S2(テーゼ化)/S3(レーダー・割安ゲージ)/S4(用語ツールチップ)/S5(学習アンチパターン)。保留中: S5b/S6、課金制度。
+- **次の一手**: (1)S1実装完了待ち（Fable）。(2)S1 reviewer→人間ゲート②出荷前承認。(3)並行してオーナーが refresh-fundamentals/auto-tick workflow_dispatch で初回疎通確認（保留中）。
+- **未解決・ブロッカー**: (1)S1実装進捗(Fable monitor・標的日 TBD)。(2)refresh-fundamentals/auto-tick workflow_dispatch 疎通（オーナー手動、並行可）。data/sessions.json は自動tick副産物でコミット除外継続。
 
 ---
 
