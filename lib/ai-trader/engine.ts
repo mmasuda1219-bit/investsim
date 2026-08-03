@@ -430,9 +430,14 @@ export async function generateFullLearning(memory: LearningMemory, session: AISe
     lessons: [], fundamentalInsights: [], newsInsights: [],
     causalChains: [], tradingBiases: [], strategyNotes: [],
   }
-  if (memory.closedTrades.length === 0) return empty
+  // クローズした取引が無くても、保有中ポジションの含み損益と過去の判断（＝予想）から学ぶ
+  // （2026-07-31変更）。中長期保有では手仕舞いが滅多に起きず、クローズ必須にすると
+  // 学習が永久に始まらないうえ、短期決済の記録だけが教訓化されて方針が短期売買へ偏る。
+  if (memory.closedTrades.length === 0 && memory.allDecisions.length === 0) return empty
 
-  const closedText = memory.closedTrades.slice(0, 15).map(t =>
+  const closedText = memory.closedTrades.length === 0
+    ? 'まだ手仕舞いした取引はない（未確定の保有で判断すること）'
+    : memory.closedTrades.slice(0, 15).map(t =>
     `[${t.outcome === 'profit' ? '利益' : '損失'}] ${t.symbol} ${t.pnlPct >= 0 ? '+' : ''}${t.pnlPct.toFixed(1)}% | 保有${t.holdingHours}h
   エントリー理由: ${t.entryReasoning}
   エグジット理由: ${t.exitReasoning}
@@ -444,6 +449,36 @@ export async function generateFullLearning(memory: LearningMemory, session: AISe
   const decisionText = memory.allDecisions.slice(0, 30).map(d =>
     `${d.action.toUpperCase()} ${d.symbol} @${d.price.toFixed(0)} [${d.confidence}] | ${d.reasoning.slice(0, 80)}`
   ).join('\n')
+
+  // learn.ts（runLearnTick）経由ではsession全体の正規化を通らず、learning以外の
+  // フィールドが欠けた旧フォーマットのまま渡されうる（runTickの`!session.decisions`等の
+  // 補完は通らない）。3ファイルをまたぐ暗黙の不変条件に頼らず、ここでもローカルに防御する。
+  const sessionDecisions = session.decisions ?? []
+  const sessionHoldings  = session.holdings ?? {}
+
+  // 保有中ポジションの含み損益＝「まだ手仕舞いしていない予想の途中経過」。
+  // 現在値はネットワークを叩かず、直近の判断ログ（AIDecision.price）から引く。
+  const latestPrice = new Map<string, number>()
+  for (const d of sessionDecisions) {
+    if (!latestPrice.has(d.symbol)) latestPrice.set(d.symbol, d.price)
+  }
+  // 保有件数はexecuteTradesのbuyゲート（holdingCount < 5）により実質最大5件に収まっているが、
+  // それはこの関数の外側にある別の不変条件でしかない。将来そのゲートが変わっても
+  // プロンプトが静かに肥大しJSON途中切れ/タイムアウトを招かないよう、ここでも独立に上限を掛ける
+  // （closedText/decisionTextと同じ「防御的スライス」の考え方に揃えた）。
+  const openText = Object.entries(sessionHoldings).slice(0, 10).map(([sym, pos]) => {
+    const px = latestPrice.get(sym)
+    // price===0は「実データ取得不可」のセンチネル（askClaudeのprice: sd?.quote.price ?? 0、
+    // 買いガードのdec.price <= 0と同じ約束事）。よってここのtruthy判定で価格0を「不明」扱いに
+    // するのは意図どおり（px !== undefinedに変えると価格0で誤った-100%等の含み損益が出る）。
+    const pnl = px ? ((px - pos.avgCost) / pos.avgCost) * 100 : null
+    const hrs = Math.round((Date.now() - new Date(pos.entryAt).getTime()) / 3600000)
+    const pnlStr = pnl === null ? '含み損益不明' : `${pnl >= 0 ? '+' : ''}${pnl.toFixed(1)}%`
+    return `[保有中] ${sym}(${pos.name}) ${pnlStr} | 保有${hrs}h | 平均取得$${pos.avgCost.toFixed(2)}
+  エントリー理由: ${pos.entryReasoning}
+  エントリー時テクニカル: ${pos.entryTechnicals}
+  エントリー時ファンダ: ${pos.entryFundamentals}`
+  }).join('\n\n') || 'なし'
 
   const portfolioStatus = `総資産: $${session.totalValue.toFixed(0)} | 損益: ${session.pnlPct >= 0 ? '+' : ''}${session.pnlPct.toFixed(2)}% | 現金比率: ${((session.cash / session.totalValue) * 100).toFixed(0)}% | Tick数: ${session.tickCount}`
 
@@ -457,11 +492,20 @@ ${portfolioStatus}
 【クローズ済み取引（詳細）】
 ${closedText}
 
+【保有中ポジション（＝まだ答え合わせが済んでいない予想の途中経過）】
+${openText}
+
 【全判断ログ（直近30件）】
 ${decisionText}
 
 【既知の癖・バイアス】
 ${existingBiases}
+
+【学習にあたっての注意】
+- 手仕舞い済みの取引が少ない、または無い場合は、保有中ポジションの含み損益と判断ログ（＝予想）を材料に振り返ること。「クローズしていないから学べない」は誤り。
+- 手仕舞い実績が少数のとき、その少数から「短期利確が常に正しい」と一般化しないこと。たまたま短期決済しか記録が無いだけで、中長期保有の成否はまだ判定されていない。サンプル数が少ない教訓には、その旨を明記すること。
+- 含み損を抱えた保有については「エントリー時の根拠が今も成立しているか」を問い直すこと。含み益の銘柄だけを見て成功パターンを結論づけない。
+- 教訓は保有期間の前提（数時間なのか数か月なのか）を明示すること。前提を書かない教訓は、時間軸の異なる判断に誤用される。
 
 以下の6軸で分析し、JSONで返してください。各配列は最大5件。具体的・実践的に：
 

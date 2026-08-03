@@ -284,8 +284,10 @@
 - 理由: tickを「売買判断1回だけ」に保てば約29秒で完結し、50秒バジェットに余裕ができて誤報も同時に解消する。学習を独立させることで、学習が遅延・失敗しても売買結果の保存に影響しなくなる（残課題Bの解消）。新しい抽象化は増やさず`auto.ts`/`cron/tick`の既存パターンを踏襲した
 - 生成が空だった場合は`lastLearnTickCount`を進めず次回cronで再挑戦する（tick内にあった頃と同じ意味論を維持）
 - リスク: (1)ロック競合で学習が飢える→cron時刻を`:05`にし、auto-tickの`:37/:23/:48`・refresh-fundamentalsの`:15`と重ならないようにした。(2)Vercelにハードkillされると`finally`が走らずロックがTTL(5分)まで残りtickをブロックしうる→時刻分離で緩和。(3)学習頻度の制御がコードからymlへ移り可視性が下がる→両方にコメントで明示
-- 検証: `npx tsc --noEmit`緑。学習1回が実際に40秒以内で完走し`lessons`が入るかは、デプロイ後に`workflow_dispatch`で発火して`/api/ai-session/<id>`の`lastLearnTickCount`と`lessons`の増加で確認する（レスポンス本文だけを信じない）
-- 影響ファイル: lib/ai-trader/engine.ts, lib/ai-trader/learn.ts(新), app/api/cron/learn/route.ts(新), .github/workflows/learn.yml(新), DECISIONS.md
+- 検証: `npx tsc --noEmit`緑。**デプロイ後の実運用確認済み（2026-07-31）**: commit 3e51960 反映後に`workflow_dispatch`で発火し `{"learned":true,"lockDegraded":false}`。`/api/ai-session/<id>`で`lastLearnTickCount` 0→14、`lessons`/`fundamentalInsights`/`newsInsights`/`causalChains`/`tradingBiases`/`strategyNotes`が各5件（計30件）生成され永続化されたことを確認。40秒枠で完走した。同時に`tickCount`が10→14に増えており、前エントリのtick修正もスケジュール実行で継続動作している
+- 生成内容から判明した設計上の示唆: 出力された教訓が「RSI>70+BB上限超えで即利確」「短期利確(3-6h)が有効」など**短期テクニカル寄りに強く偏った**。学習の入力が`closedTrades`（実際に手仕舞いした取引）しか無く、その2〜3件がいずれも短期決済だったため。中長期保有を志向するサイトでは、クローズ依存の学習は投資方針そのものを短期売買へ歪める。次スライスで「クローズしていなくても市場調査・予想から学ぶ」経路を追加する根拠になった
+- 追記（本スライスで実装・本番未検証）: 上記の示唆を受けて`memory.ts`の`shouldLearnNow`を`closedTrades.length > 0 || allDecisions.length > 0`へ緩和し、`engine.ts`の`generateFullLearning`に保有中ポジション（含み損益・エントリー根拠）を学習材料として追加した。**上の「検証」項目にある「デプロイ後の実運用確認済み（2026-07-31）」は、この緩和・追加より前の旧`shouldLearnNow`（closedTrades必須）で行われた検証であり、この保有中ポジション材料化のロジックは含まない（本番未検証）**。次回の学習cron発火で`lessons`等の時間軸が中長期側へ広がるか、サンプル数が少ない教訓に注記が付くかを確認する
+- 影響ファイル: lib/ai-trader/engine.ts, lib/ai-trader/memory.ts, lib/ai-trader/learn.ts(新), app/api/cron/learn/route.ts(新), .github/workflows/learn.yml(新), DECISIONS.md
 
 ## 2026-07-30: /analyze・/report S1 読者プロファイル（初心者向け一流分析ロードマップの第1スライス）
 - 背景: strategist設計・オーナー承認済みの「初心者向け一流分析」ロードマップの先頭スライス。専門家向けの密度は維持したまま、初心者が読んでも「だから何」が伝わるレポートにしたい

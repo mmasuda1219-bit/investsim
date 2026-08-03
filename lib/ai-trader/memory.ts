@@ -278,8 +278,14 @@ export function summarizeDistilledLessons(memory: LearningMemory): DistilledLess
 
 // ── Trigger learning generation every tick if data exists ─────────────────
 export function shouldLearnNow(memory: LearningMemory, currentTickCount: number): boolean {
-  // Generate learning every tick as long as there's any closed trade
-  if (memory.closedTrades.length === 0) return false
-  // But throttle: don't regenerate if we just did it this tick
+  // 学習の材料は「クローズした取引」だけではない（2026-07-31変更）。
+  // 中長期保有では手仕舞いが滅多に起きないため closedTrades を必須にすると学習が
+  // 永久に始まらない（実際 tickCount=10 に達しても蓄積ゼロだった）。さらに、
+  // クローズだけを材料にすると短期決済の記録ばかりが学習され、教訓が
+  // 「RSI過熱で即利確」のような短期売買へ偏り、投資方針そのものを歪める。
+  // 保有中ポジションの含み損益と過去の判断（＝予想）も答え合わせの材料になる。
+  const hasMaterial = memory.closedTrades.length > 0 || memory.allDecisions.length > 0
+  if (!hasMaterial) return false
+  // 同じtickで作り直さないための間引き。
   return currentTickCount > memory.lastLearnTickCount
 }
