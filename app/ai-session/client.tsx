@@ -820,6 +820,16 @@ export function AISessionClient() {
                               {dec.newsInfluence}
                             </div>
                           )}
+                          {!!dec.knowledgeRefs?.length && (
+                            <div className="mt-2 flex flex-wrap items-center gap-1">
+                              <span className="text-xs text-emerald-600 mr-1">参照した原則</span>
+                              {dec.knowledgeRefs.map((ref) => (
+                                <span key={ref.id} className="text-xs bg-emerald-950/40 text-emerald-400 border border-emerald-900/50 px-2 py-0.5 rounded-full">
+                                  {ref.title}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           <div className="mt-2 flex flex-wrap gap-1">
                             {dec.sources.map((src, si) => (
                               <span key={si} className="text-xs bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{src}</span>
@@ -908,6 +918,28 @@ export function AISessionClient() {
                     ) : (
                       <div className="text-gray-700 text-sm py-6 text-center bg-gray-950 rounded-xl border border-gray-800">
                         3 Tick実行後、クローズした取引があれば教訓が自動生成されます
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">
+                      今回提示した原則 <span className="text-gray-700">({session.knowledgeShown?.length ?? 0}件)</span>
+                    </div>
+                    {session.knowledgeShown && session.knowledgeShown.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {session.knowledgeShown.map((k) => (
+                          <span
+                            key={k.id}
+                            className="text-xs bg-emerald-950/30 text-emerald-400 border border-emerald-900/50 px-2.5 py-1 rounded-full"
+                          >
+                            {k.title}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-gray-700 text-sm py-6 text-center bg-gray-950 rounded-xl border border-gray-800">
+                        知識ベース未接続（supabase/migrations/0003_knowledge_items.sql の実行と scripts/sync-knowledge.ts の同期が必要）
                       </div>
                     )}
                   </div>

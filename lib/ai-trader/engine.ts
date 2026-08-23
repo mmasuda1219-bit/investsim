@@ -14,6 +14,9 @@ import {
 } from './memory'
 import type { StockQuote, FundamentalsData, InvestorId } from '@/types'
 import { getPersonaText } from './personas'
+import { listKnowledge, recordKnowledgeUsage } from '@/lib/knowledge/store'
+import { selectKnowledgeForDecision, formatKnowledgeBlock, filterKnowledgeRefs } from '@/lib/knowledge/select'
+import type { KnowledgeItem, KnowledgeKind } from '@/lib/knowledge/types'
 
 // AIモデルID（環境変数で上書き可）。tickは頻繁・高速・低コストが要件なので Haiku を既定に。
 // sonnet-4-6 だと1呼び出し+データ取得で約55秒かかり Vercel の60秒関数タイムアウトを不定期に
@@ -134,6 +137,10 @@ export interface AIDecision {
   fundamentals: string
   confidence:   'high' | 'medium' | 'low'
   sources:      string[]
+  // S2(知識配線): AIが実際に依拠したと申告したKNOWLEDGE.md由来の原則。任意フィールド
+  // （旧永続セッションに無くても壊れない）。titleを非正規化で持つのは、古い判断でも
+  // 知識ストア側の更新・削除に関わらず単体でUI描画できるようにするため。
+  knowledgeRefs?: Array<{ id: string; title: string }>
 }
 
 export interface Holding {
@@ -187,6 +194,10 @@ export interface AISession {
   auto?: { enabled: boolean; date: string; count: number }
   // 投資家人格（バフェット等）。未指定は汎用プロンプト（従来挙動）にフォールバックする。
   persona?: InvestorId
+  // S2(知識配線): 直近tickでプロンプトに提示した知識の集合のみ（最大6件）。引用されたか
+  // どうかは問わない「提示」の記録。「引用」（実際に依拠したもの）はAIDecision.knowledgeRefs側。
+  // 任意フィールド（旧永続セッションに無くても壊れない）。
+  knowledgeShown?: Array<{ id: string; title: string; kind: KnowledgeKind }>
 }
 
 // 永続化はstore.tsに集約（Supabase JSONB blob / キー未設定ローカルはファイルにフォールバック）。
@@ -323,9 +334,48 @@ function buildCriteriaBlock(persona: { criteria: string[] }): string {
   return items.map((item, i) => `${i + 1}. ${item}`).join('\n')
 }
 
+// S2(知識配線): hot path（tick）に知識ストアI/Oを足すと、2026-07-30に一度起きた
+// 「無音のハング→504」を再来させうる。listKnowledge/recordKnowledgeUsageのどちらも
+// このデッドラインで包み、超過・失敗時は必ずfail-open（[]/スキップ）にする。
+const KNOWLEDGE_IO_TIMEOUT_MS = 2_000
+
+function withDeadline<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    }),
+  ])
+}
+
+/** listKnowledge を2秒デッドライン付きで呼ぶ。失敗・超過時は[]にフォールバックし、必ず1行warnする（無音にしない）。 */
+async function loadKnowledgePoolSafely(): Promise<KnowledgeItem[]> {
+  try {
+    return await withDeadline(
+      listKnowledge({ scope: 'global', limit: 60 }),
+      KNOWLEDGE_IO_TIMEOUT_MS,
+      'knowledge load',
+    )
+  } catch (e) {
+    console.warn(`[knowledge] load skipped: ${e instanceof Error ? e.message : String(e)}`)
+    return []
+  }
+}
+
+/** recordKnowledgeUsage は内部で例外を握りつぶすが、ハング（応答が返らない）は救わないため
+ *  ここでも独立にデッドラインを掛ける。失敗・超過時は1行warnして続行（判断・保存は止めない）。 */
+async function recordKnowledgeUsageSafely(ids: string[]): Promise<void> {
+  try {
+    await withDeadline(recordKnowledgeUsage(ids), KNOWLEDGE_IO_TIMEOUT_MS, 'knowledge usage record')
+  } catch (e) {
+    console.warn(`[knowledge] usage record skipped: ${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+
 async function askClaude(
   session: AISession,
-  stockData: StockContext[]
+  stockData: StockContext[],
+  knowledge: KnowledgeItem[]
 ): Promise<AIDecision[]> {
 
   const holdingsSummary = Object.entries(session.holdings).map(([sym, pos]) => {
@@ -344,6 +394,14 @@ async function askClaude(
   const learningCtx = buildLearningContext(session.learning)
   const persona = getPersonaText(session.persona)
 
+  // S2(知識配線): 0件なら空文字（formatKnowledgeBlockの契約）。ブロックが無い場合は
+  // knowledgeSection自体が空文字になり、以下のテンプレートは既存(知識未接続時)と
+  // バイト単位で同一の出力になる（【過去の経験・学習】ブロックの文言・順序は無改修）。
+  const knowledgeBlockText = formatKnowledgeBlock(knowledge)
+  const knowledgeSection = knowledgeBlockText ? `\n\n${knowledgeBlockText}` : ''
+  const knowledgeTitleById = new Map(knowledge.map(k => [k.id, k.title]))
+  const allowedKnowledgeIds = new Set(knowledge.map(k => k.id))
+
   const prompt = `${persona.roleLine}
 
 【現在のポートフォリオ状態】
@@ -356,7 +414,7 @@ ${holdingsSummary}
 ${stocksText}
 
 【過去の経験・学習】
-${learningCtx}
+${learningCtx}${knowledgeSection}
 
 【判断基準】
 ${buildCriteriaBlock(persona)}
@@ -372,12 +430,14 @@ ${buildCriteriaBlock(persona)}
     "reasoning": "日本語2文以内の判断理由",
     "newsInfluence": "ニュースの影響（1文）",
     "techSignal": "テクニカル要約（1文）",
-    "fundSignal": "ファンダメンタル評価（1文）"
+    "fundSignal": "ファンダメンタル評価（1文）",
+    "knowledgeRefs": ["km_xxxxxxxxxx"]
   }
 ]
 \`\`\`
 
-actionは "buy" | "sell" | "hold" | "watch"。buyは現金十分な場合のみ。sellは保有銘柄のみ。`
+actionは "buy" | "sell" | "hold" | "watch"。buyは現金十分な場合のみ。sellは保有銘柄のみ。
+knowledgeRefsは実際に依拠した【投資の原則（知識ベース）】のIDのみ。最大2件。無ければ []（体裁のために埋めない）。`
 
   const text = await callClaude(prompt)
   const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
@@ -395,6 +455,11 @@ actionは "buy" | "sell" | "hold" | "watch"。buyは現金十分な場合のみ�
         'Claude AI (分析エンジン)',
         'バフェットコード式ファンダメンタル分析',
       ]
+      // 注入した知識集合(allowedKnowledgeIds)で検証してから使う。無い/不正なIDは全て捨てる。
+      // 「最大2件」はプロンプト指示だけに委ねず、ここでも防御的に切る。
+      const knowledgeRefs = filterKnowledgeRefs(r.knowledgeRefs, allowedKnowledgeIds)
+        .slice(0, 2)
+        .map(id => ({ id, title: knowledgeTitleById.get(id) ?? id }))
       return {
         symbol:        r.symbol,
         name:          sd?.quote.name ?? r.symbol,
@@ -408,6 +473,7 @@ actionは "buy" | "sell" | "hold" | "watch"。buyは現金十分な場合のみ�
         fundamentals:  r.fundSignal ? `${r.fundSignal} | ${fundStr}` : fundStr,
         confidence:    r.confidence ?? 'medium',
         sources,
+        knowledgeRefs,
       } satisfies AIDecision
     })
   } catch {
@@ -760,8 +826,29 @@ export async function runTick(sessionId: string): Promise<AISession> {
     if (ctx) enriched.push(ctx)
   }
 
-  const decisions = await askClaude(session, enriched)
+  // S2(知識配線): knowledge_items未設定/未実行・タイムアウト時は[]にフォールバックする
+  // （loadKnowledgePoolSafely内部でfail-open・1行warn）。selectKnowledgeForDecisionは
+  // 純関数なので空プールなら[]を返し、formatKnowledgeBlockも空文字を返すため、
+  // askClaudeへ渡すプロンプトは知識未接続時と完全に同一の挙動になる。
+  const knowledgePool = await loadKnowledgePoolSafely()
+  const selectedKnowledge = selectKnowledgeForDecision(knowledgePool, {
+    persona: session.persona,
+    symbols: combined,
+  })
+  session.knowledgeShown = selectedKnowledge.map(k => ({ id: k.id, title: k.title, kind: k.kind }))
+
+  const decisions = await askClaude(session, enriched, selectedKnowledge)
   session.decisions = [...decisions, ...session.decisions].slice(0, 50)
+
+  // 「提示」(knowledgeShown・上で記録済み)と「引用」(recordKnowledgeUsageで加算)を分離する。
+  // 実際にAIが依拠したと申告し、注入集合での検証を通ったIDが1件以上あるときだけ加算する
+  // （提示しただけを使用したと偽らない）。
+  const usedKnowledgeIds = Array.from(
+    new Set(decisions.flatMap(d => (d.knowledgeRefs ?? []).map(r => r.id)))
+  )
+  if (usedKnowledgeIds.length > 0) {
+    await recordKnowledgeUsageSafely(usedKnowledgeIds)
+  }
 
   const newTrades = executeTrades(session, decisions)
   session.trades = [...newTrades, ...session.trades].slice(0, 200)
