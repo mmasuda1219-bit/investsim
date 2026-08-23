@@ -6,7 +6,7 @@ const dalio: InvestorLogic = {
   nameJa: 'レイ・ダリオ',
   description: 'ブリッジウォーター創業者。リスクパリティと景気サイクル重視。',
   philosophy: '負債サイクルを理解し、分散でリスクを均等化せよ。',
-  avatarColor: '#7c3aed',
+  avatarColor: '#E87CA8',
 
   analyze({ fundamentals }: AnalysisInput): Signal {
     if (!fundamentals) {

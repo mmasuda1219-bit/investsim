@@ -8,6 +8,7 @@ import type { AISession, AIDecision, AITrade, Holding, EquityPoint } from '@/lib
 import type { ClosedTrade } from '@/lib/ai-trader/memory'
 import { normalizeLearningMemory } from '@/lib/ai-trader/memory'
 import type { InvestorId } from '@/types'
+import { MasterSignals } from '@/components/MasterSignals'
 
 const TradingChart = dynamic(() => import('@/components/TradingChart'), {
   ssr: false,
@@ -402,6 +403,9 @@ export function AISessionClient() {
     <div className="min-h-screen bg-gray-950 text-white">
       <NavBar session={null} ticking={false} />
       <StartScreen onStart={startSession} />
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-10">
+        <MasterSignals />
+      </div>
     </div>
   )
 
@@ -970,6 +974,11 @@ export function AISessionClient() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 名人のシグナル。「見る」＝AIと名人の判断を読む面なので、AIの下に並べる */}
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-10">
+        <MasterSignals initialSymbol={chartSymbol} />
       </div>
 
       {/* Reference panel (slide-over) for AI trade details */}

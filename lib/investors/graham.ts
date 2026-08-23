@@ -6,7 +6,7 @@ const graham: InvestorLogic = {
   nameJa: 'ベンジャミン・グレアム',
   description: '「バリュー投資の父」。安全マージンと割安株への集中投資。',
   philosophy: 'Mr.Marketは感情的。数字が語る本当の価値を買え。',
-  avatarColor: '#2563eb',
+  avatarColor: '#35D0A5',
 
   analyze({ fundamentals }: AnalysisInput): Signal {
     if (!fundamentals) {

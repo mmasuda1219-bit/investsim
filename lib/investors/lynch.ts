@@ -6,7 +6,7 @@ const lynch: InvestorLogic = {
   nameJa: 'ピーター・リンチ',
   description: 'フィデリティ・マゼランファンド伝説のマネージャー。',
   philosophy: '身近なところに10倍株がある。PEG比率で成長株を割安に買う。',
-  avatarColor: '#10B981',
+  avatarColor: '#E0A458',
 
   analyze({ fundamentals }: AnalysisInput): Signal {
     if (!fundamentals) {

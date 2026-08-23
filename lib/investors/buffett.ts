@@ -6,7 +6,7 @@ const buffett: InvestorLogic = {
   nameJa: 'ウォーレン・バフェット',
   description: 'バークシャー・ハサウェイ会長。バリュー投資の巨匠。',
   philosophy: '素晴らしい会社を適正価格で買い、永遠に保有する。',
-  avatarColor: '#3B82F6',
+  avatarColor: '#4C8DF6',
 
   analyze({ fundamentals }: AnalysisInput): Signal {
     if (!fundamentals) {

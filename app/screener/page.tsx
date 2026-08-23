@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { INVESTOR_META } from '@/lib/investors/registry'
 
 interface ScreenerStock {
   symbol: string
@@ -18,13 +19,8 @@ interface ScreenerStock {
   signals: Record<string, 'buy' | 'sell' | 'hold'>
 }
 
-const INVESTORS = [
-  { id: 'buffett', label: 'バフェット', initial: 'B' },
-  { id: 'soros', label: 'ソロス', initial: 'S' },
-  { id: 'lynch', label: 'リンチ', initial: 'L' },
-  { id: 'graham', label: 'グレアム', initial: 'G' },
-  { id: 'dalio', label: 'ダリオ', initial: 'D' },
-]
+// 表示名・並び順は lib/investors/registry が単一の出所（このページで再定義しない）
+const INVESTORS = INVESTOR_META
 
 const badgeColors: Record<string, string> = {
   buy: 'bg-green-500',

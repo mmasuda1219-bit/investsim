@@ -1,15 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { INVESTOR_META } from '@/lib/investors/registry'
 import type { SimResult } from '@/lib/simulation'
 
-const INVESTORS = [
-  { id: 'buffett', nameJa: 'バフェット', desc: 'バリュー投資・長期保有', color: 'blue',   icon: 'B' },
-  { id: 'graham',  nameJa: 'グレアム',   desc: '安全余裕重視・割安株', color: 'indigo', icon: 'G' },
-  { id: 'lynch',   nameJa: 'リンチ',     desc: '成長株・GARP戦略',     color: 'emerald', icon: 'L' },
-  { id: 'soros',   nameJa: 'ソロス',     desc: 'マクロ・モメンタム',   color: 'orange', icon: 'S' },
-  { id: 'dalio',   nameJa: 'ダリオ',     desc: 'オールウェザー分散',   color: 'purple', icon: 'D' },
-]
+// 表示名・説明・色・並び順は lib/investors/registry が単一の出所（このページで再定義しない）
+const INVESTORS = INVESTOR_META
 
 const UNIVERSES = [
   { id: 'large_cap', label: '大型株20銘柄', desc: 'S&P500 上位 時価総額大型株' },
@@ -17,13 +13,6 @@ const UNIVERSES = [
   { id: 'growth',    label: 'グロース20銘柄', desc: '高成長テック・ハイグロース' },
 ]
 
-const COLOR_CLASSES: Record<string, { bg: string; border: string; text: string; badge: string }> = {
-  blue:    { bg: 'bg-blue-500/10',    border: 'border-blue-500',    text: 'text-blue-400',    badge: 'bg-blue-500' },
-  indigo:  { bg: 'bg-indigo-500/10',  border: 'border-indigo-500',  text: 'text-indigo-400',  badge: 'bg-indigo-500' },
-  emerald: { bg: 'bg-emerald-500/10', border: 'border-emerald-500', text: 'text-emerald-400', badge: 'bg-emerald-500' },
-  orange:  { bg: 'bg-orange-500/10',  border: 'border-orange-500',  text: 'text-orange-400',  badge: 'bg-orange-500' },
-  purple:  { bg: 'bg-purple-500/10',  border: 'border-purple-500',  text: 'text-purple-400',  badge: 'bg-purple-500' },
-}
 
 function formatUSD(v: number) {
   return v.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -125,7 +114,6 @@ export default function SimulatePage() {
 
   const pnlPositive = (result?.pnl ?? 0) >= 0
   const selectedInvestor = INVESTORS.find(i => i.id === investorId)!
-  const colors = COLOR_CLASSES[selectedInvestor.color]
 
   return (
     <div className="space-y-6">
@@ -142,21 +130,24 @@ export default function SimulatePage() {
           <label className="block text-xs text-muted mb-2">投資家戦略を選択</label>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {INVESTORS.map(inv => {
-              const c = COLOR_CLASSES[inv.color]
               const active = investorId === inv.id
               return (
                 <button
                   key={inv.id}
                   onClick={() => setInvestorId(inv.id)}
+                  style={active ? { borderColor: inv.color, backgroundColor: `${inv.color}1a` } : undefined}
                   className={`rounded-xl p-3 border text-left transition-all ${
-                    active ? `${c.bg} ${c.border}` : 'border-border hover:border-slate-600 bg-surface/30'
+                    active ? '' : 'border-border hover:border-slate-600 bg-surface/30'
                   }`}
                 >
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold mb-2 ${c.badge}`}>
-                    {inv.icon}
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-950 text-sm font-bold mb-2"
+                    style={{ backgroundColor: inv.color }}
+                  >
+                    {inv.initial}
                   </div>
-                  <p className={`text-sm font-semibold ${active ? c.text : 'text-slate-300'}`}>{inv.nameJa}</p>
-                  <p className="text-xs text-muted mt-0.5">{inv.desc}</p>
+                  <p className="text-sm font-semibold" style={active ? { color: inv.color } : undefined}>{inv.label}</p>
+                  <p className="text-xs text-muted mt-0.5">{inv.description}</p>
                 </button>
               )
             })}
@@ -205,10 +196,9 @@ export default function SimulatePage() {
         <button
           onClick={run}
           disabled={loading}
-          className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-            loading
-              ? 'bg-slate-700 cursor-not-allowed'
-              : `${colors.badge} hover:opacity-80`
+          style={loading ? undefined : { backgroundColor: selectedInvestor.color }}
+          className={`px-6 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+            loading ? 'bg-slate-700 text-white cursor-not-allowed' : 'text-gray-950 hover:opacity-80'
           }`}
         >
           {loading ? `シミュレーション中... (${elapsed}秒)` : '1ヶ月シミュレーション実行'}

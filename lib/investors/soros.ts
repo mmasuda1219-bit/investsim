@@ -28,7 +28,7 @@ const soros: InvestorLogic = {
   nameJa: 'ジョージ・ソロス',
   description: 'クォンタム・ファンド創設者。マクロ投資と再帰理論の巨匠。',
   philosophy: '市場は常に間違っている。その歪みを見つけ逆張りする。',
-  avatarColor: '#8B5CF6',
+  avatarColor: '#A87CE8',
 
   analyze({ quote, history }: AnalysisInput): Signal {
     if (history.length < 20) {
