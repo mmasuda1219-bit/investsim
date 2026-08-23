@@ -70,7 +70,13 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
           href={`/stocks/${symbol}`}
           className="px-2.5 py-1 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors"
         >
-          {symbol} の詳細 →
+          {symbol} の詳細
+        </Link>
+        <Link
+          href={`/trade?symbol=${encodeURIComponent(symbol)}`}
+          className="px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+        >
+          この銘柄で自分も判断してみる →
         </Link>
       </div>
 

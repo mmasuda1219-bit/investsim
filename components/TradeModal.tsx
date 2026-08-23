@@ -3,6 +3,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getPortfolio, executeTrade } from '@/lib/portfolio'
 
+/**
+ * 銘柄詳細から直接売買するモーダル。
+ *
+ * 「やる」(/trade) と同じく**理由の記入を必須**にする。入口が違っても規律を
+ * 変えない。ここだけ理由なしで通せると「振り返る」の材料に穴が空き、
+ * 判断の質を見返すという面の前提が崩れる。
+ */
+const MIN_REASON = 10
+
 interface TradeModalProps {
   symbol: string
   name: string
@@ -15,6 +24,7 @@ interface TradeModalProps {
 export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose, onSuccess }: TradeModalProps) {
   const [action, setAction] = useState<'buy' | 'sell'>(defaultAction)
   const [shares, setShares] = useState<number>(1)
+  const [reason, setReason] = useState('')
   const [error, setError] = useState<string>('')
   const [success, setSuccess] = useState(false)
 
@@ -27,6 +37,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
 
   const handleClose = useCallback(() => {
     setShares(1)
+    setReason('')
     setError('')
     setSuccess(false)
     onClose()
@@ -56,7 +67,12 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
       return
     }
 
-    const result = executeTrade(symbol, name, action, shares, price)
+    if (reason.trim().length < MIN_REASON) {
+      setError(`なぜそう判断したかを${MIN_REASON}文字以上で書いてください`)
+      return
+    }
+
+    const result = executeTrade(symbol, name, action, shares, price, reason)
 
     if (!result.success) {
       setError(result.error ?? '取引に失敗しました')
@@ -137,6 +153,24 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
               />
               <span className="text-slate-400 text-sm">株</span>
             </div>
+          </div>
+
+          {/* 理由（必須）— /trade と同じ規律。入口が違っても変えない */}
+          <div>
+            <label htmlFor="trade-reason" className="text-xs text-slate-400 mb-1 block">
+              なぜそう判断したか <span className="text-emerald-400">（必須）</span>
+            </label>
+            <textarea
+              id="trade-reason"
+              rows={2}
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); setError('') }}
+              placeholder="例: 決算が良く、下げたところを拾いたい"
+              className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-white text-sm leading-relaxed placeholder:text-slate-600 focus:outline-none focus:border-blue-500"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              あとで「振り返る」で、この判断と結果を見比べられます。
+            </p>
           </div>
 
           {/* Summary */}

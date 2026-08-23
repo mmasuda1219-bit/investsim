@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import type { StockQuote } from '@/types'
 import { getPortfolio, executeTrade, type Portfolio } from '@/lib/portfolio'
@@ -26,8 +27,23 @@ const MIN_REASON = 10
 const usd = (n: number) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+/**
+ * useSearchParams はビルド時のプリレンダリングを止めるため Suspense で包む必要がある。
+ * 外側をページ、内側を本体に分ける。
+ */
 export default function TradePage() {
-  const [symbol, setSymbol] = useState('AAPL')
+  return (
+    <Suspense fallback={<div className="max-w-3xl mx-auto text-sm text-slate-500">読み込み中…</div>}>
+      <TradePageBody />
+    </Suspense>
+  )
+}
+
+function TradePageBody() {
+  // 「見る」「まねる」から ?symbol=XXX で銘柄を引き継げる（4段階を繋ぐ受け口）
+  const params = useSearchParams()
+  const handedOver = params.get('symbol')?.trim().toUpperCase()
+  const [symbol, setSymbol] = useState(handedOver || 'AAPL')
   const [input, setInput] = useState('')
   const [quote, setQuote] = useState<StockQuote | null>(null)
   const [quoteError, setQuoteError] = useState<string | null>(null)

@@ -24,6 +24,7 @@
 // 新しいAPIルート・新しいデータ源はゼロ（既存 /lab・/report をそのまま再利用）。
 
 import { useRef, useState } from 'react'
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import type { CompositeCondition, InvestorModelId, NeedsPresetId } from '@/lib/backtest/types'
 import {
@@ -681,6 +682,15 @@ export default function AnalyzePage() {
                 <option key={s.symbol} value={s.symbol}>{`${s.name}（${s.sector}）`}</option>
               ))}
             </datalist>
+            {/* 4段階を繋ぐ導線: まねる → やる。銘柄を引き継いで自分の判断に移れる */}
+            {symbol.trim() && (
+              <Link
+                href={`/trade?symbol=${encodeURIComponent(symbol.trim())}`}
+                className="inline-block mt-2 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                {symbol.trim()} で自分も判断してみる →
+              </Link>
+            )}
           </div>
           <div>
             <label className="block text-xs text-muted mb-2">初期資金（仮想）</label>
