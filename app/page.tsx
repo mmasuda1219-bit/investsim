@@ -83,7 +83,7 @@ export default function Home() {
 
   return (
     <div className="text-white">
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
+      <div className="max-w-6xl mx-auto space-y-5">
         {/* CTA to autonomous AI trading engine */}
         <div className="bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-800 rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
           <div>

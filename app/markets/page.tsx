@@ -52,7 +52,7 @@ export default function MarketsPage() {
   }, [])
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 space-y-6">
+    <main className="mx-auto max-w-7xl space-y-6">
       <h1 className="text-2xl font-bold text-white">マーケット概況</h1>
 
       {/* ── 指数カード ── */}

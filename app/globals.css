@@ -7,12 +7,14 @@
   --panel:    #111827;   /* slightly lighter panel */
   --border:   #1f2937;   /* border color */
   --muted:    #6b7280;   /* muted text */
+
+  color-scheme: dark;    /* iOSのフォーム部品を暗色で描画させる */
 }
 
 body {
   background: var(--bg);
   color: #f9fafb;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
 }
 
 /* ── Utility aliases (Tailwind v4 custom utilities) ────────────── */
