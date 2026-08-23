@@ -30,6 +30,10 @@ data/locks/
 # universe fundamentals cache (ローカルJSONフォールバック・実行時生成物。Supabaseが正)
 data/universe-fundamentals.json
 
+# 自動進捗記録の実行時生成物（hook本体 .claude/hooks/ は追跡する）
+.claude/SESSION_STATE.md
+.claude/.state/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

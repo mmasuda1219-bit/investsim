@@ -20,6 +20,106 @@
 
 ---
 
+## 2026-08-15
+
+- **今日のゴール**: 8/3〜8/6の未コミット3系統（①知識注入配線、②/analyze 3階層UI S-A/S-B1/S-B2、③進捗自動化hook）を検証・レビュー・反映し、出荷可能な状態にする。
+- **やったこと**:
+  - **現状棚卸し**: 未コミット3系統の特定＆整理。①lib/knowledge/*/engine.ts、②components/analyze/* 7本新規、③.claude/.state/hook 2本＋settings.json。
+  - **③進捗自動化hookのレビュー対応・実装完了**: reviewer から critical 1件・warning 3件・suggestion 3件を受領し全件反映。
+    - critical: stdout→stderr 修正（Claude Code が exit 2 を stderr で受け取るため）。「セッションは起きるが理由が空＝secretary 呼び出しが届かない」という沈黙失敗を排除。
+    - warning: jq 不在時のファイル共有問題（解決待ち）／timeout 20秒→60秒・30秒→120秒（iCloud 遅延実測対応）／stdin 由来 session_id のサニタイズ（bash 3.2で`../../evil`→`______evil`実地確認）。
+    - suggestion: 非アトミック書き込み→`.tmp.$$`(プロセス固有)＋mv 化／最新エントリ抽出の区切り線依存を修正／促し文面を「作業ツリーまたはHEADに変化を検知」へ（原則9）。
+  - **hook の実環境発火確認**: exit 2 の促しが親セッションに実際に届く・SessionStart による baseline 生成・Stop による SESSION_STATE.md 毎ターン更新も稼働確認。
+  - **並行セッション由来のバグ検出・修正**: 同一一時ファイル名`.tmp`での奪い合い→`mv: No such file or directory`で SESSION_STATE.md 更新落下。プロセス固有`.tmp.$$`で解消。
+  - **DECISIONS.md に反映**: 2026-08-11 エントリに「レビュー指摘の反映（2026-08-14）」と「実環境での発火確認」を追記。
+- **現在の状態**: ①②③すべて**未コミット・未検証**のまま。③のコード修正とレビュー対応は完了。**tsc+回帰スモーク14本は未実行**。DECISIONS.md の 2026-08-06 エントリ（「検証: MCが実行中」）はまだ埋まっていない。コミット分け方は決定済み（ハンク分割禁止で4本：知識注入／UI改善／進捗自動化／記録更新）。
+- **次の一手**: ディスク容量確保 → tsc --noEmit 緑化 → 回帰スモーク14本 → オーナーの出荷承認（人間ゲート②）→ コミット4本（実行中断の判断待ち）。
+- **未解決・ブロッカー**: 
+  - **最大: node_modules dataless 退避による検証ハング**。型定義4603件がiCloud へ退避・1件/2秒ダウンロード待ちで tsc はログなしハング。brctl download/並列16実体化も容量4.4GBで再退避。**検証が物理的に進行不可、出荷がブロック**。オーナー判断待ち（容量確保／軽い代替検証／明日に回す）。
+  - 知識注入①の本番反映はオーナー手作業待ち（Supabase SQL Editor→0003_knowledge_items.sql 実行→npx tsx scripts/sync-knowledge.ts）。
+
+---
+
+## 2026-08-14
+
+- **今日のゴール**: 8/3〜8/6の未コミット2系統を検証・レビュー・記録まで締め、あわせてTier2（画面の「執行」段）の方針をオーナー承認まで持っていく。
+- **やったこと**:
+  - **UI再編スライス（S-A/S-B1/S-B2）のレビュー完了・修正反映**（未コミット）: reviewer critical/warning各5・suggestion6を確認。過去スライス要素（恒久免責・読者プロファイル・透明性カード・AIレポート本文不畳・教訓引用元）維持確認。builder が warning 4件＋suggestion 5件を反映: (1)参加条件0件でも"成立"と表示されていた仕様バグを"なし"に、(2)対象範囲トグル切替でアンマウント→hidden方式統一、(3)初期資金0の表示/実行不一致を修正、(4)アコーディオン/タブにaria属性付与、(5)ゲート不成立時の条件畳をやめ死んだ分岐削除。page.tsx named export はスモークで既に意図的に import のため対応不要と判定。
+  - **DECISIONS.md にADR追記**: 「2026-08-06: /analyze を『結論→執行→詳細』の3階層に再編（S-A/S-B1/S-B2）」（背景／決定／不変条件／却下案とトレードオフ／レビュー指摘反映／保留論点）。
+  - **iCloud環境の根本診断**: node_modules が dataless（クラウドのみ）退避のため tsc が1ファイル/2秒ダウンロード待ち→完走不可。brctl download 無効・実体化も容量4.4GB都合で再退避。**オーナー判断**: 容量都合で構成変更なし・時間をかけて進めてよい。
+  - **Tier2方針の調査→オーナー承認（人間ゲート①）**: legal-compliance が「執行計画カード」は金商法2条8項11号ロの投資判断6要素を埋めるため無登録では不可と指摘→代替案「ユーザーが選んだルールが過去にどう機能したかの検証」に再定義・オーナー了承。architect が独立に同じ結論に到達。S-D（将来シナリオ）は定性図に限定・目標株価/確率の数値スロット非実装。
+  - **S-C実装完了**（未コミット・未検証）: 新規 lib/report/execution.ts（buildExecutionPlan 純関数）、新規 components/analyze/ExecutionPlanCard.tsx（「あなたが選んだルールの過去5年の成績」カード）、新規 scripts/check-analyze-sc.ts、変更 lib/backtest/metrics.ts（pairRoundTrips 切り出し）、変更 app/analyze/page.tsx（Tier2プレースホルダに差込）。法務制約を型で守る（targetPrice/stopLossPrice/probability/allocationPct 等を型に定義しない）。空状態4分岐実装・往復3件未満で統計語使わず生一覧表示。
+- **現在の状態**: 未コミット3系統＝①知識注入（ステージ済・検証完了）／②UI再編S-A/S-B1/S-B2（レビュー指摘修正済・ADR記入済）／③S-C（実装完了）。tsc新コードで実行中・reviewer がS-Cをレビュー中。回帰スモーク8本未実行。
+- **次の一手**: (1)tsc完走待機、(2)回帰スモーク8本＋check-analyze-sc実行、(3)reviewer指摘反映、(4)オーナーの出荷承認（人間ゲート②）→コミット3本に分割push、(5)S-D（3シナリオ定性図）実装、(6)S-C第2弾（ユーザー入力の損切/%・利確/%・保有上限で過去検証できるルール・ラボ）。
+- **未解決・ブロッカー**: (a)iCloud dataless退避により tsc・スモーク実行時間が読めない（容量4.4GBで実体化維持不可）。(b)知識注入の本番反映はオーナー手作業待ち（Supabase SQL Editor→npx tsx scripts/sync-knowledge.ts）。(c)有料化前の法務ゲート4件（課金モデル監督指針関係／Yahoo Finance商用利用／Stripe制限業種／「未来予想」改称）。(d)弁護士確認論点12件未着手。
+
+---
+
+## 2026-08-11
+
+- **今日のゴール**: 8/3〜8/6の未コミット2系統を検証・レビュー・記録まで締めて出荷可能な状態にする。
+- **やったこと**: 現状棚卸し（未コミット2系統の特定）、tsc と回帰スモーク検証を実行、reviewer に UI改善スライスのレビュー依頼、PROGRESS.md の空白期間を記録。
+- **現在の状態**: 知識注入スライス（2026-08-03出荷＋配線未コミット）と UI改善スライス（2026-08-06実装＋検証待ち）の2系統が検証・レビュー中。S-A〜S-E の全体計画がコメント下書きにしか痕跡がない。
+- **次の一手**: reviewer 指摘の反映 → DECISIONS.md に該当ADR記入 → オーナーの出荷承認（人間ゲート②）→ 各スライスコミット。
+- **未解決・ブロッカー**: S-A〜S-D の画面設計全体図が記録ファイルに存在せず、page.tsx のコメント下書きのみ。知識注入の本番マイグレーション・sync実行はオーナー手作業待ち。
+
+---
+
+## 2026-08-06
+
+- **今日のゴール**: /analyze の画面情報設計を「結論→執行→詳細」の3階層に再編し、初心者が最初に結論を読める画面にする。
+- **やったこと**（すべて**未コミット・未ステージ**、検証もレビューも未実施のまま中断）:
+  - **S-A**: SiteNav を3本（AI TRADER / 分析 / ポートフォリオ）に整理。
+  - **S-B1**（8/4作業）: 結果確定後に設定エリアを1行サマリー帯へ自動圧縮（新規 ConditionSummaryBar）。ProConditionPicker をテクニカル系（左）/ファンダ・決算系（右）の2カラム化。読者プロファイル4問をアコーディオン化（新規 ReaderProfilePanel）。
+  - **S-B2**（8/6作業）: Tier1「結論」を新規 MetricStrip に統合（5指標グリッド＋ゲート内訳＋「この数字の意味」注記＝新規 InsightNote）。ヘッダと恒久免責を新規 AnalyzeBanner へ横並び集約。モードタブ＋対象範囲トグルを新規 ModeScopeBar へ統合。Tier3詳細群を新規 DetailsSection（デフォルト閉アコーディオン）へ。AIレポート本文だけは畳まない。
+  - 差分規模: app/analyze/page.tsx +323/-336、components/SiteNav.tsx +8、components/analyze/ProConditionPicker.tsx +9、新規コンポーネント7本（AnalyzeBanner, ConditionSummaryBar, DetailsSection, InsightNote, MetricStrip, ModeScopeBar, ReaderProfilePanel）。
+  - **S-C 未着手**: Tier2（執行計画カード）は page.tsx に placeholder コメントのみ。
+  - **S-D 未着手**: 将来シナリオ図も未着手。
+- **現在の状態**: tsc未実行・回帰スモーク未実行・reviewer未実施・DECISIONS.md へのADR未記入。
+- **次の一手**: tsc --noEmit → スモーク（check-analyze-s*.ts 系）→ reviewer依頼 → 必要なら反映 → DECISIONS.md にS-A/S-B1/S-B2 のADR記入。
+- **未解決・ブロッカー**: S-A〜S-D の全体計画がpage.tsx コメント下書きにしか記録されていない。S-E は言及なし。
+
+---
+
+## 2026-08-03
+
+- **今日のゴール**: 蓄積した知識（KNOWLEDGE.md）をAIの売買判断に実際に効かせる。
+- **やったこと**:
+  - **コミット出荷**: `e1482ce`「学習の材料をクローズ取引依存から脱却（保有中ポジション＋判断ログも材料に）」。
+  - **知識→売買判断プロンプト配線実装（未コミット・ステージ済み）**: 新規ファイル lib/knowledge/{types,store,select}.ts / scripts/{sync-knowledge,check-knowledge-inject}.ts / supabase/migrations/0003_knowledge_items.sql。既存変更: lib/ai-trader/engine.ts, app/ai-session/client.tsx。
+  - **選抜ロジック実装**: 6件/1000字の二重上限 → meta除外 → 他投資家タグ1件以下 → 決定性フィルタ → useCount落選制御 → kind不足時は架空パディング禁止（枠を捨てる） → 注入集合外の引用を全除去。
+  - **検証**: tsc緑 / check-knowledge-inject.ts 全PASS / 回帰13本全PASS / reviewer critical/warning ゼロ。DECISIONS.md にADR記入済み。
+  - **本番未検証**: オーナー手作業2ステップ: (1)Supabase SQL Editor で supabase/migrations/0003_knowledge_items.sql 実行 / (2)`npx tsx scripts/sync-knowledge.ts` 実行。完了まで本番 /ai-session は知識ブロックなしで動作し「知識ベース未接続」と正直表示。
+- **現在の状態**: 知識ストア・選抜・注入ロジック完全実装＆検証完了。本番マイグレーション・データ同期はオーナー手作業待ち。
+- **次の一手**: (1)オーナーが Supabase マイグレーション0003を実行、(2)sync-knowledge.ts を実行、(3)本番 /ai-session で知識ブロック表示を確認→出荷OKをオーナーから得た上で →コミット。
+- **未解決・ブロッカー**: 本番マイグレーション・同期実行はオーナー手作業待ち。
+
+---
+
+## 2026-07-31
+
+- **今日のゴール**: S1「読者プロファイル」S2「投資テーゼ化」を出荷し、本番環境に反映させる。
+- **やったこと**:
+  - **S1 出荷完了**。コミット `dd69534`。
+    - 読者プロファイル実装：新規 lib/report/profile.ts（投資期間/リスク耐性/スタイル income-growth-value/(任意)資金性格・実在指標のみのbuildEmphasisHints・isReaderProfile検証）。
+    - prompt.ts に任意 profile 引数で読者レンズ注入＋意味づけ強制を常時ON。
+    - generate/route.ts で body.profile 検証（不正は無視=安全側）。
+    - analyze/page.tsx に3-4問UI（既定「指定なし」）。
+    - 数値・ゲート・バックテストは不変、見せ方だけ最適化（原則9）。未回答なら旧挙動と完全一致（後方互換）。
+    - テスト：tsc緑、専用スモーク＋回帰全PASS、reviewer critical/warning ゼロ。
+  - **S2 出荷完了**。コミット `ce33ddd`。
+    - 投資テーゼ化：prompt.ts のみの変更。未来予想を〈テーゼ差分(市場コンセンサスとの差・可能性表現＋引用[n])＋各シナリオのカタリスト＋リスクと緩和策のペア＋弱気耐性の一言判定〉に格上げ。
+    - 架空の確率/騰落率は二重禁止(S6の実バックテスト担当と明記)、未確定の噂・未発表の日付/製品名も禁止(reviewer warning対応済み)。
+    - 9セクション/maxTokens 不変、S1 温存。
+    - テスト：tsc緑、スモーク＋回帰全PASS、reviewer critical/warning ゼロ。
+  - **本番デプロイ完了**：両スライスコミット後 fast-forward push（origin/main=ce33ddd）。Vercel自動デプロイトリガー。
+  - **コミット衛生**：DECISIONS.md は別セッションの「学習cron切り出し」ADRと混在。S1のADRはS1コミットに入れたが、S2のADRは未コミット（後でDECISIONS整理時に確定）。
+- **現在の状態**: 品質ロードマップ S1・S2 出荷済み・本番反映完了。残 S3(割安ゲージ＋信念軸レーダー・transparency拡張＋UI)/S4(用語ツールチップ)/S5(学習アンチパターンtag)。保留中: S5b/S6、課金制度、日本株(第2弾)。
+- **次の一手**: S3(割安/割高ゲージ＋信念軸レーダー・ファンダ指標の視覚的信念表現)に着手。architect が方針を作成・オーナーに計画提示。
+- **未解決・ブロッカー**: なし。オーナー手動の workflow_dispatch 疎通確認(refresh-fundamentals・auto-tick)は保留継続。
+
+---
+
 ## 2026-07-30
 
 - **今日のゴール**: 本番スクリーニングの500エラーを解消し、オーナー方針転換（課金延期・初心者向け分析優先）をもとに次スライス計画を承認される。
