@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { buildJudgements } from '@/lib/review/judgement'
 import {
   getPortfolio,
   resetPortfolio,
@@ -99,18 +100,19 @@ export default function PortfolioPage() {
         </button>
       </div>
 
-      {/* 判断の記録 — この面の主役。金額より先に出す */}
+      {/* 判断と結果の突き合わせ — この面の主役。金額より先に出す */}
       <div>
-        <h2 className="text-white font-semibold text-sm mb-3">あなたの判断の記録</h2>
+        <h2 className="text-white font-semibold text-sm mb-3">判断と、その結果</h2>
         {(() => {
-          const withReason = portfolio.trades.filter(t => t.reason && t.reason.trim())
-          const missing = portfolio.trades.length - withReason.length
-          if (portfolio.trades.length === 0) {
+          const { judgements, closedCount, openCount, withEntryReason, entryCount } =
+            buildJudgements(portfolio.trades)
+
+          if (entryCount === 0) {
             return (
               <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-2">
                 <p className="text-sm text-slate-300">まだ判断の記録がありません</p>
                 <p className="text-xs text-muted">
-                  「やる」で売買すると、そのときに書いた理由がここに並びます。
+                  「やる」で売買すると、そのときに書いた理由と、あとで出た結果がここに並びます。
                 </p>
                 <Link href="/trade" className="inline-block text-xs text-emerald-400 hover:text-emerald-300 pt-1">
                   やってみる →
@@ -118,38 +120,66 @@ export default function PortfolioPage() {
               </div>
             )
           }
-          if (withReason.length === 0) {
-            return (
-              <div className="bg-panel border border-border rounded-xl p-6 space-y-1.5">
-                <p className="text-sm text-slate-300">理由つきの取引はまだありません</p>
-                <p className="text-xs text-muted leading-relaxed">
-                  理由の記録は2026-08-23から始めました。それ以前の{portfolio.trades.length}件には理由が残っていません。
-                </p>
-              </div>
-            )
-          }
+
           return (
-            <div className="space-y-2.5">
-              {withReason.slice(0, 10).map(t => (
-                <div key={t.id} className="bg-panel border border-border rounded-xl p-4 space-y-2">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                      t.action === 'buy' ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'
-                    }`}>
-                      {t.action === 'buy' ? '買い' : '売り'}
-                    </span>
-                    <span className="font-mono font-bold text-white text-sm">{t.symbol}</span>
-                    <span className="text-xs text-muted">{t.shares.toLocaleString()}株 @ {formatUSD(t.price)}</span>
-                    <span className="text-xs text-muted ml-auto font-mono">{formatDate(t.timestamp)}</span>
+            <div className="space-y-3">
+              {/* 数えられる事実だけを出す。判断の質を点数にはしない */}
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
+                <span>買った回数 <span className="text-slate-200 tabular-nums font-semibold">{entryCount}</span></span>
+                <span>うち理由が残っているもの <span className="text-slate-200 tabular-nums font-semibold">{withEntryReason}</span></span>
+                <span>結果が出たもの <span className="text-slate-200 tabular-nums font-semibold">{closedCount}</span></span>
+                <span>保有中 <span className="text-slate-200 tabular-nums font-semibold">{openCount}</span></span>
+              </div>
+
+              {judgements.slice(0, 12).map((j, i) => {
+                const closedTrade = j.pnlPct !== null
+                const win = (j.pnlPct ?? 0) >= 0
+                return (
+                  <div key={`${j.symbol}-${j.entryAt}-${i}`} className="bg-panel border border-border rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="font-mono font-bold text-white text-sm">{j.symbol}</span>
+                      <span className="text-xs text-muted">{j.shares.toLocaleString()}株</span>
+                      {closedTrade ? (
+                        <>
+                          <span className={`text-xs font-bold tabular-nums ${win ? 'text-green-400' : 'text-red-400'}`}>
+                            {win ? '+' : ''}{j.pnlPct!.toFixed(2)}%
+                          </span>
+                          <span className="text-xs text-muted">{j.heldDays}日保有</span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-amber-500">保有中（結果はまだ出ていません）</span>
+                      )}
+                      <span className="text-xs text-muted ml-auto font-mono">{formatDate(j.entryAt)}</span>
+                    </div>
+
+                    <div className="space-y-2 pl-3 border-l-2 border-border">
+                      <div>
+                        <p className="text-[11px] text-muted mb-0.5">買ったときに考えていたこと</p>
+                        {j.entryReason ? (
+                          <p className="text-sm text-slate-300 leading-relaxed">{j.entryReason}</p>
+                        ) : (
+                          <p className="text-xs text-slate-600">理由が残っていません（記録を始める前の取引です）</p>
+                        )}
+                      </div>
+                      {closedTrade && (
+                        <div>
+                          <p className="text-[11px] text-muted mb-0.5">売ったときに考えていたこと</p>
+                          {j.exitReason ? (
+                            <p className="text-sm text-slate-300 leading-relaxed">{j.exitReason}</p>
+                          ) : (
+                            <p className="text-xs text-slate-600">理由が残っていません</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-slate-300 leading-relaxed">{t.reason}</p>
-                </div>
-              ))}
-              {missing > 0 && (
-                <p className="text-[11px] text-muted">
-                  ほかに理由が残っていない取引が{missing}件あります（理由の記録を始める前のものです）。
-                </p>
-              )}
+                )
+              })}
+
+              <p className="text-[11px] text-muted leading-relaxed">
+                買いと売りは「買った順に売れていく」とみなして対応づけています。
+                {closedCount < 3 && '結果が出た取引が3件未満のため、傾向としてはまだ読めません。'}
+              </p>
             </div>
           )
         })()}

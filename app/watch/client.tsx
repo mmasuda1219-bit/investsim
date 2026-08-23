@@ -9,6 +9,7 @@ import type { ClosedTrade } from '@/lib/ai-trader/memory'
 import { normalizeLearningMemory } from '@/lib/ai-trader/memory'
 import type { InvestorId } from '@/types'
 import { MasterSignals } from '@/components/MasterSignals'
+import { MarketOverview } from '@/components/MarketOverview'
 
 const TradingChart = dynamic(() => import('@/components/TradingChart'), {
   ssr: false,
@@ -402,6 +403,9 @@ export function AISessionClient() {
   if (!session) return (
     <div className="min-h-screen bg-gray-950 text-white">
       <NavBar session={null} ticking={false} />
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pt-4">
+        <MarketOverview />
+      </div>
       <StartScreen onStart={startSession} />
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-10">
         <MasterSignals />
@@ -434,6 +438,10 @@ export function AISessionClient() {
           <div className="bg-red-900/30 border border-red-700/40 rounded-lg px-4 py-2 text-red-400 text-sm">{error}</div>
         </div>
       )}
+
+      <div className="max-w-screen-2xl mx-auto px-6 pt-4">
+        <MarketOverview />
+      </div>
 
       <div className="max-w-screen-2xl mx-auto px-6 py-5 grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-5">
 
