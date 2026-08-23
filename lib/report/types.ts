@@ -27,6 +27,11 @@ import type { StockQuote, FundamentalsData, HistoricalBar } from '@/types'
 // PreparedBundle には足さない（prepare/バックテストの中身には影響しないため）。
 export type { ReaderProfile } from './profile'
 
+// 「あなたが選んだルールの過去5年の成績」カード（/analyze S-C）の型も同様に
+// この層へ集約 re-export する（実体は ./execution.ts の純関数）。PreparedBundle
+// には足さない（bundleだけを食う派生表示であり、prepare/生成には影響しないため）。
+export type { ExecutionPlan } from './execution'
+
 /** Input of POST /api/report/prepare (v2 — structured condition, no free text). */
 export interface ReportRequest {
   symbol: string

@@ -6,14 +6,8 @@ import { StockSearch } from './StockSearch'
 import { AuthMenu } from './AuthMenu'
 
 const NAV = [
-  { href: '/',            label: '投資家シミュレーション' },
   { href: '/ai-session',  label: 'AI TRADER' },
   { href: '/analyze',     label: '分析' },
-  { href: '/markets',     label: 'マーケット' },
-  { href: '/screener',    label: 'スクリーナー' },
-  { href: '/simulate',    label: 'バックテスト' },
-  { href: '/lab',         label: 'ラボ' },
-  { href: '/report',      label: 'AIレポート' },
   { href: '/portfolio',   label: 'ポートフォリオ' },
 ]
 
@@ -29,7 +23,7 @@ export function SiteNav() {
 
         <nav className="flex items-center gap-0.5 overflow-x-auto">
           {NAV.map(({ href, label }) => {
-            const active = href === '/' ? path === '/' : path.startsWith(href)
+            const active = path.startsWith(href)
             return (
               <Link
                 key={href}

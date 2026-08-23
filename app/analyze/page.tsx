@@ -39,15 +39,21 @@ import {
 } from '@/lib/backtest/investor-presets'
 import { describeFundamentalFilter, formatMetricValue } from '@/lib/backtest/fundamental'
 import type { PreparedBundle, PrepareResponse, ReaderProfile } from '@/lib/report/types'
-import {
-  HORIZON_OPTIONS, TOLERANCE_OPTIONS, STYLE_OPTIONS, CAPACITY_OPTIONS,
-} from '@/lib/report/profile'
 import { describeCompositeCondition } from '@/lib/report/prompt'
 import { buildTransparencyCard } from '@/lib/report/transparency'
+import { buildExecutionPlan } from '@/lib/report/execution'
 import { US_UNIVERSE } from '@/lib/market/us-universe'
 import type { ScreenResponse } from '@/lib/screen/types'
 import ProConditionPicker from '@/components/analyze/ProConditionPicker'
 import InvestorModelPicker from '@/components/analyze/InvestorModelPicker'
+import ReaderProfilePanel from '@/components/analyze/ReaderProfilePanel'
+import ConditionSummaryBar from '@/components/analyze/ConditionSummaryBar'
+import AnalyzeBanner from '@/components/analyze/AnalyzeBanner'
+import ModeScopeBar from '@/components/analyze/ModeScopeBar'
+import MetricStrip from '@/components/analyze/MetricStrip'
+import type { MetricStripGateItem, MetricStripItem } from '@/components/analyze/MetricStrip'
+import DetailsSection from '@/components/analyze/DetailsSection'
+import ExecutionPlanCard from '@/components/analyze/ExecutionPlanCard'
 
 type AnalyzeMode = 'quick' | 'pro' | 'investor'
 type AnalyzeScope = 'with-symbol' | 'no-symbol'
@@ -65,6 +71,17 @@ export const ANALYZE_MODE_TABS: { id: AnalyzeMode; label: string; disabled?: boo
 export const ANALYZE_SCOPE_OPTIONS: { id: AnalyzeScope; label: string; disabled?: boolean }[] = [
   { id: 'with-symbol', label: '銘柄指定あり' },
   { id: 'no-symbol',   label: '銘柄指定なし（自動スクリーニング）' },
+]
+
+// ── S-B2: MetricStrip（Tier1「結論」）の「この数字の意味」注記。無料プレビュー・
+// AIレポート実行結果の両方の5指標グリッドで共有する（同じ性質の数字のため文面も
+// 共通）。将来 S-C/S-D/S-E で計5箇所に増える前提で InsightNote 側は汎用化済み —
+// ここでは今回の1文面だけを定義する。
+// 1要素＝1文（各要素が1つの<p>になるため、文の途中で要素を切らない）。
+const METRIC_INSIGHT_LINES = [
+  '過去5年の実データに、あなたが選んだ条件をあてはめて計算した結果です。',
+  '手数料・税金・売買のタイミングのズレは考慮していない簡略計算のため、実際に同じ売買をした場合の成績とは必ず違いが出ます。',
+  '将来同じ成績になることを示すものではありません。',
 ]
 
 type PreviewPhase = 'idle' | 'loading' | 'done'
@@ -201,52 +218,6 @@ async function streamGeneratedReport(
   }
 }
 
-// ── 読者プロファイル（/analyze S1）: 3ラジオ群＋任意の4問目の見た目を共通化する
-// 小さなヘルパー（stable/income/aggressiveカードと同じ「カード型ラジオ」パターン
-// を流用）。新規ファイルは増やさない（計画スコープ外の横展開禁止）。
-function ProfileRadioGroup<T extends string>({
-  name, options, value, onChange,
-}: {
-  name: string
-  options: { id: T; label: string }[]
-  value: T | ''
-  onChange: (v: T | '') => void
-}) {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      <label
-        className={`block rounded-lg border px-2.5 py-2 cursor-pointer transition-colors ${
-          value === '' ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
-        }`}
-      >
-        <span className="flex items-center gap-2">
-          <input
-            type="radio" name={name} checked={value === ''}
-            onChange={() => onChange('')} className="accent-blue-500"
-          />
-          <span className="text-xs text-slate-300">指定なし</span>
-        </span>
-      </label>
-      {options.map(opt => (
-        <label
-          key={opt.id}
-          className={`block rounded-lg border px-2.5 py-2 cursor-pointer transition-colors ${
-            value === opt.id ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <input
-              type="radio" name={name} checked={value === opt.id}
-              onChange={() => onChange(opt.id)} className="accent-blue-500"
-            />
-            <span className="text-xs text-slate-300">{opt.label}</span>
-          </span>
-        </label>
-      ))}
-    </div>
-  )
-}
-
 // fetch自体の失敗（ネットワーク断など）は英語の "Failed to fetch" になるため翻訳する
 function toUserMessage(e: unknown): string {
   return e instanceof TypeError
@@ -284,7 +255,6 @@ export default function AnalyzePage() {
     profileHorizon && profileTolerance && profileStyle
       ? { horizon: profileHorizon, tolerance: profileTolerance, style: profileStyle, ...(profileCapacity ? { capacity: profileCapacity } : {}) }
       : undefined
-  const profileAnsweredCount = [profileHorizon, profileTolerance, profileStyle].filter(Boolean).length
 
   // ── S5a: 銘柄指定なし（自動スクリーニング）。quick/investorのみ対応（プロは
   // /api/analyze/screen非対応）。プリセット選択はここでは screenNeedsPresetId /
@@ -307,6 +277,13 @@ export default function AnalyzePage() {
   // learningUsage 等）へ書き戻されることを防ぐ。
   const requestIdRef = useRef(0)
 
+  // ── S-B1: 結果確定後に設定エリアを1行のサマリー帯へ自動圧縮する（見た目の
+  // 開閉状態のみ・値は一切変えない）。「条件を編集」クリックで true にして
+  // 再展開する。この state 自体の変更では resetDownstream は呼ばない（呼ぶと
+  // 畳んだだけで結果が消えてしまうため）。値が変わって resetDownstream が
+  // 走ったときだけ false に戻し、次の結果確定時にまた自動で畳まれるようにする。
+  const [configForceOpen, setConfigForceOpen] = useState(false)
+
   // 条件（銘柄/資金/プリセット）を変えたら、古いプレビュー・古いレポートは
   // その条件の結果ではなくなるため必ず捨てる（原則9: 古い結果を新条件の結果と
   // 誤認させない）。
@@ -322,6 +299,7 @@ export default function AnalyzePage() {
     setScreenPhase('idle')
     setScreenError(null)
     setScreenRes(null)
+    setConfigForceOpen(false)
   }
 
   const runPreview = async () => {
@@ -531,99 +509,162 @@ export default function AnalyzePage() {
   // 透明性カード（S4）: bundle 確定時に PreparedBundle の3要素だけから再計算する
   // 純関数（I/Oなし・新データ源なし）。bundle が無ければ表示しない。
   const transparency = bundle ? buildTransparencyCard(bundle) : null
+  // 選んだルールの過去5年の成績カード（S-C・Tier2）: bundle だけを食う純関数
+  // （I/Oなし・新データ源なし）。ReaderProfile はこのカードへ一切反映しない
+  // （個別性が助言性を跳ね上げるため — 法務由来の設計制約）。
+  const executionPlan = bundle ? buildExecutionPlan(bundle) : null
+
+  // ── S-B2: MetricStrip（Tier1）用の変換 — 表示ロジック（フォーマット・色分け）は
+  // ページ側に残し、MetricStrip自体は純粋な表示部品のまま保つ。値が無い項目は
+  // 配列に入れない（捏造しない・原則9）。
+  const previewMetricItems: MetricStripItem[] =
+    m && previewRes?.result
+      ? [
+          {
+            label: '総リターン（5年）',
+            value: `${returnPositive ? '+' : ''}${m.totalReturnPct.toFixed(2)}%`,
+            valueClassName: returnPositive ? 'text-green-400' : 'text-red-400',
+            sub: formatMoney(previewRes.result.finalValue, previewRes.result.currency),
+          },
+          { label: '勝率', value: `${m.winRate.toFixed(0)}%` },
+          { label: '最大DD', value: `-${m.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-red-400' },
+          { label: 'シャープレシオ', value: m.sharpeRatio.toFixed(2) },
+          { label: '取引数', value: `${m.tradeCount}件` },
+        ]
+      : []
+  const previewGateBreakdown: MetricStripGateItem[] =
+    previewRes?.gate.evaluations.map(ev => ({
+      label: describeFundamentalFilter(ev.filter),
+      result: ev.result,
+      // no_data時の文言はbundle側（下のbundleGateBreakdown）と統一する — 同じ
+      // MetricStripに載るため表記ゆれ（「データなし」）を残さない（S3）。
+      actualText:
+        ev.result === 'no_data'
+          ? '判定不能（実データ取得不可）'
+          : ev.actual != null
+            ? formatMetricValue(ev.filter.metric, ev.actual)
+            : '—',
+    })) ?? []
+
+  const bundleMetricItems: MetricStripItem[] =
+    bundle?.backtest && bm
+      ? [
+          {
+            label: '総リターン（5年）',
+            value: `${bm.totalReturnPct >= 0 ? '+' : ''}${bm.totalReturnPct.toFixed(2)}%`,
+            valueClassName: bm.totalReturnPct >= 0 ? 'text-green-400' : 'text-red-400',
+          },
+          {
+            label: 'バイ&ホールド',
+            value: `${bundle.backtest.buyHoldReturnPct >= 0 ? '+' : ''}${bundle.backtest.buyHoldReturnPct.toFixed(2)}%`,
+            valueClassName: bundle.backtest.buyHoldReturnPct >= 0 ? 'text-green-400' : 'text-red-400',
+          },
+          { label: '勝率', value: `${bm.winRate.toFixed(0)}%` },
+          { label: '最大DD', value: `-${bm.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-red-400' },
+          { label: '取引数', value: `${bm.tradeCount}件` },
+        ]
+      : []
+  const bundleGateBreakdown: MetricStripGateItem[] =
+    gate?.evaluations.map(ev => ({
+      label: describeFundamentalFilter(ev.filter),
+      result: ev.result,
+      actualText:
+        ev.result === 'no_data'
+          ? '判定不能（実データ取得不可）'
+          : ev.actual != null
+            ? formatMetricValue(ev.filter.metric, ev.actual)
+            : '—',
+    })) ?? []
   // ニーズ軸プリセットは米国株（USD建て）想定（/lab と同じ静的ゲートの限界）。
   const nonUsWarning = quickActive && symbol.trim().toUpperCase().endsWith('.T')
 
+  // ── S-B1: 結果確定後に設定エリアをサマリー帯へ畳む条件。「結果」は bundle
+  // （プロ/投資家モデルのprepare結果・クイックのAIレポート結果）または
+  // previewRes（クイックの無料プレビュー）のどちらか。銘柄指定なし（screenRes）
+  // はこの対象外（サマリー帯の項目がそもそも銘柄指定ありの入力を前提にしているため）。
+  // プレビューがゲート不成立（gatePassed === false）のときは畳まない（S6）—
+  // ユーザーが次にやることは「条件を直す」なので、設定エリアを開いたままにして
+  // 修正の導線を確保する。
+  const hasConfirmedResult =
+    scope === 'with-symbol' &&
+    (bundle !== null || (previewPhase === 'done' && previewRes !== null && previewRes.gatePassed))
+  const configCollapsed = hasConfirmedResult && !configForceOpen
+
+  // サマリー帯に表示する断片（表示できない項目は省略し、捏造しない）。
+  const modeLabel = ANALYZE_MODE_TABS.find(t => t.id === mode)?.label
+  const scopeLabel = ANALYZE_SCOPE_OPTIONS.find(o => o.id === scope)?.label
+  const conditionSummaryText =
+    mode === 'quick'
+      ? `プリセット「${preset.label}」`
+      : bundle
+        ? describeCompositeCondition(bundle.request.condition)
+        : undefined
+  const summaryCurrency = bundle?.backtest?.currency ?? previewRes?.result?.currency
+  // W5: サマリー帯の初期資金は「実際に実行へ使われた値」を表示する。実行側は
+  // /api/report/prepare・/api/lab/backtest ともに「正の数でなければ100,000・
+  // 上限10,000,000」へ正規化するため、入力文字列をそのまま出すと（例:「0」入力時）
+  // 帯は$0・計算は100,000という食い違いが起きる。優先順: bundle.request
+  // （prepareが正規化後の値をエコー）→ プレビュー結果（result.initialCapital）→
+  // 入力値にサーバーと同じ正規化を通した値。
+  const capitalInput = Number(capital)
+  const usedCapital =
+    bundle?.request.initialCapital ??
+    previewRes?.result?.initialCapital ??
+    (Number.isFinite(capitalInput) && capitalInput > 0 ? Math.min(capitalInput, 10_000_000) : 100_000)
+  const capitalDisplay =
+    `初期資金（仮想）${summaryCurrency ? formatMoney(usedCapital, summaryCurrency) : usedCapital.toLocaleString('ja-JP')}`
+  const summaryItems = [modeLabel, scopeLabel, symbol, conditionSummaryText, capitalDisplay]
+    .filter((v): v is string => Boolean(v && v.trim() !== ''))
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">分析</h1>
-        <p className="text-muted text-sm mt-1">
-          クイックモードはニーズ軸プリセットで実データの数字プレビュー（無料・純計算）を確認し、
-          同じ条件でAIレポート（現状分析・根拠つき未来予想）を生成します。
-          プロモードはテクニカル・ファンダメンタル・決算トレンド条件を自分で組み合わせて検証できます。
-        </p>
-      </div>
+      {/* Header + 恒久ディスクレーマ（免責）— S-B2でAnalyzeBannerに集約（横並び）。
+          免責は設定中・プレビュー中・ストリーミング中も常に表示（内容は無改変）。 */}
+      <AnalyzeBanner />
 
-      {/* 恒久ディスクレーマ（免責）— 設定中・プレビュー中・ストリーミング中も常に表示 */}
-      <p className="text-xs text-amber-300/90 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-2 leading-relaxed">
-        本ページのAIレポートは投資助言ではありません。プロの投資アナリストが実データをもとにどう分析プロセスを
-        組み立てるかを、実データに基づき再現したものです。投資判断はご自身の責任で行ってください。
-      </p>
+      {/* Config summary bar（S-B1）: bundle/previewRes 確定後、設定カードを畳んで
+          代わりにこの1行サマリーを表示する。設定カード自体は下で display:none
+          （hidden）にするだけで実際にはマウントしたまま保つ — ProConditionPicker /
+          InvestorModelPicker は自身の内部stateを持つため、ここをアンマウントする
+          と「条件を編集」で再展開したときに入力内容が消えてしまう（詳細はビルダー
+          報告参照）。 */}
+      {configCollapsed && (
+        <ConditionSummaryBar items={summaryItems} onEdit={() => setConfigForceOpen(true)} />
+      )}
 
       {/* Config */}
-      <div className="bg-panel border border-border rounded-xl p-5 space-y-5">
-        {/* Mode tabs */}
-        <div>
-          <p className="text-xs text-muted mb-2">モード</p>
-          <div className="inline-flex rounded-lg border border-border overflow-hidden">
-            {ANALYZE_MODE_TABS.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  if (tab.disabled || tab.id === mode) return
-                  setMode(tab.id)
-                  // モードを切り替えたら古い結果（別モードの条件に基づく）は破棄する（原則9）。
-                  // resetDownstream() が requestIdRef もインクリメントするため、進行中の
-                  // fetch（runReport/runProPreview/runProGenerate等）は解決しても無視される。
-                  resetDownstream()
-                }}
-                disabled={tab.disabled}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  mode === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : tab.disabled
-                      ? 'bg-surface text-slate-600 cursor-not-allowed'
-                      : 'bg-surface text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {tab.label}
-                {tab.disabled && (
-                  <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 align-middle">近日対応</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Scope toggle */}
-        <div>
-          <p className="text-xs text-muted mb-2">対象範囲</p>
-          <div className="inline-flex rounded-lg border border-border overflow-hidden">
-            {ANALYZE_SCOPE_OPTIONS.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => {
-                  if (opt.disabled || opt.id === scope) return
-                  setScope(opt.id)
-                  // 範囲を切り替えたら古い結果（別範囲の入力に基づく）は破棄する（原則9）。
-                  resetDownstream()
-                }}
-                disabled={opt.disabled}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  scope === opt.id
-                    ? 'bg-blue-600 text-white'
-                    : opt.disabled
-                      ? 'bg-surface text-slate-600 cursor-not-allowed'
-                      : 'bg-surface text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {opt.label}
-                {opt.disabled && (
-                  <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 align-middle">近日対応</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className={configCollapsed ? 'hidden' : 'bg-panel border border-border rounded-xl p-5 space-y-5'}>
+        {/* Mode tabs + Scope toggle（S-B2: ModeScopeBarへ統合・デスクトップは1行）。
+            resetDownstream（fetch競合ガード・requestIdインクリメント）はここで従来どおり
+            トリガーする — ModeScopeBar自体は選択肢のdisabled/同値ガードのみ担当し、
+            ロジックは持たない。 */}
+        <ModeScopeBar
+          modeTabs={ANALYZE_MODE_TABS}
+          mode={mode}
+          onModeChange={id => {
+            setMode(id)
+            // モードを切り替えたら古い結果（別モードの条件に基づく）は破棄する（原則9）。
+            // resetDownstream() が requestIdRef もインクリメントするため、進行中の
+            // fetch（runReport/runProPreview/runProGenerate等）は解決しても無視される。
+            resetDownstream()
+          }}
+          scopeOptions={ANALYZE_SCOPE_OPTIONS}
+          scope={scope}
+          onScopeChange={id => {
+            setScope(id)
+            // 範囲を切り替えたら古い結果（別範囲の入力に基づく）は破棄する（原則9）。
+            resetDownstream()
+          }}
+        />
 
         {/* 銘柄指定あり: 既存の銘柄シンボル/初期資金＋quick/pro/investorパネル
-            （S1/S2/S3のまま無改修）。銘柄指定なし: S5aのスクリーニングパネル
-            （下）に完全に切り替える — 両者は互いに独立した分岐なので、この
-            branch自体が「既存の銘柄指定あり挙動を壊さない」ことの構造的な保証になる。 */}
-        {scope === 'with-symbol' && (
-        <>
+            （S1/S2/S3のまま無改修）。銘柄指定なし時はアンマウントせず hidden
+            （display:none）で隠すだけにする（W2）— ProConditionPicker /
+            InvestorModelPicker は条件入力を内部stateで保持しており、アンマウント
+            すると「銘柄指定なし」へ切替→戻す で入力が全部消えてしまう。モード
+            切替（下のpro/investorパネル）と同じ hidden 方式に統一し、「切替で
+            入力を失わない」保証を範囲切替にも適用する。 */}
+        <div className={scope === 'with-symbol' ? 'space-y-5' : 'hidden'}>
         {/* 銘柄シンボル/初期資金（クイック・プロ共通・対象範囲=銘柄指定ありのみ機能） */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -659,37 +700,21 @@ export default function AnalyzePage() {
             送らない（既存挙動のまま・後方互換）。resetDownstreamは呼ばない
             — bundleは無効化されないため、prepare結果を再利用したまま
             プロファイルだけ変えて再生成できる。 ── */}
-        <div className="border border-border rounded-lg p-4 space-y-3">
-          <div>
-            <p className="text-sm text-white font-medium">
-              読者プロファイル（任意・{profileAnsweredCount}/3問回答済み）
-            </p>
-            <p className="text-xs text-muted mt-1 leading-relaxed">
-              回答するとAIレポートの強調順序・語り口・意味づけがあなた向けに調整されます。
-              数値・ゲート判定・バックテストの中身は一切変わりません。未回答でも通常どおりレポートは生成されます。
-            </p>
-          </div>
+        <ReaderProfilePanel
+          horizon={profileHorizon}
+          tolerance={profileTolerance}
+          style={profileStyle}
+          capacity={profileCapacity}
+          onHorizonChange={setProfileHorizon}
+          onToleranceChange={setProfileTolerance}
+          onStyleChange={setProfileStyle}
+          onCapacityChange={setProfileCapacity}
+        />
 
-          <div>
-            <p className="text-xs text-muted mb-1.5">投資期間</p>
-            <ProfileRadioGroup name="profile-horizon" options={HORIZON_OPTIONS} value={profileHorizon} onChange={setProfileHorizon} />
-          </div>
-          <div>
-            <p className="text-xs text-muted mb-1.5">リスク許容度</p>
-            <ProfileRadioGroup name="profile-tolerance" options={TOLERANCE_OPTIONS} value={profileTolerance} onChange={setProfileTolerance} />
-          </div>
-          <div>
-            <p className="text-xs text-muted mb-1.5">スタイル志向</p>
-            <ProfileRadioGroup name="profile-style" options={STYLE_OPTIONS} value={profileStyle} onChange={setProfileStyle} />
-          </div>
-          <div>
-            <p className="text-xs text-muted mb-1.5">資金の性格（任意・4問目）</p>
-            <ProfileRadioGroup name="profile-capacity" options={CAPACITY_OPTIONS} value={profileCapacity} onChange={setProfileCapacity} />
-          </div>
-        </div>
-
-        {/* ── Quick panel（銘柄指定あり・ニーズ軸プリセット） ── */}
-        <div className={`border border-border rounded-lg p-4 space-y-4 transition-opacity ${quickActive ? '' : 'opacity-50 pointer-events-none'}`}>
+        {/* ── Quick panel（銘柄指定あり・ニーズ軸プリセット）── S-B1: 他モードへの
+            切替時はDOMごとアンマウントする（presetIdは親stateのため安全）。 ── */}
+        {mode === 'quick' && (
+        <div className="border border-border rounded-lg p-4 space-y-4">
           <div>
             <p className="text-sm text-white font-medium mb-2">ニーズ軸で選ぶ（5年・銘柄の参加条件つき）</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -730,17 +755,26 @@ export default function AnalyzePage() {
 
           <button
             onClick={runPreview}
-            disabled={busyPreview || !quickActive}
+            disabled={busyPreview}
             className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-              busyPreview || !quickActive ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+              busyPreview ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
             }`}
           >
             {busyPreview ? '無料プレビュー実行中...' : '無料プレビューを実行（純計算・AIは使いません）'}
           </button>
         </div>
+        )}
 
-        {/* ── Pro panel（S2: 分析タイプ軸で条件ピッカーを出し分け・銘柄指定ありのみ） ── */}
-        <div className={`border border-border rounded-lg p-4 space-y-4 transition-opacity ${mode === 'pro' ? '' : 'opacity-50 pointer-events-none'}`}>
+        {/* ── Pro panel（S2: 分析タイプ軸で条件ピッカーを出し分け・銘柄指定ありのみ）
+            ── S-B1: ProConditionPicker は分析タイプ/期間/フィルタ行などを自身の
+            内部stateで保持しており親にリフトアップされていない。ここをDOMごと
+            アンマウントすると、他モードへ切替→戻ったときに入力内容が消える
+            （劣化になる）ため、条件付きレンダリング（アンマウント）は見送り、
+            非表示時は hidden（display:none）でスクロール高さだけを0にする
+            （マウントは維持＝内部stateは保持される）。プレビュー/AIレポート生成
+            ボタンは reviewer指摘により Config ラッパーの外（クイックと同じ位置）
+            に移設した — 詳細は下の「Pro/Investor 2-stage buttons」ブロックを参照。 ── */}
+        <div className={mode === 'pro' ? 'border border-border rounded-lg p-4 space-y-4' : 'hidden'}>
           <ProConditionPicker onConditionChange={handleProConditionChange} />
 
           {'error' in proCondition && (
@@ -748,66 +782,19 @@ export default function AnalyzePage() {
               {proCondition.error}
             </p>
           )}
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={runProPreview}
-              disabled={busyReport || mode !== 'pro'}
-              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                busyReport || mode !== 'pro' ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
-              }`}
-            >
-              {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
-            </button>
-            <button
-              onClick={runProGenerate}
-              disabled={busyReport || reportPhase !== 'prepared'}
-              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                busyReport || reportPhase !== 'prepared' ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
-              }`}
-            >
-              {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
-            </button>
-          </div>
-          {mode === 'pro' && reportPhase === 'prepared' && (
-            <p className="text-xs text-muted">
-              プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます。
-            </p>
-          )}
         </div>
 
-        {/* ── Investor panel（S3: 投資家モデル・銘柄指定ありのみ・プロと同じ2段ボタン） ── */}
-        <div className={`border border-border rounded-lg p-4 space-y-4 transition-opacity ${mode === 'investor' ? '' : 'opacity-50 pointer-events-none'}`}>
+        {/* ── Investor panel（S3: 投資家モデル・銘柄指定ありのみ）
+            ── S-B1: InvestorModelPicker も選択中モデルIDを内部stateで保持して
+            おり（本ファイルの計画対象外・無改修）、ProConditionPickerと同じ理由
+            でアンマウントは見送り、hidden（display:none）のみで高さを0にする。
+            プレビュー/AIレポート生成ボタンは reviewer指摘により Config ラッパー
+            の外（クイックと同じ位置）に移設した — 詳細は下の「Pro/Investor
+            2-stage buttons」ブロックを参照。 ── */}
+        <div className={mode === 'investor' ? 'border border-border rounded-lg p-4 space-y-4' : 'hidden'}>
           <InvestorModelPicker onConditionChange={handleInvestorConditionChange} />
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={runProPreview}
-              disabled={busyReport || mode !== 'investor'}
-              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                busyReport || mode !== 'investor' ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
-              }`}
-            >
-              {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
-            </button>
-            <button
-              onClick={runProGenerate}
-              disabled={busyReport || reportPhase !== 'prepared' || mode !== 'investor'}
-              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                busyReport || reportPhase !== 'prepared' || mode !== 'investor' ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
-              }`}
-            >
-              {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
-            </button>
-          </div>
-          {mode === 'investor' && reportPhase === 'prepared' && (
-            <p className="text-xs text-muted">
-              プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます（投資家名はAIへは伝えません）。
-            </p>
-          )}
         </div>
-        </>
-        )}
+        </div>
 
         {/* ── S5a: 銘柄指定なし（自動スクリーニング）。キャッシュ済みユニバース
             （lib/screen/cache.ts）に quick/investor の条件を適用し、適合度TOPを
@@ -904,6 +891,75 @@ export default function AnalyzePage() {
         )}
       </div>
 
+      {/* Pro/Investor 2-stage buttons（S2/S3・reviewer指摘の修正）: プレビュー実行
+          （runProPreview）完了で即 bundle が確定し、hasConfirmedResult が true になって
+          Config が自動で畳まれる。この2つのボタンが Config ラッパーの内側にあると、
+          畳まれた瞬間に次に押すべき「AIレポート生成」ボタンごと画面から消えてしまう
+          （critical指摘）。クイックモードの「AIレポート生成」ボタン（下）と同じく
+          Config ラッパーの外に置き、3モードの構造を揃える。銘柄指定あり（scope==
+          'with-symbol'）のみ対象 — 銘柄指定なしはスクリーニング専用フロー（runScreen）。
+          外側分岐（mode === 'pro' / 'investor'）で常に偽になる mode 条件は
+          disabled/className から削除した（死んだ条件の掃除・挙動は不変）。 */}
+      {mode === 'pro' && scope === 'with-symbol' && (
+        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={runProPreview}
+              disabled={busyReport}
+              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                busyReport ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+              }`}
+            >
+              {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
+            </button>
+            <button
+              onClick={runProGenerate}
+              disabled={busyReport || reportPhase !== 'prepared'}
+              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                busyReport || reportPhase !== 'prepared' ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
+            </button>
+          </div>
+          {reportPhase === 'prepared' && (
+            <p className="text-xs text-muted">
+              プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます。
+            </p>
+          )}
+        </div>
+      )}
+
+      {mode === 'investor' && scope === 'with-symbol' && (
+        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={runProPreview}
+              disabled={busyReport}
+              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                busyReport ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+              }`}
+            >
+              {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
+            </button>
+            <button
+              onClick={runProGenerate}
+              disabled={busyReport || reportPhase !== 'prepared'}
+              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                busyReport || reportPhase !== 'prepared' ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
+            </button>
+          </div>
+          {reportPhase === 'prepared' && (
+            <p className="text-xs text-muted">
+              プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます（投資家名はAIへは伝えません）。
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Screening: error / loading（S5a・銘柄指定なし） */}
       {scope === 'no-symbol' && screenError && (
         <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-red-300 text-sm">
@@ -987,22 +1043,16 @@ export default function AnalyzePage() {
         </div>
       )}
 
-      {/* Preview: gate result + backtest summary */}
+      {/* Preview: gate result + backtest summary（Tier1・S-B2: MetricStripへ統合） */}
       {previewRes && previewPhase === 'done' && (
-        <div className={`border rounded-xl p-5 space-y-3 ${
-          previewRes.gatePassed ? 'bg-panel border-border' : 'bg-amber-950/30 border-amber-700'
-        }`}>
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-              previewRes.gatePassed ? 'bg-green-900/50 text-green-400' : 'bg-amber-900/50 text-amber-400'
-            }`}>
-              {previewRes.gatePassed ? '参加条件 成立' : '参加条件 不成立'}
-            </span>
-            <h2 className="text-white font-semibold text-sm">
-              プリセット「{previewRes.presetLabel}」の無料プレビュー（現在値判定・純計算）
-            </h2>
-          </div>
-
+        <MetricStrip
+          passed={previewRes.gatePassed}
+          heading={`プリセット「${previewRes.presetLabel}」の無料プレビュー（現在値判定・純計算）`}
+          metrics={previewMetricItems}
+          gateBreakdown={previewGateBreakdown}
+          insightLines={previewMetricItems.length > 0 ? METRIC_INSIGHT_LINES : undefined}
+          emphasizeFailure
+        >
           {!previewRes.gatePassed && previewRes.gateFailReason && (
             <p className="text-amber-300 text-sm leading-relaxed">
               {previewRes.gateFailReason}
@@ -1012,59 +1062,17 @@ export default function AnalyzePage() {
               </span>
             </p>
           )}
+        </MetricStrip>
+      )}
 
-          <div className="space-y-1.5">
-            {previewRes.gate.evaluations.map((ev, i) => (
-              <div key={i} className="flex items-center gap-3 px-3 py-2 bg-surface/50 rounded-lg text-xs">
-                <span className={`shrink-0 font-bold px-2 py-0.5 rounded ${
-                  ev.result === 'pass' ? 'bg-green-900/50 text-green-400'
-                    : ev.result === 'fail' ? 'bg-red-900/50 text-red-400'
-                    : 'bg-slate-700 text-slate-300'
-                }`}>
-                  {ev.result === 'pass' ? '成立' : ev.result === 'fail' ? '不成立' : '判定不能'}
-                </span>
-                <span className="text-slate-300">{describeFundamentalFilter(ev.filter)}</span>
-                <span className="text-muted font-mono ml-auto">
-                  実測: {ev.actual != null ? formatMetricValue(ev.filter.metric, ev.actual) : 'データなし'}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {m && previewRes.result && (
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center pt-1">
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">総リターン（5年）</p>
-                <p className={`font-mono font-bold ${returnPositive ? 'text-green-400' : 'text-red-400'}`}>
-                  {returnPositive ? '+' : ''}{m.totalReturnPct.toFixed(2)}%
-                </p>
-                <p className="text-xs text-muted mt-0.5">{formatMoney(previewRes.result.finalValue, previewRes.result.currency)}</p>
-              </div>
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">勝率</p>
-                <p className="text-white font-mono font-bold">{m.winRate.toFixed(0)}%</p>
-              </div>
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">最大DD</p>
-                <p className="text-red-400 font-mono font-bold">-{m.maxDrawdownPct.toFixed(2)}%</p>
-              </div>
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">シャープレシオ</p>
-                <p className="text-white font-mono font-bold">{m.sharpeRatio.toFixed(2)}</p>
-              </div>
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">取引数</p>
-                <p className="text-white font-mono font-bold">{m.tradeCount}件</p>
-              </div>
-            </div>
-          )}
-
-          <div className="pt-1">
-            <p className="text-xs text-muted mb-1.5">このプリセットの実際の条件:</p>
-            <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside leading-relaxed">
-              {previewRes.conditionNotes.map((note, i) => <li key={i}>{note}</li>)}
-            </ul>
-          </div>
+      {/* Preview: このプリセットの実際の条件（Tier1のまま・MetricStripの外・DetailsSection対象外
+          — previewRes段階ではbundleが無くDetailsSectionの4項目に該当しないため） */}
+      {previewRes && previewPhase === 'done' && (
+        <div className="bg-panel/60 border border-border/60 rounded-xl px-4 py-3">
+          <p className="text-xs text-muted mb-1.5">このプリセットの実際の条件:</p>
+          <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside leading-relaxed">
+            {previewRes.conditionNotes.map((note, i) => <li key={i}>{note}</li>)}
+          </ul>
         </div>
       )}
 
@@ -1111,10 +1119,32 @@ export default function AnalyzePage() {
         </div>
       )}
 
-      {/* Report: prepared bundle summary */}
+      {/* Report: prepared bundle summary（Tier1・S-B2: MetricStripへ統合）。
+          注意（W1）: ファンダフィルタ0件のとき gate.passed は仕様上 true になるが、
+          MetricStrip側が gateBreakdown 0件を検出して緑バッジではなく中立表示
+          （参加条件なし）に切り替える — 評価していない条件を「成立」と見せない。
+          プレビュー側（上のMetricStrip）も同じ部品なので同じ扱いになる。 */}
       {bundle && (
-        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
-          <h2 className="text-white font-semibold text-sm">AIレポートの実行結果（実データ・過去5年日足）</h2>
+        <MetricStrip
+          passed={gate?.passed ?? true}
+          heading="AIレポートの実行結果（実データ・過去5年日足）"
+          metrics={bundleMetricItems}
+          gateBreakdown={bundleGateBreakdown}
+          insightLines={bundleMetricItems.length > 0 ? METRIC_INSIGHT_LINES : undefined}
+        />
+      )}
+
+      {/* Tier2（S-C）: あなたが選んだルールの過去5年の成績 — bundle だけから計算した
+          実測値カード（lib/report/execution.ts の純関数・新データ源ゼロ）。数値の出所は
+          ユーザーが選んだ条件と過去の実データのみで、当社/AIが決めた数値は含まない
+          （法務設計 — 旧称「執行計画カード」は金商法上実装不可のため主語をユーザーへ
+          移した検証カードに変更）。将来シナリオ図（S-D）は未実装。 */}
+      {bundle && executionPlan && <ExecutionPlanCard plan={executionPlan} />}
+
+      {/* Tier3: 詳細情報群（S-B2でDetailsSectionへアコーディオン化・デフォルト閉）。
+          AIレポート本文だけは絶対にDetailsSectionで包まない（生成直後は常に展開表示）。 */}
+      {bundle && (
+        <DetailsSection title="実行した条件・ゲート内訳の詳細版">
           <div className="bg-surface/50 border border-blue-900/50 rounded-lg p-3 space-y-1">
             <p className="text-xs text-blue-300 font-medium">実行した条件</p>
             <p className="text-sm text-white font-medium">
@@ -1148,35 +1178,6 @@ export default function AnalyzePage() {
             </div>
           )}
 
-          {bundle.backtest && bm && (
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">総リターン（5年）</p>
-                <p className={`font-mono font-bold ${bm.totalReturnPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {bm.totalReturnPct >= 0 ? '+' : ''}{bm.totalReturnPct.toFixed(2)}%
-                </p>
-              </div>
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">バイ&ホールド</p>
-                <p className={`font-mono font-bold ${bundle.backtest.buyHoldReturnPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {bundle.backtest.buyHoldReturnPct >= 0 ? '+' : ''}{bundle.backtest.buyHoldReturnPct.toFixed(2)}%
-                </p>
-              </div>
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">勝率</p>
-                <p className="text-white font-mono font-bold">{bm.winRate.toFixed(0)}%</p>
-              </div>
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">最大DD</p>
-                <p className="text-red-400 font-mono font-bold">-{bm.maxDrawdownPct.toFixed(2)}%</p>
-              </div>
-              <div className="bg-surface/50 rounded-lg p-3">
-                <p className="text-muted text-xs mb-1">取引数</p>
-                <p className="text-white font-mono font-bold">{bm.tradeCount}件</p>
-              </div>
-            </div>
-          )}
-
           {bundle.aiEvidence.hasData && (
             <p className="text-xs text-muted">
               AIトレーダー実績: この銘柄を{bundle.aiEvidence.tradeCount}回売買
@@ -1185,16 +1186,14 @@ export default function AnalyzePage() {
               — 詳細はレポート本文の「AIトレーダーの実績」参照
             </p>
           )}
-        </div>
+        </DetailsSection>
       )}
 
       {/* Transparency card（S4）: なぜこの銘柄/戦略が選ばれたかを、bundleの3要素
           （テクニカルトリガー・ファンダゲート実測・バックテスト要約）だけから可視化。
           新しいデータ源は追加していない（原則9）。 */}
       {bundle && transparency && (
-        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
-          <h2 className="text-white font-semibold text-sm">なぜこの銘柄・戦略が選ばれたか（透明性）</h2>
-
+        <DetailsSection title="なぜこの銘柄・戦略が選ばれたか（透明性）">
           {transparency.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {transparency.tags.map((tag, i) => (
@@ -1226,13 +1225,12 @@ export default function AnalyzePage() {
               ))}
             </ul>
           )}
-        </div>
+        </DetailsSection>
       )}
 
       {/* Learning-usage honest disclosure（原則9 — 使っていない教訓を使ったと見せない） */}
       {bundle && (
-        <div className="bg-panel border border-border rounded-xl p-5 space-y-2">
-          <h2 className="text-white font-semibold text-sm">教訓の使用状況（AI学習メモリ）</h2>
+        <DetailsSection title="教訓の使用状況（AI学習メモリ）">
           {bundle.learningUsage?.hasData ? (
             <>
               <p className="text-xs text-muted">集計範囲: {bundle.learningUsage.scope}</p>
@@ -1255,10 +1253,10 @@ export default function AnalyzePage() {
               </p>
             </>
           )}
-        </div>
+        </DetailsSection>
       )}
 
-      {/* Report body (streamed) */}
+      {/* Report body (streamed) — DetailsSectionで包まない。生成直後は常に展開表示のまま。 */}
       {report && (
         <div className="bg-panel border border-border rounded-xl p-6">
           <MarkdownView text={report} />
@@ -1270,8 +1268,7 @@ export default function AnalyzePage() {
 
       {/* Sources */}
       {bundle && bundle.sources.length > 0 && (
-        <div className="bg-panel border border-border rounded-xl p-5 space-y-2">
-          <p className="text-xs text-muted font-medium mb-1.5">引用元・参照リンク</p>
+        <DetailsSection title="引用元・参照リンク">
           <ol className="space-y-1">
             {bundle.sources.map(s => (
               <li key={s.id} className="text-xs text-slate-300">
@@ -1283,7 +1280,7 @@ export default function AnalyzePage() {
               </li>
             ))}
           </ol>
-        </div>
+        </DetailsSection>
       )}
 
       {/* Disclaimer */}

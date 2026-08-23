@@ -53,25 +53,45 @@ export function sharpeRatio(values: number[]): number {
   return (mean / std) * Math.sqrt(TRADING_DAYS)
 }
 
+/** One closed buy→sell round-trip (execution order preserved). */
+export interface RoundTripPair {
+  entry: BacktestTrade
+  exit: BacktestTrade
+  /**
+   * Win = exit cash value exceeds entry cash value (t.value comparison).
+   * This is THE single win/loss definition for the whole app — do not redefine
+   * it elsewhere (e.g. price-based), or the same screen can show two different
+   * win rates for the same trades.
+   */
+  win: boolean
+}
+
 /**
  * Pair buy->sell executions into closed round-trips.
- * A round-trip is a "win" when the exit cash value exceeds the entry cash value.
- * An open position at the end (a buy with no matching sell) is ignored.
+ * An open position at the end (a buy with no matching sell) is NOT included —
+ * callers that need it must inspect the trailing buy themselves.
  */
-export function roundTrips(trades: BacktestTrade[]): { wins: number; total: number } {
-  let wins = 0
-  let total = 0
+export function pairRoundTrips(trades: BacktestTrade[]): RoundTripPair[] {
+  const pairs: RoundTripPair[] = []
   let entry: BacktestTrade | null = null
   for (const t of trades) {
     if (t.action === 'buy') {
       entry = t
     } else if (t.action === 'sell' && entry) {
-      total++
-      if (t.value > entry.value) wins++
+      pairs.push({ entry, exit: t, win: t.value > entry.value })
       entry = null
     }
   }
-  return { wins, total }
+  return pairs
+}
+
+/**
+ * Win/total counts over closed round-trips. Thin wrapper around
+ * pairRoundTrips() — return shape and behaviour unchanged.
+ */
+export function roundTrips(trades: BacktestTrade[]): { wins: number; total: number } {
+  const pairs = pairRoundTrips(trades)
+  return { wins: pairs.reduce((n, p) => n + (p.win ? 1 : 0), 0), total: pairs.length }
 }
 
 /** Compose all summary metrics from an equity curve and trade log. */
