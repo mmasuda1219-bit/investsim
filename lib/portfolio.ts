@@ -16,6 +16,12 @@ export interface Trade {
   action: 'buy' | 'sell'
   shares: number
   price: number      // price per share at execution
+  /**
+   * なぜそう判断したか（利用者の自由記述）。
+   * 「振り返る」で判断の質を見るための素材。既存の保存データには存在しないため
+   * 任意フィールドにしてある（形式互換を壊さない）。読む側は未設定を許容すること。
+   */
+  reason?: string
 }
 
 export interface Portfolio {
@@ -57,7 +63,8 @@ export function executeTrade(
   name: string,
   action: 'buy' | 'sell',
   shares: number,
-  price: number
+  price: number,
+  reason?: string
 ): TradeResult {
   const portfolio = getPortfolio()
   const total = shares * price
@@ -93,6 +100,7 @@ export function executeTrade(
     id: Date.now().toString(),
     timestamp: Date.now(),
     symbol, name, action, shares, price,
+    ...(reason && reason.trim() ? { reason: reason.trim() } : {}),
   })
 
   savePortfolio(portfolio)

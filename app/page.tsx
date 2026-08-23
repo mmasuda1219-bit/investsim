@@ -1,245 +1,199 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import type { Signal } from '@/types'
+import { NAV } from '@/components/SiteNav'
 
-const TradingChart = dynamic(() => import('@/components/TradingChart'), { ssr: false })
+/**
+ * トップページ＝ランディング。
+ *
+ * 従来ここは銘柄セレクタ＋チャート＋投資家シグナルの「道具ページ」で、
+ * 「このサイトは何ができるのか」を説明する面がサイト内に1つも無かった。
+ * 投資家シグナルのグリッドは /stocks/[symbol] の InvestorPanel と同じ
+ * /api/signals/[symbol] を叩く重複だったため、ここでは持たない。
+ *
+ * 主役は「AIの直近の判断」だが、**保存済みデータの読み出しだけ**を行い
+ * AI推論は一切走らせない。最も人が来る面を最も安い面にするため
+ * （AI費用は自己負担であり、匿名訪問で課金が発生する設計にしない）。
+ */
 
-const SYMBOLS = ['AAPL', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'BRK-B', 'JPM', 'V']
-const PERIODS: { label: string; value: '1y' | '5y' | '10y' }[] = [
-  { label: '1年', value: '1y' },
-  { label: '5年', value: '5y' },
-  { label: '10年', value: '10y' },
-]
-
-const INVESTORS = ['バフェット', 'ソロス', 'リンチ', 'グレアム', 'ダリオ']
-const INVESTOR_IDS: Record<string, string> = {
-  バフェット: 'buffett',
-  ソロス: 'soros',
-  リンチ: 'lynch',
-  グレアム: 'graham',
-  ダリオ: 'dalio',
+interface Decision {
+  symbol: string
+  name: string
+  action: 'buy' | 'sell' | 'hold' | 'watch'
+  reasoning: string
+  confidence: 'high' | 'medium' | 'low'
 }
-const INVESTOR_COLORS: Record<string, string> = {
-  バフェット: 'bg-blue-900/40 border-blue-700 text-blue-300',
-  ソロス: 'bg-purple-900/40 border-purple-700 text-purple-300',
-  リンチ: 'bg-amber-900/40 border-amber-700 text-amber-300',
-  グレアム: 'bg-cyan-900/40 border-cyan-700 text-cyan-300',
-  ダリオ: 'bg-pink-900/40 border-pink-700 text-pink-300',
+interface SessionSummary {
+  id: string
+  lastTickAt: string
+  tickCount: number
+  pnlPct: number
+  decisions: Decision[]
 }
 
-const ACTION_LABELS: Record<Signal['action'], string> = {
-  buy: '買い',
-  sell: '売り',
-  hold: '様子見',
+const ACTION_LABEL: Record<Decision['action'], string> = {
+  buy: '買い', sell: '売り', hold: '保有継続', watch: '様子見',
 }
-const ACTION_STYLES: Record<Signal['action'], string> = {
-  buy: 'bg-emerald-900/50 text-emerald-400 border-emerald-700',
-  sell: 'bg-red-900/50 text-red-400 border-red-700',
-  hold: 'bg-gray-800 text-gray-400 border-gray-700',
+const ACTION_STYLE: Record<Decision['action'], string> = {
+  buy:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  sell:  'bg-rose-500/10 text-rose-400 border-rose-500/30',
+  hold:  'bg-slate-500/10 text-slate-300 border-slate-500/30',
+  watch: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+}
+
+function formatWhen(iso: string): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return ''
+  const min = Math.floor((Date.now() - t) / 60_000)
+  if (min < 1) return 'たった今'
+  if (min < 60) return `${min}分前`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}時間前`
+  return `${Math.floor(h / 24)}日前`
 }
 
 export default function Home() {
-  const [symbol, setSymbol] = useState('AAPL')
-  const [customSymbol, setCustomSymbol] = useState('')
-  const [viewPeriod, setViewPeriod] = useState<'1y' | '5y' | '10y'>('5y')
-  const [selectedInvestor, setSelectedInvestor] = useState('バフェット')
-
-  const [signals, setSignals] = useState<Record<string, Signal> | null>(null)
-  const [signalsLoading, setSignalsLoading] = useState(true)
-  const [signalsError, setSignalsError] = useState<string | null>(null)
-
-  const activeSymbol = customSymbol.trim().toUpperCase() || symbol
+  const [session, setSession] = useState<SessionSummary | null>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'empty'>('loading')
 
   useEffect(() => {
-    let cancelled = false
-    setSignalsLoading(true)
-    setSignalsError(null)
-    setSignals(null)
-
-    const timer = setTimeout(() => {
-      fetch(`/api/signals/${encodeURIComponent(activeSymbol)}`)
-        .then(async (res) => {
-          const data = await res.json()
-          if (!res.ok || data.error) throw new Error(data.error || 'シグナルの取得に失敗しました')
-          if (!cancelled) setSignals(data.signals as Record<string, Signal>)
-        })
-        .catch((e) => {
-          console.error('signals fetch failed:', e)
-          if (!cancelled) setSignalsError('しばらくしてから再度お試しください')
-        })
-        .finally(() => {
-          if (!cancelled) setSignalsLoading(false)
-        })
-    }, 350)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [activeSymbol])
+    let alive = true
+    fetch('/api/ai-session')
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((list: SessionSummary[]) => {
+        if (!alive) return
+        // 最後に動いたセッションを1件だけ。無ければ正直に「まだ無い」と出す。
+        const latest = Array.isArray(list) && list.length
+          ? [...list].sort((a, b) => Date.parse(b.lastTickAt) - Date.parse(a.lastTickAt))[0]
+          : null
+        if (latest && Array.isArray(latest.decisions) && latest.decisions.length) {
+          setSession(latest); setState('ready')
+        } else {
+          setState('empty')
+        }
+      })
+      .catch(() => { if (alive) setState('empty') })
+    return () => { alive = false }
+  }, [])
 
   return (
-    <div className="text-white">
-      <div className="max-w-6xl mx-auto space-y-5">
-        {/* CTA to autonomous AI trading engine */}
-        <div className="bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-800 rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
-          <div>
-            <div className="text-sm font-semibold text-emerald-300">AIが自律的に売買判断する本格エンジンを試す</div>
-            <div className="text-xs text-gray-400 mt-0.5">Claude APIによるリアルタイム自律売買セッション — /ai-session</div>
-          </div>
+    <div className="max-w-5xl mx-auto space-y-12">
+
+      {/* ── 何のサイトか ─────────────────────────────────────────── */}
+      <section className="pt-6 space-y-5">
+        <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">
+          投資判断の練習場
+        </p>
+        <h1 className="text-3xl sm:text-[2.6rem] font-bold leading-[1.4] text-balance">
+          AIと名人と自分。<br className="hidden sm:block" />
+          どの判断が正しかったかを、<span className="text-emerald-400">リスクゼロ</span>で確かめる。
+        </h1>
+        <p className="text-slate-400 leading-relaxed max-w-2xl">
+          実際の株価データを使い、仮想の資金で投資の判断だけを練習します。
+          うまくなるのはAIではなく、あなたです。実際のお金は1円も動きません。
+        </p>
+        <div className="flex flex-wrap gap-3 pt-1">
           <Link
-            href="/ai-session"
-            className="ml-auto text-sm font-medium px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 transition-colors text-white"
+            href="/watch"
+            className="px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-gray-950 text-sm font-bold transition-colors"
           >
-            AIセッションを開始 →
+            まずAIの判断を見てみる
+          </Link>
+          <Link
+            href="/learn"
+            className="px-5 py-2.5 rounded-lg border border-gray-700 hover:border-gray-500 text-slate-300 hover:text-white text-sm font-semibold transition-colors"
+          >
+            名人の条件を過去に当ててみる
           </Link>
         </div>
+      </section>
 
-        {/* Controls */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 px-5 py-4 flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-500">銘柄</span>
-            <div className="flex flex-wrap gap-1.5">
-              {SYMBOLS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => { setSymbol(s); setCustomSymbol('') }}
-                  className={`text-xs px-2.5 py-1 rounded border font-mono transition-colors
-                    ${activeSymbol === s && !customSymbol
-                      ? 'bg-emerald-900/50 border-emerald-600 text-emerald-300'
-                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'}`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              placeholder="他の銘柄..."
-              value={customSymbol}
-              onChange={(e) => setCustomSymbol(e.target.value.toUpperCase())}
-              className="w-28 text-xs bg-gray-800 border border-gray-700 rounded px-2.5 py-1 text-white placeholder-gray-600 focus:outline-none focus:border-gray-500"
-            />
-          </div>
-
-          {/* Period buttons — controls visible range, data always 10y */}
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-xs text-gray-500">表示期間</span>
-            <div className="flex gap-1">
-              {PERIODS.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setViewPeriod(p.value)}
-                  className={`text-xs px-3 py-1 rounded border transition-colors font-medium
-                    ${viewPeriod === p.value
-                      ? 'bg-blue-900/50 border-blue-600 text-blue-300'
-                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-gray-700 ml-1">← 左ドラッグで更に遡れます</span>
-          </div>
-        </div>
-
-        {/* Investor selector */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 px-5 py-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs text-gray-500">投資家モデル</span>
-            {INVESTORS.map((inv) => (
-              <button
-                key={inv}
-                onClick={() => setSelectedInvestor(inv)}
-                className={`text-sm px-3 py-1.5 rounded-full border font-medium transition-all
-                  ${selectedInvestor === inv
-                    ? INVESTOR_COLORS[inv]
-                    : 'bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-500'}`}
+      {/* ── 4段階の学習 ──────────────────────────────────────────── */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold text-slate-300">上から順に降りてくるだけです</h2>
+        <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {NAV.map(({ href, label, hint }, i) => (
+            <li key={href}>
+              <Link
+                href={href}
+                className="h-full flex flex-col gap-2 p-4 rounded-xl bg-surface border border-border hover:border-emerald-600/60 transition-colors"
               >
-                {inv}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 text-xs text-gray-500 leading-relaxed">
-            {selectedInvestor === 'バフェット' && 'バリュー投資・長期保有。PER＜15、ROE＞15%、低負債の割安株を厳選。内在価値の70%以下で買い、120%超で利確。'}
-            {selectedInvestor === 'ソロス' && 'マクロ投資・反射理論。市場の誤認識を狙い、トレンド転換点で大きなポジション。短〜中期勝負。'}
-            {selectedInvestor === 'リンチ' && '成長株投資・GARP。PEG＜1の高成長株を日常から発掘。市場が成長を認識する前に仕込む。'}
-            {selectedInvestor === 'グレアム' && 'ディープバリュー。株価が純運転資本の2/3以下の超割安株のみ。安全マージン最優先。'}
-            {selectedInvestor === 'ダリオ' && 'オールウェザー戦略。株30%・長期債40%・中期債15%・金7.5%・商品7.5%。リスクパリティで全天候型。'}
-          </div>
+                <span className="text-[11px] font-mono tabular-nums text-slate-500">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span className="text-base font-bold text-white">{label}</span>
+                <span className="text-xs text-slate-400 leading-relaxed">{hint}</span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* ── AIの直近の判断（保存済みデータの読み出しのみ） ───────────── */}
+      <section className="space-y-4">
+        <div className="flex items-baseline justify-between gap-4 flex-wrap">
+          <h2 className="text-sm font-semibold text-slate-300">AIは、いまこう考えています</h2>
+          {state === 'ready' && session && (
+            <span className="text-xs text-slate-500 tabular-nums">
+              {formatWhen(session.lastTickAt)}・{session.tickCount}回目の判断
+            </span>
+          )}
         </div>
 
-        {/* Chart */}
-        <TradingChart symbol={activeSymbol} viewPeriod={viewPeriod} trades={[]} />
-
-        {/* Real-time investor signals */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-800 flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-300">投資家別リアルタイム判断</span>
-            <span className="text-xs text-gray-600">— {activeSymbol}</span>
+        {state === 'loading' && (
+          <div className="p-6 rounded-xl bg-surface border border-border text-sm text-slate-500">
+            読み込み中…
           </div>
+        )}
 
-          {signalsLoading && (
-            <div className="px-5 py-10 text-center text-sm text-gray-500 animate-pulse">
-              シグナルを計算中…
-            </div>
-          )}
+        {state === 'empty' && (
+          <div className="p-6 rounded-xl bg-surface border border-border space-y-2">
+            <p className="text-sm text-slate-300 font-medium">まだAIの判断記録がありません</p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              AIの運用を始めると、ここに直近の判断とその理由が並びます。
+            </p>
+            <Link href="/watch" className="inline-block text-xs text-emerald-400 hover:text-emerald-300 pt-1">
+              「見る」を開く →
+            </Link>
+          </div>
+        )}
 
-          {!signalsLoading && signalsError && (
-            <div className="px-5 py-10 text-center text-sm text-red-400">
-              シグナルの取得に失敗しました: {signalsError}
-            </div>
-          )}
-
-          {!signalsLoading && !signalsError && signals && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-5">
-              {INVESTORS.map((inv) => {
-                const signal = signals[INVESTOR_IDS[inv]]
-                const isSelected = inv === selectedInvestor
-                if (!signal) return null
-                return (
-                  <div
-                    key={inv}
-                    className={`rounded-lg border px-4 py-3 space-y-2 transition-all
-                      ${isSelected ? `${INVESTOR_COLORS[inv]} ring-1 ring-inset ring-current/30` : 'bg-gray-800/50 border-gray-800'}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm font-semibold ${isSelected ? '' : 'text-gray-300'}`}>{inv}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded border font-bold ${ACTION_STYLES[signal.action]}`}>
-                        {ACTION_LABELS[signal.action]}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <span>強度:</span>
-                      {[1, 2, 3].map((n) => (
-                        <span key={n} className={n <= signal.strength ? 'text-yellow-400' : 'text-gray-700'}>★</span>
-                      ))}
-                    </div>
-                    {(signal.targetPrice != null || signal.stopLoss != null) && (
-                      <div className="flex gap-4 text-xs font-mono">
-                        {signal.targetPrice != null && (
-                          <span className="text-emerald-400">目標: ${signal.targetPrice.toFixed(2)}</span>
-                        )}
-                        {signal.stopLoss != null && (
-                          <span className="text-red-400">損切: ${signal.stopLoss.toFixed(2)}</span>
-                        )}
-                      </div>
-                    )}
-                    <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
-                      {signal.reasons.map((r, i) => (
-                        <li key={i}>{r}</li>
-                      ))}
-                    </ul>
+        {state === 'ready' && session && (
+          <>
+            <ul className="space-y-2.5">
+              {session.decisions.slice(0, 3).map((d, i) => (
+                <li key={`${d.symbol}-${i}`} className="p-4 rounded-xl bg-surface border border-border space-y-2">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-bold text-white text-sm">{d.symbol}</span>
+                    <span className="text-xs text-slate-500 truncate">{d.name}</span>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${ACTION_STYLE[d.action]}`}>
+                      {ACTION_LABEL[d.action]}
+                    </span>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+                  <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">{d.reasoning}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-slate-500">
+              これはAIの仮想運用の記録であり、売買の推奨ではありません。
+              <Link href="/watch" className="text-emerald-400 hover:text-emerald-300 ml-1">
+                全部の判断と根拠を見る →
+              </Link>
+            </p>
+          </>
+        )}
+      </section>
+
+      {/* ── 恒久免責 ─────────────────────────────────────────────── */}
+      <section className="pt-2 border-t border-border">
+        <p className="text-[11px] text-slate-500 leading-relaxed pt-4">
+          InvestSim は投資判断を練習するためのシミュレーターです。表示される売買はすべて仮想資金による
+          ものであり、実際の証券口座・決済とは一切連携しません。特定の銘柄の売買を推奨するものではなく、
+          投資助言・代理業には該当しません。掲載する情報の正確性・完全性を保証するものではなく、
+          投資の最終判断はご自身の責任で行ってください。
+        </p>
+      </section>
     </div>
   )
 }

@@ -11,7 +11,7 @@
 // するのは中身のフォーム部分のみ）。
 //
 // 中身のロジック（ProfileRadioGroup・選択肢・onChange配線）は
-// app/analyze/page.tsx から無改修で移設したもの。回答内容・レポートへの
+// app/learn/page.tsx から無改修で移設したもの。回答内容・レポートへの
 // 渡され方（未回答なら profile を一切送らない等）は一切変えていない。
 
 import { useId, useState } from 'react'

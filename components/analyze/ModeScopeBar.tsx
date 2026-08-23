@@ -5,7 +5,7 @@
 //
 // デスクトップでは左＝モード・右＝範囲の1行、モバイルでは折り返し（縦積み）。
 // 3モードの構成・ラベル、対象範囲の構成・ラベルは一切変更しない — 選択肢の配列
-// （id/label/disabled）は呼び出し側 app/analyze/page.tsx の ANALYZE_MODE_TABS /
+// （id/label/disabled）は呼び出し側 app/learn/page.tsx の ANALYZE_MODE_TABS /
 // ANALYZE_SCOPE_OPTIONS をそのまま渡す設計（新しい選択肢はここで発明しない）。
 // resetDownstream（fetch競合ガード）のトリガーはonModeChange/onScopeChange経由で
 // 呼び出し側に委ねる（このコンポーネント自体はロジックを持たない）。

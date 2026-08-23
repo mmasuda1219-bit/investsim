@@ -85,8 +85,11 @@ export default function PortfolioPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">仮想ポートフォリオ</h1>
-          <p className="text-muted text-sm mt-1">初期資本 {formatUSD(INITIAL_CASH)}</p>
+          <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">04 振り返る</p>
+          <h1 className="text-2xl font-bold text-white mt-1">判断を振り返る</h1>
+          <p className="text-muted text-sm mt-1">
+            見るべきは儲けた額ではなく、判断の中身です。初期資本 {formatUSD(INITIAL_CASH)}
+          </p>
         </div>
         <button
           onClick={handleReset}
@@ -94,6 +97,62 @@ export default function PortfolioPage() {
         >
           リセット
         </button>
+      </div>
+
+      {/* 判断の記録 — この面の主役。金額より先に出す */}
+      <div>
+        <h2 className="text-white font-semibold text-sm mb-3">あなたの判断の記録</h2>
+        {(() => {
+          const withReason = portfolio.trades.filter(t => t.reason && t.reason.trim())
+          const missing = portfolio.trades.length - withReason.length
+          if (portfolio.trades.length === 0) {
+            return (
+              <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-2">
+                <p className="text-sm text-slate-300">まだ判断の記録がありません</p>
+                <p className="text-xs text-muted">
+                  「やる」で売買すると、そのときに書いた理由がここに並びます。
+                </p>
+                <Link href="/trade" className="inline-block text-xs text-emerald-400 hover:text-emerald-300 pt-1">
+                  やってみる →
+                </Link>
+              </div>
+            )
+          }
+          if (withReason.length === 0) {
+            return (
+              <div className="bg-panel border border-border rounded-xl p-6 space-y-1.5">
+                <p className="text-sm text-slate-300">理由つきの取引はまだありません</p>
+                <p className="text-xs text-muted leading-relaxed">
+                  理由の記録は2026-08-23から始めました。それ以前の{portfolio.trades.length}件には理由が残っていません。
+                </p>
+              </div>
+            )
+          }
+          return (
+            <div className="space-y-2.5">
+              {withReason.slice(0, 10).map(t => (
+                <div key={t.id} className="bg-panel border border-border rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                      t.action === 'buy' ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'
+                    }`}>
+                      {t.action === 'buy' ? '買い' : '売り'}
+                    </span>
+                    <span className="font-mono font-bold text-white text-sm">{t.symbol}</span>
+                    <span className="text-xs text-muted">{t.shares.toLocaleString()}株 @ {formatUSD(t.price)}</span>
+                    <span className="text-xs text-muted ml-auto font-mono">{formatDate(t.timestamp)}</span>
+                  </div>
+                  <p className="text-sm text-slate-300 leading-relaxed">{t.reason}</p>
+                </div>
+              ))}
+              {missing > 0 && (
+                <p className="text-[11px] text-muted">
+                  ほかに理由が残っていない取引が{missing}件あります（理由の記録を始める前のものです）。
+                </p>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Summary Cards */}
@@ -131,7 +190,7 @@ export default function PortfolioPage() {
               <Link href="/" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors">
                 銘柄を探す
               </Link>
-              <Link href="/screener" className="px-4 py-2 bg-panel border border-border hover:border-blue-500 text-slate-300 hover:text-white text-xs font-medium rounded-lg transition-colors">
+              <Link href="/learn" className="px-4 py-2 bg-panel border border-border hover:border-blue-500 text-slate-300 hover:text-white text-xs font-medium rounded-lg transition-colors">
                 スクリーナーで絞り込む
               </Link>
             </div>

@@ -13,7 +13,7 @@
 
 import { NEEDS_PRESETS, NEEDS_PRESET_IDS, getNeedsPresetCondition } from '../lib/backtest/presets'
 import { parseCompositeCondition, ValidationError } from '../lib/report/validate'
-import { ANALYZE_MODE_TABS, ANALYZE_SCOPE_OPTIONS } from '../app/analyze/page'
+import { ANALYZE_MODE_TABS, ANALYZE_SCOPE_OPTIONS } from '../app/learn/page'
 
 let failures = 0
 function check(name: string, ok: boolean, detail = '') {
@@ -71,7 +71,7 @@ console.log('parseCompositeCondition(getNeedsPresetCondition(id)) — 未加工�
 }
 
 // ── 3. クイック→レポートの入力整合（symbol/initialCapital の形） ─────────────
-// app/analyze/page.tsx の runReport() が組み立てるリクエスト形と同じ形を、
+// app/learn/page.tsx の runReport() が組み立てるリクエスト形と同じ形を、
 // app/api/report/prepare/route.ts が受け入れる symbol 正規表現で検証する
 // （ルート側の正規表現をこのスモークにも複製 — ルート自体はS1で変更しない）。
 console.log('クイック→レポート入力整合 — symbol/initialCapital が prepare の受け入れ条件を満たす')

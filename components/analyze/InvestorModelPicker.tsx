@@ -6,7 +6,7 @@
 // （philosophy）」を土台として表示し、そこから導かれた条件（conditionNotes/
 // rationale）と、信念と実装のギャップの正直な注記（approximationNotes）を
 // 併せて見せる。投資家名は表示のみに使い、AIレポート生成プロンプトへは
-// 注入しない（app/analyze/page.tsx 側で investorModelId を generate に渡さない
+// 注入しない（app/learn/page.tsx 側で investorModelId を generate に渡さない
 // ことで、「本人が買う」という断定をAIができない構造を維持する）。
 //
 // ProConditionPicker と同じ `onConditionChange(CompositeCondition)` インター

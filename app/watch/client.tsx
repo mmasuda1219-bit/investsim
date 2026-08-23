@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import type { Trade, TradeReference } from '@/components/TradingChart'
 import ReferencePanel from '@/components/ReferencePanel'
@@ -194,19 +193,10 @@ interface NavBarProps {
 function NavBar({ session, ticking }: NavBarProps) {
   return (
     <nav className="border-b border-gray-800 bg-gray-900/90 backdrop-blur px-6 py-3 flex items-center gap-4 sticky top-0 z-30">
-      <div className="font-bold text-lg tracking-tight">
-        <span className="text-emerald-400">Invest</span>Sim
-      </div>
+      {/* ロゴとページ間リンクはグローバルの SiteNav が持つ。ここに置くと
+          ロゴが縦に2つ並ぶため、この帯は運用状態の表示だけに専念する。 */}
+      <span className="text-sm font-semibold text-white">AIの判断</span>
       <span className="text-xs text-gray-500 border border-gray-700 px-2 py-0.5 rounded">Beta</span>
-      <div className="flex items-center gap-2 ml-2">
-        <Link
-          href="/"
-          className="text-xs text-gray-500 hover:text-gray-300 px-2.5 py-1 rounded-lg transition-colors"
-        >
-          著名投資家シミュレーション
-        </Link>
-        <span className="text-xs text-emerald-400 border-b border-emerald-500 pb-0.5 font-semibold">AI TRADER</span>
-      </div>
       {session && (
         <div className="ml-auto flex items-center gap-3">
           <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
