@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runTick } from '@/lib/ai-trader/engine'
 import { tryAcquireTickLock, releaseTickLock } from '@/lib/ai-trader/store'
+import { consumeAiQuota, limitFromEnv } from '@/lib/ai-usage/limit'
+
+// 手動tickは認証が無く、1回で13銘柄分のAI呼び出しを回す。自動tick（cron経由・
+// CRON_SECRETで認証済み）には lib/ai-trader/auto.ts の日次上限3回/セッションが既にあるが、
+// この «手動» 経路には何も無かった。全体上限で総額を抑え、セッション上限で1人が全体枠を
+// 食い潰すのを防ぐ。カウンタは自動tick側とは別枠にして、公開側の濫用がcronを止めないようにする。
+const GLOBAL_LIMIT  = () => limitFromEnv('AI_TICK_DAILY_LIMIT', 100)
+const SESSION_LIMIT = () => limitFromEnv('AI_TICK_SESSION_DAILY_LIMIT', 10)
 
 // 1 tickは 13銘柄分のデータ取得 + Claude API 呼び出しで数十秒かかる。
 // Vercelのサーバーレス関数はデフォルトのタイムアウトが短く、これを超えると
@@ -16,7 +24,30 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    // 自動tick（cron）との二重実行を防ぐ。取得できなければ409（手動側は日次カウンタに触れない）。
+
+    // 日次上限。ロック取得より «前» に消費する。ロックを取ってから拒否すると、
+    // 上限に達した相手が自動tickのロックを奪って進行を止められてしまうため。
+    const quota = await consumeAiQuota({
+      globalBucket: 'tick:manual:global', globalLimit: GLOBAL_LIMIT(),
+      scopedBucket: `tick:manual:session:${id}`, scopedLimit: SESSION_LIMIT(),
+    })
+    if (!quota.allowed) {
+      if (quota.deniedBy === 'unavailable' || quota.deniedBy === 'config') {
+        return NextResponse.json(
+          { error: 'ai_quota_unavailable', message: 'ただいま分析を実行できません。時間をおいて試してください' },
+          { status: 503, headers: { 'Cache-Control': 'no-store' } },
+        )
+      }
+      const message = quota.deniedBy === 'global'
+        ? `本日の手動分析の上限（サイト全体で${quota.globalLimit}回）に達しました。自動運転は通常どおり続きます`
+        : `本日の手動分析の上限（${quota.scopedLimit}回）に達しました。自動運転は通常どおり続きます`
+      return NextResponse.json(
+        { error: 'ai_quota_exceeded', scope: quota.deniedBy, message },
+        { status: 429, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
+
+    // 自動tick（cron）との二重実行を防ぐ。取得できなければ409（手動側は自動側の日次カウンタに触れない）。
     const token = await tryAcquireTickLock(id, 5 * 60_000)
     if (!token) {
       return NextResponse.json(

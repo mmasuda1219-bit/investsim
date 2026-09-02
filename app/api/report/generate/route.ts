@@ -2,10 +2,18 @@ import { NextResponse } from 'next/server'
 import { buildReportPrompt } from '@/lib/report/prompt'
 import { streamReportClaude } from '@/lib/report/claude'
 import { isReaderProfile } from '@/lib/report/profile'
+import { consumeAiQuota, clientIp, limitFromEnv } from '@/lib/ai-usage/limit'
 import type { PreparedBundle, ReaderProfile } from '@/lib/report/types'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
+
+// このルートは Opus 4.8 を最大4500トークンで回す（1回$0.15前後）。認証が無く誰でも
+// 叩けるため、日次上限で «オーナーの財布» を守る。全体上限が実質の支出上限で、
+// IP上限は1人が全体枠を食い潰さないための補助（IPは偽装されうる）。
+// 数値は環境変数で上書きできる（本番はVercelのProject Settings）。
+const GLOBAL_LIMIT = () => limitFromEnv('AI_REPORT_DAILY_LIMIT', 50)
+const IP_LIMIT     = () => limitFromEnv('AI_REPORT_IP_DAILY_LIMIT', 5)
 
 // Minimal structural check — the bundle is produced by our own prepare
 // endpoint, but generate is a separate public route so we don't trust blindly.
@@ -48,6 +56,30 @@ export async function POST(req: Request) {
   // あり、ゲート判定・数値・バックテストには一切関与しない。不正/未知な値は
   // 400にせず黙って無視する（安全側フォールバック — 未回答時の既存挙動と同じ）。
   const profile: ReaderProfile | undefined = isReaderProfile(body?.profile) ? body.profile : undefined
+
+  // 日次上限。AIを呼ぶ «直前» に消費する（入力検証を通ったものだけを1回と数える）。
+  const ip = clientIp(req)
+  const quota = await consumeAiQuota({
+    globalBucket: 'report:global', globalLimit: GLOBAL_LIMIT(),
+    scopedBucket: `report:ip:${ip}`, scopedLimit: IP_LIMIT(),
+  })
+  if (!quota.allowed) {
+    // カウンタ自体が読めない場合（マイグレーション0004未実行・DB不調）は、通さず503。
+    // 費用のガードなので、壊れたときは «止める» 側に倒す（fail-closed）。
+    if (quota.deniedBy === 'unavailable' || quota.deniedBy === 'config') {
+      return NextResponse.json(
+        { error: 'ai_quota_unavailable', message: 'ただいまAIレポートを利用できません。時間をおいて試してください' },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
+    const message = quota.deniedBy === 'global'
+      ? `本日のAIレポートの上限（サイト全体で${quota.globalLimit}回）に達しました。日本時間の翌朝にリセットされます`
+      : `本日のAIレポートの上限（1人${quota.scopedLimit}回）に達しました。日本時間の翌朝にリセットされます`
+    return NextResponse.json(
+      { error: 'ai_quota_exceeded', scope: quota.deniedBy, message },
+      { status: 429, headers: { 'Cache-Control': 'no-store' } },
+    )
+  }
 
   try {
     const prompt = buildReportPrompt(body.bundle, profile)
