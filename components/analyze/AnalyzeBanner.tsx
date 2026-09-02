@@ -1,6 +1,6 @@
 'use client'
 
-// /analyze S-B2 — ヘッダ（<h1>分析</h1>＋説明文）と恒久免責を横並びにする。
+// /analyze S-B2 — ヘッダ（段階ラベル＋<h1>＋説明文）と恒久免責を横並びにする。
 // デスクトップでは左にヘッダ・右に免責の2カラム、モバイルでは縦積み。
 //
 // 免責の文言は app/learn/page.tsx から移設したもので、内容は一切変更していない
@@ -10,8 +10,12 @@
 export default function AnalyzeBanner() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      {/* 段階ラベルと見出しは SiteNav の定義（'まねる' / '名人の条件を過去に当てる'）
+          をそのまま使う。/trade・/review と同じ書式に揃えていないと、4段階の
+          どこにいるのかが画面から読み取れない。 */}
       <div>
-        <h1 className="text-2xl font-bold text-white">分析</h1>
+        <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">02 まねる</p>
+        <h1 className="text-2xl font-bold text-white mt-1">名人の条件を過去に当てる</h1>
         <p className="text-muted text-sm mt-1">
           クイックモードはニーズ軸プリセットで実データの数字プレビュー（無料・純計算）を確認し、
           同じ条件でAIレポート（現状分析・根拠つき未来予想）を生成します。

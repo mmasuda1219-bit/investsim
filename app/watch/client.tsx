@@ -194,14 +194,16 @@ interface NavBarProps {
 }
 function NavBar({ session, ticking }: NavBarProps) {
   return (
-    <nav className="border-b border-gray-800 bg-gray-900/90 backdrop-blur px-6 py-3 flex items-center gap-4 sticky top-0 z-30">
+    <nav className="border-b border-gray-800 bg-gray-900/90 backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4 sticky top-0 z-30">
       {/* ロゴとページ間リンクはグローバルの SiteNav が持つ。ここに置くと
-          ロゴが縦に2つ並ぶため、この帯は運用状態の表示だけに専念する。 */}
-      <span className="text-sm font-semibold text-white">AIの判断</span>
-      <span className="text-xs text-gray-500 border border-gray-700 px-2 py-0.5 rounded">Beta</span>
+          ロゴが縦に2つ並ぶため、この帯は運用状態の表示だけに専念する。
+          スマホ幅では横に詰まって「AIの判 / 断」「Tick / #1」と語中で折れるため、
+          この帯の項目はすべて whitespace-nowrap で1行に固定する。 */}
+      <span className="text-sm font-semibold text-white whitespace-nowrap">AIの判断</span>
+      <span className="text-xs text-gray-500 border border-gray-700 px-2 py-0.5 rounded whitespace-nowrap">Beta</span>
       {session && (
-        <div className="ml-auto flex items-center gap-3">
-          <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
+        <div className="ml-auto flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border whitespace-nowrap shrink-0 ${
             ticking
               ? 'border-yellow-600/50 text-yellow-400 bg-yellow-500/10 animate-pulse'
               : 'border-emerald-600/40 text-emerald-400 bg-emerald-500/10'
@@ -209,10 +211,11 @@ function NavBar({ session, ticking }: NavBarProps) {
             <span className="w-1.5 h-1.5 rounded-full bg-current" />
             {ticking ? '分析中...' : 'LIVE'}
           </div>
-          <div className={`text-sm font-bold tabular-nums ${pnlCls(session.pnl)}`}>
+          <div className={`text-sm font-bold tabular-nums whitespace-nowrap ${pnlCls(session.pnl)}`}>
             {session.pnl >= 0 ? '+' : ''}{fmtUSD(session.pnl)} ({fmtPct(session.pnlPct)})
           </div>
-          <div className="text-xs text-gray-600">Tick #{session.tickCount}</div>
+          {/* Tick番号は最も情報量が低いので、幅が足りないスマホでは落とす */}
+          <div className="hidden sm:block text-xs text-gray-600 whitespace-nowrap">Tick #{session.tickCount}</div>
         </div>
       )}
     </nav>

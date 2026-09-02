@@ -92,9 +92,11 @@ export default function PortfolioPage() {
             見るべきは儲けた額ではなく、判断の中身です。初期資本 {formatUSD(INITIAL_CASH)}
           </p>
         </div>
+        {/* whitespace-nowrap と shrink-0 が無いと、スマホ幅で見出しに押されて
+            「リセ / ッ / ト」の3行に折れる（実測 64x58px）。 */}
         <button
           onClick={handleReset}
-          className="px-4 py-2 bg-red-900/40 hover:bg-red-800/60 border border-red-700 text-red-300 hover:text-red-200 text-sm font-medium rounded-lg transition-colors"
+          className="shrink-0 whitespace-nowrap px-4 py-2 bg-red-900/40 hover:bg-red-800/60 border border-red-700 text-red-300 hover:text-red-200 text-sm font-medium rounded-lg transition-colors"
         >
           リセット
         </button>
@@ -216,12 +218,15 @@ export default function PortfolioPage() {
         ) : portfolio.positions.length === 0 ? (
           <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-sm space-y-3">
             <p>まだ保有銘柄がありません。</p>
+            {/* 「銘柄を探す」は `/`（LP）に戻るだけで銘柄を探せず、「スクリーナー」は
+                導線から外した `/screener` の旧名だった。実データで銘柄を出せるのは
+                `/learn` の自動スクリーニングだけなので、文言と行き先を揃える。 */}
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              <Link href="/" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors">
-                銘柄を探す
+              <Link href="/learn" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors">
+                条件から銘柄を探す
               </Link>
-              <Link href="/learn" className="px-4 py-2 bg-panel border border-border hover:border-blue-500 text-slate-300 hover:text-white text-xs font-medium rounded-lg transition-colors">
-                スクリーナーで絞り込む
+              <Link href="/trade" className="px-4 py-2 bg-panel border border-border hover:border-blue-500 text-slate-300 hover:text-white text-xs font-medium rounded-lg transition-colors">
+                自分で判断して売買する
               </Link>
             </div>
           </div>
