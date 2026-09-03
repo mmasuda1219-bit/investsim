@@ -1,5 +1,12 @@
-'use client'
-// Portfolio store — localStorage based, Supabase-ready interface
+// ポートフォリオの «形» と、画面から呼ぶAPIクライアント。
+//
+// 2026-09-03 以前はこのファイルが localStorage を直接読み書きし、残高チェックなどの
+// ルール判定もここ（ブラウザ内）で行っていた。アカウント化にあたり、保存先はDBへ、
+// 判定はサーバーへ移した（オーナー決定・DECISIONS 2026-09-03）。
+// 実体は lib/portfolio/server.ts と supabase/migrations/0006 の execute_trade。
+//
+// このファイルはブラウザ・サーバーの両方から読まれる（型と定数を共有するため）。
+// 'use client' は付けない。fetch を使う関数は画面（クライアントコンポーネント）からのみ呼ぶこと。
 
 export interface Position {
   symbol: string
@@ -30,83 +37,76 @@ export interface Portfolio {
   trades: Trade[]
 }
 
-const STORAGE_KEY = 'investsim_portfolio'
-const INITIAL_CASH = 100_000  // $100,000 starting capital
+export const INITIAL_CASH = 100_000  // $100,000 starting capital
 
-export function getPortfolio(): Portfolio {
-  // localStorage はサーバーサイドでは使えないのでguard必須
-  if (typeof window === 'undefined') return { cash: INITIAL_CASH, positions: [], trades: [] }
+/**
+ * 理由の最低文字数。/trade・TradeModal・APIの3か所で同じ値を使う。
+ * 以前は3か所に別々のリテラルが書かれていた（片方だけ変えると入口ごとに規律が変わる）。
+ */
+export const MIN_REASON = 10
+
+// ── 画面から呼ぶAPIクライアント ─────────────────────────────
+export type LoadResult =
+  | { status: 'ok'; portfolio: Portfolio }
+  /** 未ログイン。「見るのは自由・保存はログイン」なのでエラーではなく通常の分岐。 */
+  | { status: 'unauthenticated' }
+  | { status: 'error'; message: string }
+
+export type TradeResult =
+  | { ok: true; portfolio: Portfolio }
+  | { ok: false; message: string; unauthenticated?: boolean }
+
+async function load(path: string, init?: RequestInit): Promise<LoadResult> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : { cash: INITIAL_CASH, positions: [], trades: [] }
+    const res = await fetch(path, { cache: 'no-store', ...init })
+    if (res.status === 401) return { status: 'unauthenticated' }
+    if (!res.ok) return { status: 'error', message: '読み込めませんでした' }
+    return { status: 'ok', portfolio: (await res.json()) as Portfolio }
   } catch {
-    return { cash: INITIAL_CASH, positions: [], trades: [] }
+    return { status: 'error', message: '通信できませんでした' }
   }
 }
 
-export function savePortfolio(p: Portfolio): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(p))
+/** ログイン中の利用者の現金・持ち株・取引記録を取得する。 */
+export function fetchPortfolio(): Promise<LoadResult> {
+  return load('/api/portfolio')
 }
 
-export function resetPortfolio(): void {
-  savePortfolio({ cash: INITIAL_CASH, positions: [], trades: [] })
+/** 現金・持ち株・取引記録を初期状態に戻す。取り消せないので呼ぶ前に必ず確認を取ること。 */
+export function requestReset(): Promise<LoadResult> {
+  return load('/api/portfolio/reset', { method: 'POST' })
 }
 
-export interface TradeResult {
-  success: boolean
-  error?: string
-}
-
-export function executeTrade(
-  symbol: string,
-  name: string,
-  action: 'buy' | 'sell',
-  shares: number,
-  price: number,
-  reason?: string
-): TradeResult {
-  const portfolio = getPortfolio()
-  const total = shares * price
-
-  if (action === 'buy') {
-    if (portfolio.cash < total) {
-      return { success: false, error: `残高不足 (必要: $${total.toFixed(2)}, 残高: $${portfolio.cash.toFixed(2)})` }
+/**
+ * 売買を1回実行する。残高・持ち株の判定はサーバーが行うので、ここでは投げるだけ。
+ * 画面側で先に残高を判定して出し分けると、サーバーの判定と二重になっていつか食い違う。
+ */
+export async function submitTrade(input: {
+  symbol: string
+  name: string
+  action: 'buy' | 'sell'
+  shares: number
+  price: number
+  reason: string
+}): Promise<TradeResult> {
+  try {
+    const res = await fetch('/api/portfolio/trade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.status === 401) {
+      return { ok: false, unauthenticated: true, message: data.message ?? 'ログインすると売買の記録を残せます' }
     }
-    portfolio.cash -= total
-
-    const existing = portfolio.positions.find(p => p.symbol === symbol)
-    if (existing) {
-      // weighted average cost
-      const totalShares = existing.shares + shares
-      existing.avgCost = (existing.avgCost * existing.shares + price * shares) / totalShares
-      existing.shares = totalShares
-    } else {
-      portfolio.positions.push({ symbol, name, shares, avgCost: price })
-    }
-  } else {
-    const existing = portfolio.positions.find(p => p.symbol === symbol)
-    if (!existing || existing.shares < shares) {
-      return { success: false, error: `保有株数不足 (保有: ${existing?.shares ?? 0}株)` }
-    }
-    portfolio.cash += total
-    existing.shares -= shares
-    if (existing.shares === 0) {
-      portfolio.positions = portfolio.positions.filter(p => p.symbol !== symbol)
-    }
+    if (!res.ok) return { ok: false, message: data.message ?? '記録できませんでした' }
+    return { ok: true, portfolio: data.portfolio as Portfolio }
+  } catch {
+    return { ok: false, message: '通信できませんでした' }
   }
-
-  portfolio.trades.unshift({
-    id: Date.now().toString(),
-    timestamp: Date.now(),
-    symbol, name, action, shares, price,
-    ...(reason && reason.trim() ? { reason: reason.trim() } : {}),
-  })
-
-  savePortfolio(portfolio)
-  return { success: true }
 }
 
+// ── 純関数（サーバー・クライアント共通）──────────────────────
 export function getPortfolioValue(positions: Position[], prices: Record<string, number>): number {
   return positions.reduce((sum, pos) => sum + pos.shares * (prices[pos.symbol] ?? pos.avgCost), 0)
 }

@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { buildJudgements } from '@/lib/review/judgement'
 import {
-  getPortfolio,
-  resetPortfolio,
+  fetchPortfolio,
+  requestReset,
   getPortfolioValue,
+  INITIAL_CASH,
   type Portfolio,
 } from '@/lib/portfolio'
-
-const INITIAL_CASH = 100_000
 
 function formatUSD(value: number): string {
   return value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -30,9 +29,10 @@ export default function PortfolioPage() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [loadingPrices, setLoadingPrices] = useState(false)
+  // null = まだ判定中。false = 未ログイン（この面は «記録を見る» 面なのでログインが要る）。
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
 
-  const loadPortfolio = () => {
-    const p = getPortfolio()
+  const applyPortfolio = (p: Portfolio) => {
     setPortfolio(p)
     if (p.positions.length > 0) {
       setLoadingPrices(true)
@@ -54,15 +54,48 @@ export default function PortfolioPage() {
   }
 
   useEffect(() => {
-    loadPortfolio()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    let alive = true
+    fetchPortfolio().then(r => {
+      if (!alive) return
+      setSignedIn(r.status === 'ok')
+      if (r.status === 'ok') applyPortfolio(r.portfolio)
+    })
+    return () => { alive = false }
   }, [])
 
-  const handleReset = () => {
-    if (confirm('ポートフォリオをリセットしますか？全ての取引履歴と保有株が削除されます。')) {
-      resetPortfolio()
-      loadPortfolio()
-    }
+  const handleReset = async () => {
+    if (!confirm('ポートフォリオをリセットしますか？全ての取引履歴と保有株が削除されます。')) return
+    const r = await requestReset()
+    if (r.status === 'ok') applyPortfolio(r.portfolio)
+    else if (r.status === 'unauthenticated') setSignedIn(false)
+  }
+
+  if (signedIn === false) {
+    return (
+      <div className="max-w-xl mx-auto space-y-4">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">04 振り返る</p>
+          <h1 className="text-2xl font-bold text-white mt-1">判断を振り返る</h1>
+        </div>
+        <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-4">
+          <p className="text-slate-300 text-sm">
+            ここには<strong className="text-white">あなたの</strong>判断の記録が並びます。
+          </p>
+          <p className="text-muted text-xs leading-relaxed">
+            記録はアカウントに保存されるので、ログインが必要です。<br />
+            「見る」「まねる」はログインなしで使えます。
+          </p>
+          <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
+            <Link href="/auth/login" className="px-4 py-2 bg-white text-gray-900 text-xs font-medium rounded-lg hover:bg-gray-100 transition-colors">
+              ログイン
+            </Link>
+            <Link href="/watch" className="px-4 py-2 bg-panel border border-border text-slate-300 hover:text-white hover:border-blue-500 text-xs font-medium rounded-lg transition-colors">
+              ログインせずに見る
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!portfolio) {

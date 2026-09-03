@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { getPortfolio, executeTrade } from '@/lib/portfolio'
+import Link from 'next/link'
+import { fetchPortfolio, submitTrade, MIN_REASON, type Portfolio } from '@/lib/portfolio'
 
 /**
  * 銘柄詳細から直接売買するモーダル。
@@ -9,8 +10,11 @@ import { getPortfolio, executeTrade } from '@/lib/portfolio'
  * 「やる」(/trade) と同じく**理由の記入を必須**にする。入口が違っても規律を
  * 変えない。ここだけ理由なしで通せると「振り返る」の材料に穴が空き、
  * 判断の質を見返すという面の前提が崩れる。
+ *
+ * 2026-09-03: 保存先がブラウザからDBへ移り、残高・保有株数の判定もサーバー
+ * （execute_trade）に移った。ここでの事前チェックは «入力ミスをその場で気づかせる»
+ * ための表示上のものに留め、成否の権威はサーバーの応答とする。
  */
-const MIN_REASON = 10
 
 interface TradeModalProps {
   symbol: string
@@ -27,12 +31,25 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string>('')
   const [success, setSuccess] = useState(false)
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  const portfolio = getPortfolio()
+  useEffect(() => {
+    let alive = true
+    fetchPortfolio().then(r => {
+      if (!alive) return
+      setSignedIn(r.status === 'ok')
+      if (r.status === 'ok') setPortfolio(r.portfolio)
+    })
+    return () => { alive = false }
+  }, [])
+
   const total = shares * price
-  const cashAfter = action === 'buy' ? portfolio.cash - total : portfolio.cash + total
+  const cash = portfolio?.cash ?? 0
+  const cashAfter = action === 'buy' ? cash - total : cash + total
 
-  const heldPosition = portfolio.positions.find((p) => p.symbol === symbol)
+  const heldPosition = portfolio?.positions.find((p) => p.symbol === symbol)
   const heldShares = heldPosition?.shares ?? 0
 
   const handleClose = useCallback(() => {
@@ -54,16 +71,12 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
   const formatCurrency = (v: number) =>
     v.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })
 
-  const handleExecute = () => {
+  const handleExecute = async () => {
     setError('')
+    if (submitting) return
 
     if (!Number.isInteger(shares) || shares < 1) {
       setError('株数は1以上の整数を入力してください')
-      return
-    }
-
-    if (action === 'sell' && shares > heldShares) {
-      setError(`保有株数が不足しています（保有: ${heldShares}株）`)
       return
     }
 
@@ -72,18 +85,23 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
       return
     }
 
-    const result = executeTrade(symbol, name, action, shares, price, reason)
-
-    if (!result.success) {
-      setError(result.error ?? '取引に失敗しました')
-      return
+    setSubmitting(true)
+    try {
+      const result = await submitTrade({ symbol, name, action, shares, price, reason })
+      if (!result.ok) {
+        if (result.unauthenticated) setSignedIn(false)
+        setError(result.message)
+        return
+      }
+      setPortfolio(result.portfolio)
+      setSuccess(true)
+      setTimeout(() => {
+        onSuccess?.()
+        onClose()
+      }, 2000)
+    } finally {
+      setSubmitting(false)
     }
-
-    setSuccess(true)
-    setTimeout(() => {
-      onSuccess?.()
-      onClose()
-    }, 2000)
   }
 
   return (
@@ -111,6 +129,19 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
 
         {/* Body */}
         <div className="px-5 py-4 space-y-4">
+          {/* 未ログインの案内。判定中（null）は出さない＝ログイン済みの人にちらつかせない。 */}
+          {signedIn === false && (
+            <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2.5 text-xs text-amber-200 flex items-center justify-between gap-2 flex-wrap">
+              <span>記録を残すにはログインが必要です</span>
+              <Link
+                href="/auth/login"
+                className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-white text-gray-900 font-medium hover:bg-gray-100 transition-colors"
+              >
+                ログイン
+              </Link>
+            </div>
+          )}
+
           {/* Action tabs */}
           <div className="flex gap-2">
             <button
@@ -189,15 +220,21 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
                 <span className="text-white">{heldShares}株</span>
               </div>
             )}
+            {/* 残高は «自分の記録» なので、ログインして取得できたときだけ出す。
+                未ログインで 0 と表示すると、残高ゼロだと誤解させる。 */}
             <div className="flex justify-between pt-1 border-t border-[#334155]">
               <span className="text-slate-400">残高</span>
-              <span className="text-white">
-                {formatCurrency(portfolio.cash)}
-                <span className="text-slate-500 mx-1">→</span>
-                <span className={cashAfter >= 0 ? 'text-white' : 'text-red-400'}>
-                  {formatCurrency(cashAfter)}
+              {portfolio ? (
+                <span className="text-white">
+                  {formatCurrency(portfolio.cash)}
+                  <span className="text-slate-500 mx-1">→</span>
+                  <span className={cashAfter >= 0 ? 'text-white' : 'text-red-400'}>
+                    {formatCurrency(cashAfter)}
+                  </span>
                 </span>
-              </span>
+              ) : (
+                <span className="text-slate-500">{signedIn === false ? '—（未ログイン）' : '…'}</span>
+              )}
             </div>
           </div>
 

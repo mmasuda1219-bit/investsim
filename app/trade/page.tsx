@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import type { StockQuote } from '@/types'
-import { getPortfolio, executeTrade, type Portfolio } from '@/lib/portfolio'
+import { fetchPortfolio, submitTrade, MIN_REASON, type Portfolio } from '@/lib/portfolio'
 
 /**
  * 「やる」— 自分で判断して売買する練習場。
@@ -22,7 +22,6 @@ import { getPortfolio, executeTrade, type Portfolio } from '@/lib/portfolio'
  */
 
 const PRESET = ['AAPL', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'JPM']
-const MIN_REASON = 10
 
 const usd = (n: number) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -53,8 +52,19 @@ function TradePageBody() {
   const [reason, setReason] = useState('')
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
+  // 未ログインでも «画面は見せる»（見るのは自由）。売買しようとした時点でログインを促す。
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => { setPortfolio(getPortfolio()) }, [])
+  useEffect(() => {
+    let alive = true
+    fetchPortfolio().then(r => {
+      if (!alive) return
+      setSignedIn(r.status === 'ok')
+      if (r.status === 'ok') setPortfolio(r.portfolio)
+    })
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -74,21 +84,35 @@ function TradePageBody() {
   const sharesNum = Number(shares)
   const validShares = Number.isFinite(sharesNum) && sharesNum > 0
   const reasonOk = reason.trim().length >= MIN_REASON
-  const canTrade = !!quote && validShares && reasonOk
+  // 未ログイン（signedIn === false）でもボタンは押せるままにする。押した結果として
+  // ログインを促すほうが、最初から押せない画面より «何をすれば使えるか» が伝わる。
+  const canTrade = !!quote && validShares && reasonOk && !submitting
 
   const held = portfolio?.positions.find(p => p.symbol === symbol)?.shares ?? 0
 
-  const submit = useCallback((action: 'buy' | 'sell') => {
-    if (!quote) return
-    const r = executeTrade(quote.symbol, quote.name, action, sharesNum, quote.price, reason)
-    if (r.success) {
-      setResult({ ok: true, msg: `${action === 'buy' ? '買い' : '売り'} ${sharesNum}株を記録しました。理由も一緒に残しています。` })
-      setReason('')
-      setPortfolio(getPortfolio())
-    } else {
-      setResult({ ok: false, msg: r.error ?? '記録できませんでした' })
+  // 残高・保有株数の判定はサーバー（execute_trade）が行う。ここで先に判定して
+  // 出し分けると、判定が2か所に増えていつか食い違う。
+  const submit = useCallback(async (action: 'buy' | 'sell') => {
+    if (!quote || submitting) return
+    setSubmitting(true)
+    try {
+      const r = await submitTrade({
+        symbol: quote.symbol, name: quote.name, action,
+        shares: sharesNum, price: quote.price, reason,
+      })
+      if (r.ok) {
+        setResult({ ok: true, msg: `${action === 'buy' ? '買い' : '売り'} ${sharesNum}株を記録しました。理由も一緒に残しています。` })
+        setReason('')
+        setPortfolio(r.portfolio)
+        setSignedIn(true)
+      } else {
+        if (r.unauthenticated) setSignedIn(false)
+        setResult({ ok: false, msg: r.message })
+      }
+    } finally {
+      setSubmitting(false)
     }
-  }, [quote, sharesNum, reason])
+  }, [quote, sharesNum, reason, submitting])
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -101,6 +125,20 @@ function TradePageBody() {
           あとで「振り返る」を開いたとき、儲けた額ではなく判断の中身を見返せるようになります。
         </p>
       </header>
+
+      {/* 未ログインの案内。判定が済むまで（signedIn === null）は出さない。
+          先に出すとログイン済みの人にも一瞬ちらつく。 */}
+      {signedIn === false && (
+        <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-4 py-3 text-sm text-amber-200 flex items-center justify-between gap-3 flex-wrap">
+          <span>売買の記録を残すにはログインが必要です。読むだけならログインは要りません。</span>
+          <Link
+            href="/auth/login"
+            className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg bg-white text-gray-900 text-xs font-medium hover:bg-gray-100 transition-colors"
+          >
+            ログイン
+          </Link>
+        </div>
+      )}
 
       {/* ── 銘柄を選ぶ ─────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
