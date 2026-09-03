@@ -58,7 +58,11 @@ export function SiteNav() {
             })}
           </nav>
 
-          <div className="ml-auto flex items-center gap-2 shrink-0">
+          {/* shrink-0 だと検索ボックス（max-w-lg=512px）が縮まず、ログインボタンが
+              加わったスマホ幅で右にはみ出して全ページに横スクロールが出る。
+              グループ側を縮められるようにし、検索ボックスに幅を譲らせる。
+              ログインボタン側は AuthMenu が shrink-0 で自分の幅を守る。 */}
+          <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2">
             <StockSearch />
             <AuthMenu />
           </div>

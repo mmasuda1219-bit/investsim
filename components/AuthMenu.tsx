@@ -54,10 +54,11 @@ export function AuthMenu() {
   if (!isConfigured || !ready) return null
 
   if (!user) {
+    // shrink-0 で自分の幅を守る。ヘッダの幅が足りないときは、隣の検索ボックスが縮む。
     return (
       <Link
         href="/auth/login"
-        className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-white text-gray-800 hover:bg-gray-100 transition-colors"
+        className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-white text-gray-800 hover:bg-gray-100 transition-colors"
       >
         ログイン
       </Link>
