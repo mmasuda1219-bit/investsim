@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/ai-trader/engine'
 import { upsertSession } from '@/lib/ai-trader/store'
+import { getCurrentUserId } from '@/lib/auth/current-user'
+import { isAdminUserId } from '@/lib/auth/admin'
 
 export const runtime = 'nodejs'
 
@@ -15,10 +17,17 @@ export async function GET(
 }
 
 // 自動運転（サーバー側自動tick）のON/OFFのみを切り替える。date/count は保持。他フィールドは触らない。
+// 運営者だけ。ONにするとcronがAIを回し続けるので、訪問者に切り替えさせるとオーナーの費用になる。
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isAdminUserId(await getCurrentUserId())) {
+    return NextResponse.json(
+      { error: 'forbidden', message: '自動運転の切り替えは運営者のみです' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } },
+    )
+  }
   const { id } = await params
   const session = await getSession(id)
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })

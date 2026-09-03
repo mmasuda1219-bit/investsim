@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { runTick } from '@/lib/ai-trader/engine'
 import { tryAcquireTickLock, releaseTickLock } from '@/lib/ai-trader/store'
 import { consumeAiQuota, limitFromEnv } from '@/lib/ai-usage/limit'
+import { getCurrentUserId } from '@/lib/auth/current-user'
+import { isAdminUserId } from '@/lib/auth/admin'
 
 // 手動tickは認証が無く、1回で13銘柄分のAI呼び出しを回す。自動tick（cron経由・
 // CRON_SECRETで認証済み）には lib/ai-trader/auto.ts の日次上限3回/セッションが既にあるが、
@@ -22,6 +24,16 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // AIセッションはサイトに1本の公開記録。読むのは誰でも自由だが «動かす» のは運営者だけ。
+  // これまでは誰でも押せて、1回で13銘柄分のAI呼び出し＝オーナーの費用が出ていく状態だった。
+  // 日次上限より先に判定する（他人の押下で上限枠を減らさないため）。
+  if (!isAdminUserId(await getCurrentUserId())) {
+    return NextResponse.json(
+      { error: 'forbidden', message: 'AIを動かせるのは運営者のみです。判断の記録は自由に読めます' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } },
+    )
+  }
+
   try {
     const { id } = await params
 

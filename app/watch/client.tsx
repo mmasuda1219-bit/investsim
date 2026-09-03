@@ -233,6 +233,8 @@ export function AISessionClient() {
   const [tab, setTab]             = useState<'performance' | 'decisions' | 'trades' | 'learning'>('performance')
   const [hydrated, setHydrated]   = useState(false)
   const [restoring, setRestoring] = useState(true)
+  // AIを動かせるのは運営者だけ。読むのは誰でも自由なので、既定はfalse（操作UIを出さない）。
+  const [isAdmin, setIsAdmin]     = useState(false)
 
   // Chart state
   const [chartSymbol, setChartSymbol] = useState('AAPL')
@@ -264,30 +266,32 @@ export function AISessionClient() {
     if (savedInterval !== null) setIntervalS(Number(savedInterval))
     setHydrated(true)
 
-    const savedId = localStorage.getItem('ai_session_id')
+    // AIセッションは «サイトに1本» の公開記録で、全員が同じものを読む（オーナー決定・2026-09-03）。
+    // 以前は localStorage に持ったidを自分のものとして復元し、無ければ一覧の先頭（＝他人の
+    // セッション）を掴んで localStorage に書き込んでいた。「自分のもの」という概念が
+    // 存在しないのに個人に紐づけていたのが誤りだったので、毎回サイトの記録を読みに行く。
     const restore = async () => {
       try {
-        if (savedId) {
-          const res = await fetch(`/api/ai-session/${savedId}`)
-          if (res.ok) {
-            const data = await res.json()
-            if (!data.error) { setSession(data); return }
-          }
-          localStorage.removeItem('ai_session_id')
-        }
-        const listRes = await fetch('/api/ai-session')
+        const listRes = await fetch('/api/ai-session', { cache: 'no-store' })
         if (listRes.ok) {
           const list: AISession[] = await listRes.json()
-          if (list.length > 0) {
-            setSession(list[0])
-            localStorage.setItem('ai_session_id', list[0].id)
-          }
+          if (list.length > 0) setSession(list[0])
         }
       } finally {
         setRestoring(false)
       }
     }
     restore()
+
+    // «動かす» 操作は運営者だけ。表示を隠すのは親切のためで、権限の実体はAPI側にある
+    // （ここを信じて画面だけ隠しても、APIを直接叩かれれば意味がない）。
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : { isAdmin: false }))
+      .then(d => setIsAdmin(!!d.isAdmin))
+      .catch(() => setIsAdmin(false))
+
+    // 個人に紐づく概念ではなくなったので、以前の版が書いた値を掃除しておく。
+    localStorage.removeItem('ai_session_id')
   }, [])
 
   const runTick = useCallback(async (sessOverride?: AISession) => {
@@ -358,7 +362,9 @@ export function AISessionClient() {
   // Auto-tick countdown
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current)
-    if (!autoTick || !session) { setCountdown(0); return }
+    // 運営者以外ではタイマーを回さない。回すと訪問者のブラウザが定期的にtickを叩き、
+    // 403が返るだけの無駄な通信になる（読むだけの人には操作UIも出していない）。
+    if (!isAdmin || !autoTick || !session) { setCountdown(0); return }
 
     let remaining = interval
     setCountdown(remaining)
@@ -374,7 +380,7 @@ export function AISessionClient() {
 
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoTick, interval, session?.id])
+  }, [isAdmin, autoTick, interval, session?.id])
 
   // Auto-switch chart to most recently traded symbol
   useEffect(() => {
@@ -555,7 +561,11 @@ export function AISessionClient() {
             </div>
           </div>
 
-          {/* Controls */}
+          {/* Controls — 運営者だけ。
+              AIを1回動かすと13銘柄分の呼び出しが走り、費用はオーナー負担。リセットは
+              サイトの記録そのものを消す。以前はどちらも訪問者が押せる状態だった。
+              隠すのは親切のためで、権限の実体は各APIルート側にある。 */}
+          {isAdmin && (
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 space-y-3">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Auto Tick</div>
             <div className="flex items-center justify-between">
@@ -621,6 +631,7 @@ export function AISessionClient() {
               ✕ セッションをリセット
             </button>
           </div>
+          )}
 
           {/* Data sources */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
