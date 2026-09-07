@@ -405,6 +405,86 @@ export async function yf2GetStatements(symbol: string): Promise<StatementsData> 
   return data
 }
 
+// ── 決算（次回予定＋EPS実績vs予想）────────────────────────────────────────
+// 銘柄詳細の「決算情報」パネル用。quoteSummary の2モジュールから拾う:
+//   earningsHistory  … 直近四半期のEPS実績・予想・サプライズ率
+//   calendarEvents   … 次回決算の予定日
+// どちらも欠けることがある（新規上場・ETF・日本株など）ので、片方だけでも返す。
+export interface EarningsData {
+  nextEarningsDate?: number      // UNIX秒。パネルが「あと何日」を出すのに使う
+  nextEarningsDateStr?: string
+  epsHistory: Array<{
+    date: string
+    actual: number | null
+    estimate: number | null
+    surprise: number | null      // %
+  }>
+}
+
+const EARNINGS_TTL_MS = 3_600_000 // 1時間（四半期に一度しか動かない）
+
+export async function getEarnings(symbol: string): Promise<EarningsData> {
+  const cacheKey = `earnings:${symbol}`
+  const cached = readCache<EarningsData>(cacheKey, EARNINGS_TTL_MS)
+  if (cached) return cached
+
+  const client = await yf()
+  // 片方のモジュールが落ちても、もう片方は返す。決算パネルは «予定» と «実績» の
+  // どちらか一方でも十分に意味があるため、まとめて失敗させない。
+  const [histRes, calRes] = await Promise.allSettled([
+    client.quoteSummary(symbol, { modules: ['earningsHistory'] }),
+    client.quoteSummary(symbol, { modules: ['calendarEvents'] }),
+  ])
+
+  const out: EarningsData = { epsHistory: [] }
+
+  if (histRes.status === 'fulfilled') {
+    const rows: any[] = histRes.value?.earningsHistory?.history ?? []
+    out.epsHistory = rows
+      .map((r) => ({
+        date: fmtQuarter(r?.quarter),
+        actual: numOrNull(r?.epsActual),
+        estimate: numOrNull(r?.epsEstimate),
+        // surprisePercent は 0.05 = 5% の «比» で来ることがあるので百分率に揃える。
+        surprise: toPercent(r?.surprisePercent),
+      }))
+      .filter((r) => r.date)
+      .slice(-4)
+      .reverse()
+  }
+
+  if (calRes.status === 'fulfilled') {
+    const dates: any[] = calRes.value?.calendarEvents?.earnings?.earningsDate ?? []
+    const first = dates[0]
+    const d = first instanceof Date ? first : first ? new Date(first) : null
+    if (d && !Number.isNaN(d.getTime())) {
+      out.nextEarningsDate = Math.floor(d.getTime() / 1000)
+      out.nextEarningsDateStr = d.toISOString().slice(0, 10)
+    }
+  }
+
+  writeCache(cacheKey, out)
+  return out
+}
+
+function numOrNull(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function toPercent(v: unknown): number | null {
+  const n = numOrNull(v)
+  if (n === null) return null
+  // |値| <= 1 は比（0.05=5%）、それより大きいものは既に%で来ているとみなす。
+  return Math.abs(n) <= 1 ? n * 100 : n
+}
+
+function fmtQuarter(v: unknown): string {
+  const d = v instanceof Date ? v : v ? new Date(v as string) : null
+  if (!d || Number.isNaN(d.getTime())) return ''
+  return d.toISOString().slice(0, 10)
+}
+
 // Exposed for a targeted cache flush if ever needed (not used in hot paths).
 export function _clearYahoo2Cache(): void {
   cache.clear()

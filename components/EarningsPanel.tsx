@@ -18,13 +18,16 @@ interface Props { symbol: string }
 export function EarningsPanel({ symbol }: Props) {
   const [data, setData] = useState<EarningsData | null>(null)
   const [loading, setLoading] = useState(true)
+  // 「あと何日」の基準時刻。描画中に Date.now() を呼ぶと再描画のたびに値が変わり、
+  // Reactの純粋性の規約に反する（react-hooks/purity）。取得した時点で1回だけ固定する。
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null)
 
   useEffect(() => {
     fetch(`/api/stocks/${symbol}/earnings`)
       .then(r => r.json())
       .then(d => setData(d))
       .catch(() => setData({ epsHistory: [] }))
-      .finally(() => setLoading(false))
+      .finally(() => { setFetchedAt(Date.now()); setLoading(false) })
   }, [symbol])
 
   if (loading) return (
@@ -34,8 +37,8 @@ export function EarningsPanel({ symbol }: Props) {
     </div>
   )
 
-  const daysUntil = data?.nextEarningsDate
-    ? Math.ceil((data.nextEarningsDate * 1000 - Date.now()) / 86400000)
+  const daysUntil = data?.nextEarningsDate && fetchedAt
+    ? Math.ceil((data.nextEarningsDate * 1000 - fetchedAt) / 86400000)
     : null
 
   return (
@@ -98,7 +101,9 @@ export function EarningsPanel({ symbol }: Props) {
         </div>
       )}
 
-      {data?.epsHistory.length === 0 && (
+      {/* epsHistory は «無い» ことがある（APIがエラー本文を返した場合など）。
+          data だけの ?. では undefined.length で画面ごと落ちる。 */}
+      {!data?.epsHistory?.length && !data?.nextEarningsDateStr && (
         <p className="text-muted text-sm">決算データを取得できませんでした</p>
       )}
     </div>

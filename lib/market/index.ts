@@ -2,7 +2,17 @@ import type { StockQuote, HistoricalBar, FundamentalsData, SearchResult } from '
 import type { StatementsData } from '@/lib/statements/types'
 import type { NewsItem } from '@/lib/report/types'
 
-type Period = '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y'
+// 銘柄詳細のPeriodSelectorが出す分足・時間足も含む。providers/yahoo2 の RANGE_MAP は
+// 元からこれら全部を持っているので、この型が日足以上しか許していないほうが実態から遅れていた。
+export type Period =
+  | '1m' | '5m' | '15m' | '30m' | '1h'
+  | '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y'
+
+/** 外から来た文字列（URLのクエリなど）を Period に絞り込む。 */
+const PERIODS: readonly Period[] = ['1m', '5m', '15m', '30m', '1h', '1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y']
+export function isPeriod(v: string | null | undefined): v is Period {
+  return !!v && (PERIODS as readonly string[]).includes(v)
+}
 
 const PROVIDER = process.env.NEXT_PUBLIC_DATA_PROVIDER ?? 'yahoo'
 
