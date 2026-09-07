@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { LoginLink } from '@/components/LoginLink'
 
 // Supabase未設定（ローカルでenvが無い等）でもクラッシュしないよう判定
 const isConfigured =
@@ -56,12 +56,7 @@ export function AuthMenu() {
   if (!user) {
     // shrink-0 で自分の幅を守る。ヘッダの幅が足りないときは、隣の検索ボックスが縮む。
     return (
-      <Link
-        href="/auth/login"
-        className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-white text-gray-800 hover:bg-gray-100 transition-colors"
-      >
-        ログイン
-      </Link>
+      <LoginLink className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-white text-gray-800 hover:bg-gray-100 transition-colors" />
     )
   }
 

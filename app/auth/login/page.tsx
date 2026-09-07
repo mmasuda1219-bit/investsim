@@ -3,16 +3,22 @@
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { safeNextPath } from '@/lib/auth/next-path'
 
 function LoginForm() {
   const searchParams = useSearchParams()
   const errorMsg = searchParams.get('error')
+  // 「やる」「振り返る」の途中で来た人を、ログイン後に元の場所へ返すための戻り先。
+  // ここでも検証はするが、最終判断は /auth/callback 側（URLは手で書けるため）。
+  const next = safeNextPath(searchParams.get('next'))
 
   const signInWithGoogle = async () => {
     const supabase = createClient()
+    const callback = new URL('/auth/callback', window.location.origin)
+    if (next) callback.searchParams.set('next', next)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callback.toString() },
     })
   }
 
@@ -22,7 +28,9 @@ function LoginForm() {
         <div className="text-3xl mb-2">📈</div>
         <h1 className="text-white text-xl font-bold mb-1">InvestSim</h1>
         <p className="text-muted text-sm mb-6">
-          ログインするとポートフォリオを保存できます
+          ログインすると、売買と判断の記録が
+          <br />
+          あなたのアカウントに残ります
         </p>
 
         {errorMsg && (
@@ -44,8 +52,16 @@ function LoginForm() {
           Googleでログイン
         </button>
 
-        <p className="text-muted text-xs mt-4">
-          ※ ログインなしでも銘柄検索・シグナル確認は利用可能
+        {/* 「見るだけOK・保存はログイン」の方針をここでも明示する。
+            旧文言は削除済みのスクリーナー機能を指していた。 */}
+        <p className="text-muted text-xs mt-4 leading-relaxed">
+          「見る」「まねる」はログインなしで使えます。
+          {next && (
+            <>
+              <br />
+              ログイン後は元のページに戻ります。
+            </>
+          )}
         </p>
       </div>
     </div>
