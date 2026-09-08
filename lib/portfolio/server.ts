@@ -35,6 +35,8 @@ type TradeRow = {
   shares: number | string
   price: number | string
   reason: string | null
+  /** migration 0007 以前の行には無い。null は練習場の売買とみなす。 */
+  source: 'practice' | 'past' | null
 }
 
 /**
@@ -57,6 +59,7 @@ function tradeFromRow(r: TradeRow): Trade {
     shares: num(r.shares),
     price: num(r.price),
     ...(r.reason ? { reason: r.reason } : {}),
+    source: r.source ?? 'practice',
   }
 }
 
@@ -81,7 +84,7 @@ export async function getPortfolio(userId: string): Promise<Portfolio> {
     client.from('portfolios').select('cash, positions').eq('user_id', userId).maybeSingle(),
     client
       .from('trades')
-      .select('id, executed_at, symbol, name, action, shares, price, reason')
+      .select('id, executed_at, symbol, name, action, shares, price, reason, source')
       .eq('user_id', userId)
       .order('executed_at', { ascending: false })
       // 「振り返る」は直近を見る面。全件を無制限に返すと件数が増えたとき応答が重くなる。
@@ -145,7 +148,65 @@ export async function executeTrade(
   }
 }
 
-/** 初期状態に戻す（現金・持ち株・取引記録すべて）。 */
+export type PastTradeErrorCode = 'bad_input' | 'future_date'
+
+export type RecordPastResult =
+  | { ok: true; portfolio: Portfolio; tradeId: string }
+  | { ok: false; code: PastTradeErrorCode }
+
+/**
+ * 過去にやった取引を1件記録する（migration 0007 の record_past_trade）。
+ *
+ * **現金・持ち株は動かさない。** 練習場の売買ではなく «本人が実際にやったことの記録» で、
+ * 今の残高で過去の取引の可否を判定するのは筋が通らないため（0007 のコメント参照）。
+ */
+export async function recordPastTrade(
+  userId: string,
+  input: {
+    symbol: string
+    name: string
+    action: 'buy' | 'sell'
+    shares: number
+    price: number
+    reason?: string
+    /** ISO文字列。画面から来た YYYY-MM-DD をAPIルートで正午UTCに寄せてから渡す */
+    executedAt: string
+  },
+): Promise<RecordPastResult> {
+  const client = getAdminClient()
+  const { data, error } = await client.rpc('record_past_trade', {
+    p_user_id:     userId,
+    p_symbol:      input.symbol,
+    p_name:        input.name,
+    p_action:      input.action,
+    p_shares:      input.shares,
+    p_price:       input.price,
+    p_reason:      input.reason ?? null,
+    p_executed_at: input.executedAt,
+  })
+  if (error) throw new Error(`record_past_trade failed: ${error.message}`)
+
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row || typeof row.ok !== 'boolean') {
+    throw new Error('record_past_trade returned an unexpected shape')
+  }
+  if (!row.ok) return { ok: false, code: (row.error_code ?? 'bad_input') as PastTradeErrorCode }
+
+  return { ok: true, tradeId: String(row.trade_id), portfolio: await getPortfolio(userId) }
+}
+
+/** 記録した過去の取引を1件消す。練習場の売買は消えない（SQL側で source='past' に限定）。 */
+export async function removePastTrade(userId: string, tradeId: string): Promise<boolean> {
+  const client = getAdminClient()
+  const { data, error } = await client.rpc('delete_past_trade', {
+    p_user_id: userId,
+    p_trade_id: tradeId,
+  })
+  if (error) throw new Error(`delete_past_trade failed: ${error.message}`)
+  return data === true
+}
+
+/** 初期状態に戻す（現金・持ち株・練習場の取引記録）。過去の取引の記録は 0007 以降は消えない。 */
 export async function resetPortfolio(userId: string): Promise<Portfolio> {
   const client = getAdminClient()
   const { error } = await client.rpc('reset_portfolio', { p_user_id: userId })

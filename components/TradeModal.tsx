@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
-import { fetchPortfolio, submitTrade, MIN_REASON, type Portfolio } from '@/lib/portfolio'
+import { LoginLink } from '@/components/LoginLink'
+import { fetchPortfolio, submitTrade, type Portfolio } from '@/lib/portfolio'
+import { composeReason, validateParts, fieldsFor, type ReasonParts } from '@/lib/trade/reason'
+import { ReasonFields } from './ReasonFields'
 
 /**
  * 銘柄詳細から直接売買するモーダル。
@@ -14,6 +17,10 @@ import { fetchPortfolio, submitTrade, MIN_REASON, type Portfolio } from '@/lib/p
  * 2026-09-03: 保存先がブラウザからDBへ移り、残高・保有株数の判定もサーバー
  * （execute_trade）に移った。ここでの事前チェックは «入力ミスをその場で気づかせる»
  * ための表示上のものに留め、成否の権威はサーバーの応答とする。
+ *
+ * 2026-09-03(2): 理由の入力を /trade と同時に «問いへの分解» へ変更（JOURNEY.md 断絶2）。
+ * 問いの定義と検証は lib/trade/reason.ts に1か所化し、UIは ReasonFields を共有する。
+ * ここに独自の問いを書かないこと（入口ごとに規律が変わるのを防ぐ）。
  */
 
 interface TradeModalProps {
@@ -28,7 +35,9 @@ interface TradeModalProps {
 export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose, onSuccess }: TradeModalProps) {
   const [action, setAction] = useState<'buy' | 'sell'>(defaultAction)
   const [shares, setShares] = useState<number>(1)
-  const [reason, setReason] = useState('')
+  // 買いと売りで問いが違うので入力も別に持つ。切り替えで書いたものが消えない。
+  const [parts, setParts] = useState<{ buy: ReasonParts; sell: ReasonParts }>({ buy: {}, sell: {} })
+  const [touched, setTouched] = useState<{ buy: Record<string, boolean>; sell: Record<string, boolean> }>({ buy: {}, sell: {} })
   const [error, setError] = useState<string>('')
   const [success, setSuccess] = useState(false)
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null)
@@ -52,9 +61,22 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
   const heldPosition = portfolio?.positions.find((p) => p.symbol === symbol)
   const heldShares = heldPosition?.shares ?? 0
 
+  const current = parts[action]
+  const errors = useMemo(() => validateParts(action, current), [action, current])
+
+  const setPart = useCallback((key: string, value: string) => {
+    setParts(p => ({ ...p, [action]: { ...p[action], [key]: value } }))
+    setError('')
+  }, [action])
+
+  const markTouched = useCallback((key: string) => {
+    setTouched(t => ({ ...t, [action]: { ...t[action], [key]: true } }))
+  }, [action])
+
   const handleClose = useCallback(() => {
     setShares(1)
-    setReason('')
+    setParts({ buy: {}, sell: {} })
+    setTouched({ buy: {}, sell: {} })
     setError('')
     setSuccess(false)
     onClose()
@@ -80,14 +102,20 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
       return
     }
 
-    if (reason.trim().length < MIN_REASON) {
-      setError(`なぜそう判断したかを${MIN_REASON}文字以上で書いてください`)
+    if (!errors.ok) {
+      // どの問いが足りないかは各入力の下に出る。ここでは «触っていない» 項目にも
+      // 印を出せるよう、全項目を touched にしてから止める。
+      setTouched(t => ({ ...t, [action]: Object.fromEntries(Object.keys(errors.byKey).map(k => [k, true])) }))
+      setError('必須の問いを埋めてください')
       return
     }
 
     setSubmitting(true)
     try {
-      const result = await submitTrade({ symbol, name, action, shares, price, reason })
+      const result = await submitTrade({
+        symbol, name, action, shares, price,
+        reason: composeReason(action, current),
+      })
       if (!result.ok) {
         if (result.unauthenticated) setSignedIn(false)
         setError(result.message)
@@ -133,12 +161,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
           {signedIn === false && (
             <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2.5 text-xs text-amber-200 flex items-center justify-between gap-2 flex-wrap">
               <span>記録を残すにはログインが必要です</span>
-              <Link
-                href="/auth/login"
-                className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-white text-gray-900 font-medium hover:bg-gray-100 transition-colors"
-              >
-                ログイン
-              </Link>
+              <LoginLink className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-white text-gray-900 font-medium hover:bg-gray-100 transition-colors" />
             </div>
           )}
 
@@ -186,20 +209,19 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
             </div>
           </div>
 
-          {/* 理由（必須）— /trade と同じ規律。入口が違っても変えない */}
-          <div>
-            <label htmlFor="trade-reason" className="text-xs text-slate-400 mb-1 block">
-              なぜそう判断したか <span className="text-emerald-400">（必須）</span>
-            </label>
-            <textarea
-              id="trade-reason"
-              rows={2}
-              value={reason}
-              onChange={(e) => { setReason(e.target.value); setError('') }}
-              placeholder="例: 決算が良く、下げたところを拾いたい"
-              className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-white text-sm leading-relaxed placeholder:text-slate-600 focus:outline-none focus:border-blue-500"
+          {/* 理由（必須）— /trade と同じ規律・同じ問い。入口が違っても変えない */}
+          <div className="space-y-2">
+            <ReasonFields
+              fields={fieldsFor(action)}
+              parts={current}
+              onChange={setPart}
+              errors={errors.byKey}
+              touched={touched[action]}
+              onBlur={markTouched}
+              compact
+              idPrefix={`modal-${action}`}
             />
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-slate-500">
               あとで「振り返る」で、この判断と結果を見比べられます。
             </p>
           </div>

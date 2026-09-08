@@ -29,6 +29,14 @@ export interface Trade {
    * 任意フィールドにしてある（形式互換を壊さない）。読む側は未設定を許容すること。
    */
   reason?: string
+  /**
+   * 練習場の売買か、本人が «あとから» 入力した過去の取引の記録か（migration 0007）。
+   * 未設定は 'practice' とみなす（0007 以前に保存された行）。
+   *
+   * **表示側は必ず見分けを付けること。** 混ぜると「儲けた額」の集計に実際の取引が
+   * 混ざり、どれが練習でどれが記録なのか本人にも分からなくなる。
+   */
+  source?: 'practice' | 'past'
 }
 
 export interface Portfolio {
@@ -100,6 +108,56 @@ export async function submitTrade(input: {
       return { ok: false, unauthenticated: true, message: data.message ?? 'ログインすると売買の記録を残せます' }
     }
     if (!res.ok) return { ok: false, message: data.message ?? '記録できませんでした' }
+    return { ok: true, portfolio: data.portfolio as Portfolio }
+  } catch {
+    return { ok: false, message: '通信できませんでした' }
+  }
+}
+
+export type PastTradeResult =
+  | { ok: true; portfolio: Portfolio }
+  | { ok: false; message: string; unauthenticated?: boolean }
+
+/**
+ * 過去にやった取引を1件«記録»する。練習場の売買とは別物で、
+ * **仮想の現金・持ち株は動かない**（migration 0007 の record_past_trade）。
+ */
+export async function submitPastTrade(input: {
+  symbol: string
+  name: string
+  action: 'buy' | 'sell'
+  shares: number
+  price: number
+  reason: string
+  /** 本人が入力した過去の日付（YYYY-MM-DD） */
+  executedOn: string
+}): Promise<PastTradeResult> {
+  try {
+    const res = await fetch('/api/portfolio/past-trade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.status === 401) {
+      return { ok: false, unauthenticated: true, message: data.message ?? 'ログインすると記録を残せます' }
+    }
+    if (!res.ok) return { ok: false, message: data.message ?? '記録できませんでした' }
+    return { ok: true, portfolio: data.portfolio as Portfolio }
+  } catch {
+    return { ok: false, message: '通信できませんでした' }
+  }
+}
+
+/** 記録した過去の取引を1件消す。練習場の売買は消せない。 */
+export async function deletePastTrade(tradeId: string): Promise<PastTradeResult> {
+  try {
+    const res = await fetch(`/api/portfolio/past-trade?id=${encodeURIComponent(tradeId)}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    if (res.status === 401) {
+      return { ok: false, unauthenticated: true, message: 'ログインが必要です' }
+    }
+    if (!res.ok) return { ok: false, message: data.message ?? '消せませんでした' }
     return { ok: true, portfolio: data.portfolio as Portfolio }
   } catch {
     return { ok: false, message: '通信できませんでした' }

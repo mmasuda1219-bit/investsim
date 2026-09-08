@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { LoginLink } from '@/components/LoginLink'
 import { buildJudgements } from '@/lib/review/judgement'
+import { parseReason } from '@/lib/trade/reason'
 import {
   fetchPortfolio,
   requestReset,
@@ -23,6 +25,30 @@ function formatDate(timestamp: number): string {
   const hh = String(d.getHours()).padStart(2, '0')
   const min = String(d.getMinutes()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd} ${hh}:${min}`
+}
+
+/**
+ * 保存された理由を表示する。
+ *
+ * 2026-09-03 から `/trade`・TradeModal は理由を «問いへの分解» で保存する
+ * （見出し付きテキスト・lib/trade/reason.ts）。見出しがあれば問いごとに分けて出し、
+ * 無ければ旧形式の自由記述としてそのまま出す。**旧データを欠けたように見せない。**
+ */
+function ReasonReadout({ text }: { text: string }) {
+  const sections = parseReason(text)
+  if (sections.length === 1 && sections[0].label === null) {
+    return <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{sections[0].value}</p>
+  }
+  return (
+    <dl className="space-y-1">
+      {sections.map((s, i) => (
+        <div key={`${s.label ?? 'free'}-${i}`} className="flex gap-2">
+          <dt className="text-[11px] text-muted shrink-0 w-20 pt-0.5">{s.label ?? '—'}</dt>
+          <dd className="text-sm text-slate-300 leading-relaxed whitespace-pre-line min-w-0">{s.value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
 }
 
 export default function PortfolioPage() {
@@ -86,9 +112,7 @@ export default function PortfolioPage() {
             「見る」「まねる」はログインなしで使えます。
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
-            <Link href="/auth/login" className="px-4 py-2 bg-white text-gray-900 text-xs font-medium rounded-lg hover:bg-gray-100 transition-colors">
-              ログイン
-            </Link>
+            <LoginLink className="px-4 py-2 bg-white text-gray-900 text-xs font-medium rounded-lg hover:bg-gray-100 transition-colors" />
             <Link href="/watch" className="px-4 py-2 bg-panel border border-border text-slate-300 hover:text-white hover:border-blue-500 text-xs font-medium rounded-lg transition-colors">
               ログインせずに見る
             </Link>
@@ -149,9 +173,19 @@ export default function PortfolioPage() {
                 <p className="text-xs text-muted">
                   「やる」で売買すると、そのときに書いた理由と、あとで出た結果がここに並びます。
                 </p>
-                <Link href="/trade" className="inline-block text-xs text-emerald-400 hover:text-emerald-300 pt-1">
-                  やってみる →
-                </Link>
+                {/* 結果が出るまで待たずに始められる道を、空の状態でこそ見せる。
+                    すでに実際に売買している人は、来た時点で振り返る材料を持っている。 */}
+                <p className="text-xs text-muted leading-relaxed pt-1">
+                  すでに実際に売買したことがあるなら、<strong className="text-slate-300">過去の取引を入れれば今日から振り返れます。</strong>
+                </p>
+                <div className="flex items-center justify-center gap-4 flex-wrap pt-1">
+                  <Link href="/trade" className="text-xs text-emerald-400 hover:text-emerald-300">
+                    やってみる →
+                  </Link>
+                  <Link href="/review/backfill" className="text-xs text-emerald-400 hover:text-emerald-300">
+                    過去の取引を記録する →
+                  </Link>
+                </div>
               </div>
             )
           }
@@ -173,6 +207,13 @@ export default function PortfolioPage() {
                   <div key={`${j.symbol}-${j.entryAt}-${i}`} className="bg-panel border border-border rounded-xl p-4 space-y-3">
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="font-mono font-bold text-white text-sm">{j.symbol}</span>
+                      {/* 練習場の売買と «実際にやった取引の記録» を必ず見分けられるようにする。
+                          混ぜて見せると、どれが練習でどれが本物か本人にも分からなくなる。 */}
+                      {j.source === 'past' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-blue-700/60 bg-blue-950/30 text-blue-300">
+                          実際の取引の記録
+                        </span>
+                      )}
                       <span className="text-xs text-muted">{j.shares.toLocaleString()}株</span>
                       {closedTrade ? (
                         <>
@@ -191,7 +232,7 @@ export default function PortfolioPage() {
                       <div>
                         <p className="text-[11px] text-muted mb-0.5">買ったときに考えていたこと</p>
                         {j.entryReason ? (
-                          <p className="text-sm text-slate-300 leading-relaxed">{j.entryReason}</p>
+                          <ReasonReadout text={j.entryReason} />
                         ) : (
                           <p className="text-xs text-slate-600">理由が残っていません（記録を始める前の取引です）</p>
                         )}
@@ -200,7 +241,7 @@ export default function PortfolioPage() {
                         <div>
                           <p className="text-[11px] text-muted mb-0.5">売ったときに考えていたこと</p>
                           {j.exitReason ? (
-                            <p className="text-sm text-slate-300 leading-relaxed">{j.exitReason}</p>
+                            <ReasonReadout text={j.exitReason} />
                           ) : (
                             <p className="text-xs text-slate-600">理由が残っていません</p>
                           )}
@@ -213,7 +254,11 @@ export default function PortfolioPage() {
 
               <p className="text-[11px] text-muted leading-relaxed">
                 買いと売りは「買った順に売れていく」とみなして対応づけています。
+                練習場の売買と「実際の取引の記録」は別々に突き合わせます。
                 {closedCount < 3 && '結果が出た取引が3件未満のため、傾向としてはまだ読めません。'}
+                <Link href="/review/backfill" className="text-emerald-400 hover:text-emerald-300 ml-1">
+                  過去の取引を記録する →
+                </Link>
               </p>
             </div>
           )
