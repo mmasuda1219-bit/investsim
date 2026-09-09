@@ -10,6 +10,8 @@ import { normalizeLearningMemory } from '@/lib/ai-trader/memory'
 import type { InvestorId } from '@/types'
 import { MasterSignals } from '@/components/MasterSignals'
 import { MarketOverview } from '@/components/MarketOverview'
+import TickSummary from '@/components/watch/TickSummary'
+import DecisionCard from '@/components/watch/DecisionCard'
 
 const TradingChart = dynamic(() => import('@/components/TradingChart'), {
   ssr: false,
@@ -96,6 +98,24 @@ function toChartTrades(aiTrades: AITrade[], symbol: string): Trade[] {
 
   return result
 }
+
+// session.decisions は複数tickぶんが新しい順に最大50件積まれた1本の配列で、tickの境界は
+// 記録されていない（AIDecisionに時刻が無い）。ただし1回のtickでは1銘柄につき1判断しか
+// 出ないので、「先頭から、銘柄が重複しない連続した並び」が直近1回ぶんになる。
+// 境界の判定が近似である点は正直に書いておく（engine側がtickIdを持てば厳密になる。別スライス）。
+function leadingUniqueRun(decisions: AIDecision[]): AIDecision[] {
+  const seen = new Set<string>()
+  const out: AIDecision[] = []
+  for (const d of decisions) {
+    if (seen.has(d.symbol)) break
+    seen.add(d.symbol)
+    out.push(d)
+  }
+  return out
+}
+
+// 「これより前の判断」を開いたときに一度に出す上限。
+const OLDER_DECISION_LIMIT = 12
 
 // 投資家人格の選択肢。スライス1はバフェット＋汎用の2択のみ（他4人は後続スライスでテキスト追加）。
 const PERSONA_OPTIONS: Array<{ id: InvestorId | undefined; label: string }> = [
@@ -203,14 +223,19 @@ function NavBar({ session, ticking }: NavBarProps) {
       <span className="text-xs text-muted border border-border px-2 py-0.5 rounded whitespace-nowrap">Beta</span>
       {session && (
         <div className="ml-auto flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className={`flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border whitespace-nowrap shrink-0 ${
-            ticking
-              ? 'border-yellow-200 text-yellow-700 bg-yellow-50 animate-pulse'
-              : 'border-emerald-200 text-emerald-700 bg-emerald-50'
-          }`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-current" />
-            {ticking ? '分析中...' : 'LIVE'}
-          </div>
+          {/* 常時点灯の「LIVE」は実態と合わない（自動tickは1日3回まで）。偽のリアルタイム風
+              表示はこのサイトが最も避けたい視覚言語なので、実際に動いている間だけ状態を出し、
+              それ以外は «最後に分析した時刻» という検証可能な事実を出す。 */}
+          {ticking ? (
+            <div className="flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border border-border bg-surface text-ink-2 whitespace-nowrap shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+              分析中...
+            </div>
+          ) : (
+            <span className="text-sm text-muted tabular-nums whitespace-nowrap shrink-0">
+              最終更新 {ago(session.lastTickAt)}
+            </span>
+          )}
           <div className={`text-base font-bold tabular-nums whitespace-nowrap ${pnlCls(session.pnl)}`}>
             {session.pnl >= 0 ? '+' : ''}{fmtUSD(session.pnl)} ({fmtPct(session.pnlPct)})
           </div>
@@ -230,7 +255,8 @@ export function AISessionClient() {
   const [interval, setIntervalS]  = useState(120)
   const [countdown, setCountdown] = useState(0)
   const [error, setError]         = useState<string | null>(null)
-  const [tab, setTab]             = useState<'performance' | 'decisions' | 'trades' | 'learning'>('performance')
+  const [tab, setTab]             = useState<'performance' | 'trades' | 'learning'>('performance')
+  const [showOlder, setShowOlder] = useState(false)
   const [hydrated, setHydrated]   = useState(false)
   const [restoring, setRestoring] = useState(true)
   // AIを動かせるのは運営者だけ。読むのは誰でも自由なので、既定はfalse（操作UIを出さない）。
@@ -415,7 +441,25 @@ export function AISessionClient() {
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pt-4">
         <MarketOverview />
       </div>
-      <StartScreen onStart={startSession} />
+      {/* セッション作成は運営者だけの操作。読むだけの人にフォームを見せると
+          「自分がAIを起動する場所」に見えてしまうし、実際APIも通らない。
+          一般の利用者には、まだ記録が無いことを正直に伝える。 */}
+      {isAdmin ? (
+        <StartScreen onStart={startSession} />
+      ) : (
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-16">
+          <div className="max-w-[42rem] mx-auto bg-panel border border-border rounded-2xl px-6 py-10 space-y-3">
+            <h2 className="text-xl font-semibold text-ink">まだAIの記録がありません</h2>
+            <p className="text-base text-ink-2 leading-relaxed">
+              このページは、AIが実際の市場データを読んで下した売買判断を、そのまま公開している記録です。
+              最初の分析が行われると、いつ・どの銘柄を・なぜ選び・何をどう判断したのかがここに並びます。
+            </p>
+            <p className="text-sm text-muted leading-relaxed">
+              分析を動かせるのは運営者だけです。読むのはログインなしで自由にできます。
+            </p>
+          </div>
+        </div>
+      )}
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-10">
         <MasterSignals />
       </div>
@@ -430,6 +474,25 @@ export function AISessionClient() {
   } = session
   const learning = normalizeLearningMemory(session.learning)
   const holdingSymbols = Object.keys(holdings)
+
+  // この回でAIが見た銘柄。watchlist が正（engine が runTick の冒頭で書いている）。
+  const watchlist = session.watchlist ?? []
+  const latestDecisions = leadingUniqueRun(decisions)
+  const olderDecisions  = decisions.slice(latestDecisions.length)
+  // engine は「対象を選ぶ→AIに問う」の順なので、AIの応答が取れなかった回は
+  // 「watchlistは新しいのに判断はひとつ前の回のまま」になる（実データで発生している）。
+  // 直近の判断グループが全部watchlistに入っているときだけ「この回の判断」と名乗る。
+  const watchSet = new Set(watchlist)
+  const decisionsFromLatestTick =
+    watchlist.length > 0 &&
+    latestDecisions.length > 0 &&
+    latestDecisions.every(d => watchSet.has(d.symbol))
+  const analyzedSymbols = watchlist.length > 0 ? watchlist : latestDecisions.map(d => d.symbol)
+  // 当日変化率は判断に載っている実測値だけを使う。判断が無い銘柄の数値は作らない。
+  const changeBySymbol: Record<string, number | undefined> = {}
+  if (decisionsFromLatestTick || watchlist.length === 0) {
+    for (const d of latestDecisions) changeBySymbol[d.symbol] = d.change
+  }
   const allSymbols = Array.from(new Set([...holdingSymbols, ...(session.watchlist ?? [])].slice(0, 8)))
 
   const PERIODS: { label: string; value: '1y' | '5y' | '10y' }[] = [
@@ -450,6 +513,85 @@ export function AISessionClient() {
 
       <div className="max-w-screen-2xl mx-auto px-6 pt-4">
         <MarketOverview />
+      </div>
+
+      {/* ── 主役: 最新tickの判断 ───────────────────────────────────────
+          «AIがいつ・なぜその銘柄を選び・何をどう判断したか» をページの最初に置く。
+          以前はタブの中の max-h-[560px] の枠に押し込まれ、開いた人が最初に見るのは
+          運用成績（＝結果の数字）だった。読ませたい順に並べ替える。 */}
+      <div className="max-w-screen-lg mx-auto px-4 sm:px-6 pt-5 space-y-5">
+        <TickSummary
+          lastTickAt={lastTickAt}
+          tickCount={tickCount}
+          analyzedSymbols={analyzedSymbols}
+          holdingSymbols={holdingSymbols}
+          changeBySymbol={changeBySymbol}
+          decisionsRecorded={decisionsFromLatestTick || watchlist.length === 0}
+        />
+
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <h2 className="text-ink font-semibold">
+              {decisionsFromLatestTick || watchlist.length === 0 ? 'この回のAIの判断' : '最後に記録されたAIの判断'}
+            </h2>
+            <span className="text-sm text-muted tabular-nums">{latestDecisions.length}件</span>
+          </div>
+
+          {latestDecisions.length === 0 ? (
+            <div className="bg-panel border border-border rounded-2xl px-5 py-8">
+              <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
+                この回の判断は記録されていません。
+              </p>
+            </div>
+          ) : (
+            latestDecisions.map((dec, i) => (
+              <DecisionCard
+                key={dec.symbol + '-' + i}
+                decision={dec}
+                held={holdingSymbols.includes(dec.symbol)}
+              />
+            ))
+          )}
+
+          {olderDecisions.length > 0 && (showOlder ? (
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-wrap items-baseline gap-x-3 border-t border-border pt-5">
+                <h3 className="text-ink font-semibold">これより前の判断</h3>
+                <span className="text-sm text-muted tabular-nums">
+                  {Math.min(olderDecisions.length, OLDER_DECISION_LIMIT)}件を表示 / 記録{olderDecisions.length}件
+                </span>
+              </div>
+              {olderDecisions.slice(0, OLDER_DECISION_LIMIT).map((dec, i) => (
+                <DecisionCard
+                  key={'old-' + dec.symbol + '-' + i}
+                  decision={dec}
+                  held={holdingSymbols.includes(dec.symbol)}
+                />
+              ))}
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowOlder(true)}
+              className="w-full border border-border rounded-xl py-3 text-sm text-ink-2 hover:bg-surface transition-colors"
+            >
+              これより前の判断も読む（記録{olderDecisions.length}件）
+            </button>
+          ))}
+
+          <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+            ここにあるのは、AIが仮想資金で行った売買判断の記録です。読む人への推奨ではありません。
+            AIの読み筋を教材として読み、自分ならどう考えるかを比べるために使ってください。
+          </p>
+        </section>
+      </div>
+
+      {/* ここから下は補助情報。判断を読み終えた人が «で、結果はどうなったのか» を
+          追うための面なので、必ず判断より下に置く。 */}
+      <div className="max-w-screen-lg mx-auto px-4 sm:px-6 pt-8">
+        <h2 className="text-ink font-semibold border-t border-border pt-6">運用の記録</h2>
+        <p className="text-sm text-muted leading-relaxed mt-1 max-w-[42rem]">
+          判断の積み重ねが、仮想資金の増減としてどう出たか。チャート・成績・売買履歴・学んだ教訓。
+        </p>
       </div>
 
       <div className="max-w-screen-2xl mx-auto px-6 py-5 grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-5">
@@ -641,7 +783,7 @@ export function AISessionClient() {
                 { color: 'bg-blue-400',   label: 'Yahoo Finance',        sub: 'リアルタイム株価・10年チャート' },
                 { color: 'bg-emerald-400', label: 'ファンダメンタル分析', sub: 'PER/ROE/ROA/FCF/D&E' },
                 { color: 'bg-yellow-400', label: 'Yahoo Finance News',   sub: '最新ニュースヘッドライン' },
-                { color: 'bg-purple-400', label: 'Claude Sonnet 4.6',   sub: 'AI売買判断エンジン' },
+                { color: 'bg-purple-400', label: 'Claude (Anthropic)', sub: 'AI売買判断エンジン' },
               ].map(s => (
                 <div key={s.label} className="flex items-start gap-2">
                   <span className={`w-2 h-2 rounded-full ${s.color} mt-0.5 shrink-0`} />
@@ -716,7 +858,6 @@ export function AISessionClient() {
             <div className="flex border-b border-border overflow-x-auto">
               {([
                 { key: 'performance', label: '📈 運用成績' },
-                { key: 'decisions',   label: 'AI判断ログ',  count: decisions.length },
                 { key: 'trades',      label: '売買履歴',    count: trades.length },
                 { key: 'learning',    label: '学習・教訓',  count: learning.lessons.length },
               ] as const).map(t => (
@@ -782,81 +923,6 @@ export function AISessionClient() {
                   </div>
                 )
               })()}
-
-              {/* AI Decisions tab */}
-              {tab === 'decisions' && (
-                decisions.length === 0 ? (
-                  <div className="text-muted text-base py-10 text-center">
-                    Tickを実行するとClaudeの判断ログが表示されます
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-                    {decisions.slice(0, 20).map((dec: AIDecision, i) => {
-                      const actionStyle: Record<string, string> = {
-                        buy:   'bg-emerald-50 border-emerald-200 text-emerald-700',
-                        sell:  'bg-red-50 border-red-200 text-red-700',
-                        hold:  'bg-yellow-50 border-yellow-200 text-yellow-700',
-                        watch: 'bg-surface border-border text-ink-2',
-                      }
-                      const actionLabel: Record<string, string> = { buy: '買い', sell: '売り', hold: 'ホールド', watch: '監視' }
-                      return (
-                        <div key={i} className="border border-border rounded-xl p-4 hover:border-accent transition-colors">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="font-mono font-bold text-ink text-base">{dec.symbol}</span>
-                            <span className="text-sm text-muted">{dec.name}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded border font-semibold ${actionStyle[dec.action] ?? actionStyle.watch}`}>
-                              {actionLabel[dec.action] ?? dec.action}
-                            </span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                              dec.confidence === 'high' ? 'bg-emerald-50 text-emerald-700'
-                              : dec.confidence === 'medium' ? 'bg-yellow-50 text-yellow-700'
-                              : 'bg-red-50 text-red-700'
-                            }`}>
-                              {dec.confidence}
-                            </span>
-                            <span className="ml-auto font-mono font-bold text-base tabular-nums">{fmtUSD(dec.price)}</span>
-                            <span className={`text-sm tabular-nums ${pnlCls(dec.change)}`}>
-                              {dec.change >= 0 ? '+' : ''}{dec.change.toFixed(2)}%
-                            </span>
-                          </div>
-                          <p className="text-base text-ink-2 mb-3 leading-relaxed max-w-[42rem]">{dec.reasoning}</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                            <div className="bg-background rounded-lg p-2.5">
-                              <div className="text-muted mb-1 font-medium">テクニカル</div>
-                              <div className="text-ink-2 leading-relaxed">{dec.technicals}</div>
-                            </div>
-                            <div className="bg-background rounded-lg p-2.5">
-                              <div className="text-muted mb-1 font-medium">ファンダメンタル</div>
-                              <div className="text-ink-2 leading-relaxed line-clamp-2">{dec.fundamentals}</div>
-                            </div>
-                          </div>
-                          {dec.newsInfluence && (
-                            <div className="mt-2 text-sm text-ink-2 leading-relaxed flex items-start gap-1 max-w-[42rem]">
-                              <span className="text-yellow-700 shrink-0">📰</span>
-                              {dec.newsInfluence}
-                            </div>
-                          )}
-                          {!!dec.knowledgeRefs?.length && (
-                            <div className="mt-2 flex flex-wrap items-center gap-1">
-                              <span className="text-sm text-emerald-700 mr-1">参照した原則</span>
-                              {dec.knowledgeRefs.map((ref) => (
-                                <span key={ref.id} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                  {ref.title}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {dec.sources.map((src, si) => (
-                              <span key={si} className="text-xs bg-surface text-ink-2 px-2 py-0.5 rounded-full">{src}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              )}
 
               {/* Trades tab */}
               {tab === 'trades' && (

@@ -17,6 +17,9 @@ import { getPersonaText } from './personas'
 import { listKnowledge, recordKnowledgeUsage } from '@/lib/knowledge/store'
 import { selectKnowledgeForDecision, formatKnowledgeBlock, filterKnowledgeRefs } from '@/lib/knowledge/select'
 import type { KnowledgeItem, KnowledgeKind } from '@/lib/knowledge/types'
+// 監視母集団は lib/ai-trader/universe.ts（純データ・副作用なし）に置き、クライアント側の
+// 画面(/watch)が「AIは何銘柄を監視しているのか」を同じ定義から読めるようにしている。
+import { UNIVERSE, TICK_CANDIDATE_COUNT } from './universe'
 
 // AIモデルID（環境変数で上書き可）。tickは頻繁・高速・低コストが要件なので Haiku を既定に。
 // sonnet-4-6 だと1呼び出し+データ取得で約55秒かかり Vercel の60秒関数タイムアウトを不定期に
@@ -97,17 +100,6 @@ function callClaudeCli(prompt: string): Promise<string> {
   })
 }
 
-const UNIVERSE_US = [
-  'AAPL','NVDA','MSFT','GOOGL','AMZN','META','TSLA',
-  'JPM','BAC','V','MA','GS',
-  'JNJ','LLY','PFE','MRK',
-  'XOM','CVX',
-  'KO','PG','WMT','COST','MCD',
-  'AMD','INTC','ORCL','CRM','NFLX','ADBE',
-  'SPY','QQQ','COIN','PLTR',
-]
-const UNIVERSE_JP = ['7203.T','6758.T','9984.T','6861.T','8306.T','4063.T','9432.T']
-const UNIVERSE = [...UNIVERSE_US, ...UNIVERSE_JP]
 
 export interface AITrade {
   timestamp: string
@@ -812,7 +804,7 @@ export async function runTick(sessionId: string): Promise<AISession> {
 
   // 4件: プロンプトと出力トークンを削り、判断1回をCLAUDE_TIMEOUT_MS内に収めるため（2026-07-30）。
   // combined = 候補 + 保有銘柄 なので、保有が増えると実際の分析対象はこれより多くなる。
-  const candidates = await selectCandidates(4)
+  const candidates = await selectCandidates(TICK_CANDIDATE_COUNT)
   const combined = Array.from(new Set([...candidates, ...Object.keys(session.holdings)]))
   session.watchlist = combined
 
