@@ -30,7 +30,7 @@ function ProfileRadioGroup<T extends string>({
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       <label
         className={`block rounded-lg border px-2.5 py-2 cursor-pointer transition-colors ${
-          value === '' ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+          value === '' ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50 hover:border-blue-400'
         }`}
       >
         <span className="flex items-center gap-2">
@@ -38,14 +38,14 @@ function ProfileRadioGroup<T extends string>({
             type="radio" name={name} checked={value === ''}
             onChange={() => onChange('')} className="accent-blue-500"
           />
-          <span className="text-xs text-slate-300">指定なし</span>
+          <span className="text-sm text-ink-2">指定なし</span>
         </span>
       </label>
       {options.map(opt => (
         <label
           key={opt.id}
           className={`block rounded-lg border px-2.5 py-2 cursor-pointer transition-colors ${
-            value === opt.id ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+            value === opt.id ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50 hover:border-blue-400'
           }`}
         >
           <span className="flex items-center gap-2">
@@ -53,7 +53,7 @@ function ProfileRadioGroup<T extends string>({
               type="radio" name={name} checked={value === opt.id}
               onChange={() => onChange(opt.id)} className="accent-blue-500"
             />
-            <span className="text-xs text-slate-300">{opt.label}</span>
+            <span className="text-sm text-ink-2">{opt.label}</span>
           </span>
         </label>
       ))}
@@ -93,33 +93,33 @@ export default function ReaderProfilePanel({
         aria-controls={contentId}
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface/40 transition-colors"
       >
-        <span className="text-sm text-white font-medium">
+        <span className="text-sm text-ink font-medium">
           読者プロファイル（任意・{answeredCount}/3問回答済み）
         </span>
-        <span className="text-xs text-muted shrink-0">{open ? '閉じる ▾' : '開く ▸'}</span>
+        <span className="text-sm text-muted shrink-0">{open ? '閉じる ▾' : '開く ▸'}</span>
       </button>
 
       {open && (
         <div id={contentId} className="px-4 pb-4 pt-1 space-y-3 border-t border-border">
-          <p className="text-xs text-muted leading-relaxed">
+          <p className="text-sm text-muted leading-relaxed">
             回答するとAIレポートの強調順序・語り口・意味づけがあなた向けに調整されます。
             数値・ゲート判定・バックテストの中身は一切変わりません。未回答でも通常どおりレポートは生成されます。
           </p>
 
           <div>
-            <p className="text-xs text-muted mb-1.5">投資期間</p>
+            <p className="text-sm text-muted mb-1.5">投資期間</p>
             <ProfileRadioGroup name="profile-horizon" options={HORIZON_OPTIONS} value={horizon} onChange={onHorizonChange} />
           </div>
           <div>
-            <p className="text-xs text-muted mb-1.5">リスク許容度</p>
+            <p className="text-sm text-muted mb-1.5">リスク許容度</p>
             <ProfileRadioGroup name="profile-tolerance" options={TOLERANCE_OPTIONS} value={tolerance} onChange={onToleranceChange} />
           </div>
           <div>
-            <p className="text-xs text-muted mb-1.5">スタイル志向</p>
+            <p className="text-sm text-muted mb-1.5">スタイル志向</p>
             <ProfileRadioGroup name="profile-style" options={STYLE_OPTIONS} value={style} onChange={onStyleChange} />
           </div>
           <div>
-            <p className="text-xs text-muted mb-1.5">資金の性格（任意・4問目）</p>
+            <p className="text-sm text-muted mb-1.5">資金の性格（任意・4問目）</p>
             <ProfileRadioGroup name="profile-capacity" options={CAPACITY_OPTIONS} value={capacity} onChange={onCapacityChange} />
           </div>
         </div>

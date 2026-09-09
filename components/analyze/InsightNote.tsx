@@ -17,8 +17,8 @@ export interface InsightNoteProps {
 export default function InsightNote({ heading = 'この数字の意味', lines }: InsightNoteProps) {
   if (lines.length === 0) return null
   return (
-    <div className="text-xs text-slate-400 bg-surface/40 border border-border/60 rounded-lg px-3 py-2.5 leading-relaxed space-y-0.5">
-      <p className="text-slate-300 font-semibold">【{heading}】</p>
+    <div className="text-sm text-ink-2 bg-surface/40 border border-border/60 rounded-lg px-3 py-2.5 leading-relaxed space-y-0.5">
+      <p className="text-ink-2 font-semibold">【{heading}】</p>
       {lines.map((line, i) => (
         <p key={i}>{line}</p>
       ))}

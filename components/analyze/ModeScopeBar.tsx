@@ -42,13 +42,13 @@ function TabGroup<T extends string>({
             value === opt.id
               ? 'bg-blue-600 text-white'
               : opt.disabled
-                ? 'bg-surface text-slate-600 cursor-not-allowed'
-                : 'bg-surface text-slate-400 hover:text-slate-200'
+                ? 'bg-surface text-muted cursor-not-allowed'
+                : 'bg-surface text-ink-2 hover:text-ink'
           }`}
         >
           {opt.label}
           {opt.disabled && (
-            <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 align-middle">
+            <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-surface text-ink align-middle">
               近日対応
             </span>
           )}
@@ -78,11 +78,11 @@ export default function ModeScopeBar<M extends string, S extends string>({
   return (
     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
       <div>
-        <p className="text-xs text-muted mb-2">モード</p>
+        <p className="text-sm text-muted mb-2">モード</p>
         <TabGroup options={modeTabs} value={mode} onChange={onModeChange} />
       </div>
       <div>
-        <p className="text-xs text-muted mb-2">対象範囲</p>
+        <p className="text-sm text-muted mb-2">対象範囲</p>
         <TabGroup options={scopeOptions} value={scope} onChange={onScopeChange} />
       </div>
     </div>

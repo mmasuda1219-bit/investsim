@@ -25,19 +25,19 @@ export default function ExecutionPlanCard({ plan }: ExecutionPlanCardProps) {
   return (
     <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-bold px-2 py-0.5 rounded shrink-0 bg-blue-900/50 text-blue-300">
+        <span className="text-xs font-bold px-2 py-0.5 rounded shrink-0 bg-blue-50 text-blue-700">
           過去5年の実測
         </span>
-        <h2 className="text-white font-semibold text-sm">あなたが選んだルールの過去5年の成績</h2>
+        <h2 className="text-ink font-semibold text-xl">あなたが選んだルールの過去5年の成績</h2>
       </div>
 
       {/* 検証した売買ルール（ユーザーが選んだ条件の言語化）＋出口の明示。
           損切り・利確・保有期限が「無い」ことは正直にそのまま表示する（原則9）。 */}
-      <div className="bg-surface/50 border border-blue-900/50 rounded-lg p-3 space-y-1">
-        <p className="text-xs text-blue-300 font-medium">検証した売買ルール（あなたが選んだ条件）</p>
-        <p className="text-sm text-white font-medium">{plan.ruleDescription}</p>
+      <div className="bg-surface/50 border border-blue-200 rounded-lg p-3 space-y-1">
+        <p className="text-sm text-blue-700 font-medium">検証した売買ルール（あなたが選んだ条件）</p>
+        <p className="text-sm text-ink font-medium">{plan.ruleDescription}</p>
         {plan.exitLines.map((line, i) => (
-          <p key={i} className="text-xs text-slate-400 leading-relaxed">{line}</p>
+          <p key={i} className="text-sm text-ink-2 leading-relaxed">{line}</p>
         ))}
       </div>
 
@@ -45,7 +45,7 @@ export default function ExecutionPlanCard({ plan }: ExecutionPlanCardProps) {
       {plan.notes.length > 0 && (
         <ul className="space-y-1">
           {plan.notes.map((note, i) => (
-            <li key={i} className="flex gap-2 text-xs text-amber-400/90">
+            <li key={i} className="flex gap-2 text-sm text-amber-700/90">
               <span className="shrink-0">※</span>
               <span>{note}</span>
             </li>
@@ -59,9 +59,9 @@ export default function ExecutionPlanCard({ plan }: ExecutionPlanCardProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {plan.facts.map((f, i) => (
             <div key={i} className="bg-surface/50 rounded-lg p-3">
-              <p className="text-muted text-xs mb-1">{f.label}</p>
-              <p className="font-mono font-bold text-white text-sm">{f.value}</p>
-              {f.sub && <p className="text-xs text-muted mt-0.5 leading-relaxed">{f.sub}</p>}
+              <p className="text-muted text-sm mb-1">{f.label}</p>
+              <p className="font-mono font-bold text-ink text-sm">{f.value}</p>
+              {f.sub && <p className="text-sm text-muted mt-0.5 leading-relaxed">{f.sub}</p>}
             </div>
           ))}
         </div>
@@ -70,12 +70,12 @@ export default function ExecutionPlanCard({ plan }: ExecutionPlanCardProps) {
       {/* 完結往復が3件未満のとき: 統計値（中央値・平均）ではなく生の全件を表示 */}
       {plan.rawRoundTrips.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs text-muted">
+          <p className="text-sm text-muted">
             完結した往復の全件表示（件数が少ないため、統計値ではなく1件ずつそのまま表示します）:
           </p>
           <ul className="space-y-1">
             {plan.rawRoundTrips.map((line, i) => (
-              <li key={i} className="text-xs text-slate-300 font-mono bg-surface/50 rounded-lg px-3 py-2">
+              <li key={i} className="text-sm text-ink-2 font-mono bg-surface/50 rounded-lg px-3 py-2">
                 {line}
               </li>
             ))}

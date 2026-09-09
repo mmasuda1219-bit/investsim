@@ -23,7 +23,7 @@ import InsightNote from './InsightNote'
 export interface MetricStripItem {
   label: string
   value: string
-  /** 値のTailwindカラークラス（例: 'text-green-400'）。省略時は白。 */
+  /** 値のTailwindカラークラス（例: 'text-green-700'）。省略時は白。 */
   valueClassName?: string
   /** 値の下に添える小さな補足（例: 金額換算）。 */
   sub?: string
@@ -76,7 +76,7 @@ export default function MetricStrip({
   const hasGateItems = gateTotal > 0
 
   const containerTone =
-    emphasizeFailure && !passed ? 'bg-amber-950/30 border-amber-700' : 'bg-panel border-border'
+    emphasizeFailure && !passed ? 'bg-amber-50 border-amber-200' : 'bg-panel border-border'
 
   return (
     <div className={`border rounded-xl p-5 space-y-3 ${containerTone}`}>
@@ -84,21 +84,21 @@ export default function MetricStrip({
         {hasGateItems ? (
           <span
             className={`text-xs font-bold px-2 py-0.5 rounded shrink-0 ${
-              passed ? 'bg-green-900/50 text-green-400' : 'bg-amber-900/50 text-amber-400'
+              passed ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
             }`}
           >
             {passed ? '参加条件 成立' : '参加条件 不成立'}
           </span>
         ) : (
-          <span className="text-xs font-bold px-2 py-0.5 rounded shrink-0 bg-slate-700 text-slate-300">
+          <span className="text-xs font-bold px-2 py-0.5 rounded shrink-0 bg-surface text-ink-2">
             参加条件なし
           </span>
         )}
-        <h2 className="text-white font-semibold text-sm">{heading}</h2>
+        <h2 className="text-ink font-semibold text-xl">{heading}</h2>
       </div>
 
       {!hasGateItems && (
-        <p className="text-xs text-muted leading-relaxed">
+        <p className="text-sm text-muted leading-relaxed">
           ファンダメンタルの絞り込み条件を指定していないため、参加条件の成立/不成立の判定はありません。
         </p>
       )}
@@ -109,9 +109,9 @@ export default function MetricStrip({
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
           {metrics.map((m, i) => (
             <div key={i} className="bg-surface/50 rounded-lg p-3">
-              <p className="text-muted text-xs mb-1">{m.label}</p>
-              <p className={`font-mono font-bold ${m.valueClassName ?? 'text-white'}`}>{m.value}</p>
-              {m.sub && <p className="text-xs text-muted mt-0.5">{m.sub}</p>}
+              <p className="text-muted text-sm mb-1">{m.label}</p>
+              <p className={`font-mono font-bold ${m.valueClassName ?? 'text-ink'}`}>{m.value}</p>
+              {m.sub && <p className="text-sm text-muted mt-0.5">{m.sub}</p>}
             </div>
           ))}
         </div>
@@ -124,7 +124,7 @@ export default function MetricStrip({
             onClick={() => setGateOpen(v => !v)}
             aria-expanded={gateOpen}
             aria-controls={gateRegionId}
-            className="w-full flex items-center justify-between gap-3 text-xs text-slate-300 hover:text-white transition-colors"
+            className="w-full flex items-center justify-between gap-3 text-sm text-ink-2 hover:text-ink transition-colors"
           >
             <span>
               条件の内訳を見る（{gateTotal}件中{gatePassedCount}件成立）
@@ -135,19 +135,19 @@ export default function MetricStrip({
           {gateOpen && (
             <div id={gateRegionId} className="mt-2 space-y-1.5">
               {gateBreakdown.map((g, i) => (
-                <div key={i} className="flex items-center gap-3 px-3 py-2 bg-surface/50 rounded-lg text-xs">
+                <div key={i} className="flex items-center gap-3 px-3 py-2 bg-surface/50 rounded-lg text-sm">
                   <span
                     className={`shrink-0 font-bold px-2 py-0.5 rounded ${
                       g.result === 'pass'
-                        ? 'bg-green-900/50 text-green-400'
+                        ? 'bg-green-50 text-green-700'
                         : g.result === 'fail'
-                          ? 'bg-red-900/50 text-red-400'
-                          : 'bg-slate-700 text-slate-300'
+                          ? 'bg-red-50 text-red-700'
+                          : 'bg-surface text-ink-2'
                     }`}
                   >
                     {g.result === 'pass' ? '成立' : g.result === 'fail' ? '不成立' : '判定不能'}
                   </span>
-                  <span className="text-slate-300">{g.label}</span>
+                  <span className="text-ink-2">{g.label}</span>
                   <span className="text-muted font-mono ml-auto">実測: {g.actualText}</span>
                 </div>
               ))}

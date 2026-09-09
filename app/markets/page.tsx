@@ -24,10 +24,10 @@ interface MarketData {
 }
 
 const COLOR_MAP = {
-  green:  { text: 'text-green-400',  border: 'border-green-500',  bg: 'bg-green-500' },
-  yellow: { text: 'text-yellow-400', border: 'border-yellow-500', bg: 'bg-yellow-500' },
-  orange: { text: 'text-orange-400', border: 'border-orange-500', bg: 'bg-orange-500' },
-  red:    { text: 'text-red-400',    border: 'border-red-500',    bg: 'bg-red-500' },
+  green:  { text: 'text-green-700',  border: 'border-green-200',  bg: 'bg-green-500' },
+  yellow: { text: 'text-yellow-700', border: 'border-yellow-200', bg: 'bg-yellow-500' },
+  orange: { text: 'text-orange-700', border: 'border-orange-200', bg: 'bg-orange-500' },
+  red:    { text: 'text-red-700',    border: 'border-red-200',    bg: 'bg-red-500' },
 }
 
 // Zone boundaries as percentage of 0–200 range
@@ -53,7 +53,7 @@ export default function MarketsPage() {
 
   return (
     <main className="mx-auto max-w-7xl space-y-6">
-      <h1 className="text-2xl font-bold text-white">マーケット概況</h1>
+      <h1 className="text-2xl font-bold text-ink">マーケット概況</h1>
 
       {/* ── 指数カード ── */}
       {loading && (
@@ -65,7 +65,7 @@ export default function MarketsPage() {
       )}
 
       {error && (
-        <p className="text-red-400 text-sm">データの取得に失敗しました。しばらくしてから再度お試しください。</p>
+        <p className="text-red-700 text-sm">データの取得に失敗しました。しばらくしてから再度お試しください。</p>
       )}
 
       {data && (
@@ -74,12 +74,12 @@ export default function MarketsPage() {
             {data.indices.map(idx => (
               <div key={idx.symbol} className="bg-panel border border-border rounded-xl p-4">
                 <p className="text-muted text-xs mb-1 truncate">{idx.name}</p>
-                <p className="text-white text-xl font-bold font-mono">
+                <p className="text-ink text-xl font-bold font-mono">
                   {idx.symbol === '^TNX'
                     ? `${idx.price.toFixed(2)}%`
                     : idx.price.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                 </p>
-                <p className={`text-sm mt-1 ${idx.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <p className={`text-sm mt-1 ${idx.changePercent >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                   {idx.changePercent >= 0 ? '▲' : '▼'} {Math.abs(idx.changePercent).toFixed(2)}%
                 </p>
               </div>
@@ -89,7 +89,7 @@ export default function MarketsPage() {
           {/* ── バフェット指数 ── */}
           <section className="bg-panel border border-border rounded-xl p-6 space-y-5">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-ink">
                 バフェット指数
                 <span className="ml-2 text-sm font-normal text-muted">（株式時価総額 / GDP）</span>
               </h2>
@@ -156,17 +156,17 @@ export default function MarketsPage() {
 
           {/* ── 解説 ── */}
           <section className="bg-panel border border-border rounded-xl p-6 space-y-3">
-            <h2 className="text-base font-semibold text-white">バフェット指数とは？</h2>
+            <h2 className="text-base font-semibold text-ink">バフェット指数とは？</h2>
             <p className="text-sm text-muted leading-relaxed">
               ウォーレン・バフェット氏が提唱した市場全体の割高・割安を測る指標です。
               全米株式時価総額（Wilshire 5000 指数で近似）を米国の名目 GDP で割り、パーセントで表します。
             </p>
             <ul className="text-sm text-muted space-y-1 list-disc list-inside">
-              <li><span className="text-green-400 font-medium">75% 未満</span>：著しく割安 — 強気の買い場とされる</li>
-              <li><span className="text-green-400 font-medium">75〜90%</span>：割安 — 良好な投資環境</li>
-              <li><span className="text-yellow-400 font-medium">90〜115%</span>：適正水準 — 中立的な判断</li>
-              <li><span className="text-orange-400 font-medium">115〜135%</span>：割高 — 慎重さが必要</li>
-              <li><span className="text-red-400 font-medium">135% 超</span>：著しく割高 — 過熱リスクに注意</li>
+              <li><span className="text-green-700 font-medium">75% 未満</span>：著しく割安 — 強気の買い場とされる</li>
+              <li><span className="text-green-700 font-medium">75〜90%</span>：割安 — 良好な投資環境</li>
+              <li><span className="text-yellow-700 font-medium">90〜115%</span>：適正水準 — 中立的な判断</li>
+              <li><span className="text-orange-700 font-medium">115〜135%</span>：割高 — 慎重さが必要</li>
+              <li><span className="text-red-700 font-medium">135% 超</span>：著しく割高 — 過熱リスクに注意</li>
             </ul>
             <p className="text-xs text-muted/60">
               ※ Wilshire 5000 の指数値を時価総額（十億ドル）の概算として使用しています。実際の時価総額とは異なる場合があります。

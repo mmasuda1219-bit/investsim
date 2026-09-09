@@ -26,7 +26,7 @@ function LoginForm() {
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="bg-panel border border-border rounded-2xl p-8 w-full max-w-sm text-center">
         <div className="text-3xl mb-2">📈</div>
-        <h1 className="text-white text-xl font-bold mb-1">InvestSim</h1>
+        <h1 className="text-ink text-xl font-bold mb-1">InvestSim</h1>
         <p className="text-muted text-sm mb-6">
           ログインすると、売買と判断の記録が
           <br />
@@ -34,14 +34,14 @@ function LoginForm() {
         </p>
 
         {errorMsg && (
-          <div className="mb-4 text-xs text-red-400 bg-red-900/20 border border-red-700/40 rounded-lg px-3 py-2">
+          <div className="mb-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             {errorMsg === 'auth_failed' ? '認証に失敗しました。もう一度お試しください。' : decodeURIComponent(errorMsg)}
           </div>
         )}
 
         <button
           onClick={signInWithGoogle}
-          className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-medium py-3 px-4 rounded-xl hover:bg-gray-100 transition-colors"
+          className="w-full flex items-center justify-center gap-3 bg-card text-ink border border-border font-medium py-3 px-4 rounded-xl hover:bg-surface transition-colors"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

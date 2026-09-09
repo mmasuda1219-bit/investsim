@@ -13,8 +13,8 @@ export default function WatchPage() {
           クライアント側は復元中にスピナーだけを出すため、ここ（サーバー側）に
           置いて復元を待たずに現在地が見えるようにする。 */}
       <header>
-        <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">01 見る</p>
-        <h1 className="text-2xl font-bold text-white mt-1">AIと名人の判断を読む</h1>
+        <p className="text-xs font-semibold tracking-[0.18em] text-emerald-700 uppercase">01 見る</p>
+        <h1 className="text-2xl font-bold text-ink mt-1">AIと名人の判断を読む</h1>
       </header>
       <AISessionClient />
     </div>

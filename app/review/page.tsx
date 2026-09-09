@@ -37,14 +37,14 @@ function formatDate(timestamp: number): string {
 function ReasonReadout({ text }: { text: string }) {
   const sections = parseReason(text)
   if (sections.length === 1 && sections[0].label === null) {
-    return <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{sections[0].value}</p>
+    return <p className="text-base text-ink-2 leading-relaxed whitespace-pre-line max-w-[42rem]">{sections[0].value}</p>
   }
   return (
     <dl className="space-y-1">
       {sections.map((s, i) => (
         <div key={`${s.label ?? 'free'}-${i}`} className="flex gap-2">
-          <dt className="text-[11px] text-muted shrink-0 w-20 pt-0.5">{s.label ?? '—'}</dt>
-          <dd className="text-sm text-slate-300 leading-relaxed whitespace-pre-line min-w-0">{s.value}</dd>
+          <dt className="text-xs text-muted shrink-0 w-20 pt-1">{s.label ?? '—'}</dt>
+          <dd className="text-base text-ink-2 leading-relaxed whitespace-pre-line min-w-0 max-w-[42rem]">{s.value}</dd>
         </div>
       ))}
     </dl>
@@ -100,20 +100,20 @@ export default function PortfolioPage() {
     return (
       <div className="max-w-xl mx-auto space-y-4">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">04 振り返る</p>
-          <h1 className="text-2xl font-bold text-white mt-1">判断を振り返る</h1>
+          <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">04 振り返る</p>
+          <h1 className="text-2xl font-bold text-ink mt-1">判断を振り返る</h1>
         </div>
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-4">
-          <p className="text-slate-300 text-sm">
-            ここには<strong className="text-white">あなたの</strong>判断の記録が並びます。
+          <p className="text-base text-ink-2 leading-relaxed">
+            ここには<strong className="text-ink">あなたの</strong>判断の記録が並びます。
           </p>
-          <p className="text-muted text-xs leading-relaxed">
+          <p className="text-sm text-muted leading-relaxed">
             記録はアカウントに保存されるので、ログインが必要です。<br />
             「見る」「まねる」はログインなしで使えます。
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
-            <LoginLink className="px-4 py-2 bg-white text-gray-900 text-xs font-medium rounded-lg hover:bg-gray-100 transition-colors" />
-            <Link href="/watch" className="px-4 py-2 bg-panel border border-border text-slate-300 hover:text-white hover:border-blue-500 text-xs font-medium rounded-lg transition-colors">
+            <LoginLink className="px-4 py-2 bg-accent text-on-accent text-sm font-medium rounded-lg transition-colors" />
+            <Link href="/watch" className="px-4 py-2 bg-panel border border-border text-ink-2 hover:text-ink hover:border-blue-400 text-sm font-medium rounded-lg transition-colors">
               ログインせずに見る
             </Link>
           </div>
@@ -125,7 +125,7 @@ export default function PortfolioPage() {
   if (!portfolio) {
     return (
       <div className="space-y-6">
-        <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-sm animate-pulse">
+        <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-base animate-pulse">
           読み込み中...
         </div>
       </div>
@@ -143,17 +143,17 @@ export default function PortfolioPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">04 振り返る</p>
-          <h1 className="text-2xl font-bold text-white mt-1">判断を振り返る</h1>
-          <p className="text-muted text-sm mt-1">
-            見るべきは儲けた額ではなく、判断の中身です。初期資本 {formatUSD(INITIAL_CASH)}
+          <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">04 振り返る</p>
+          <h1 className="text-2xl font-bold text-ink mt-1">判断を振り返る</h1>
+          <p className="text-base text-ink-2 leading-relaxed mt-1 max-w-[42rem]">
+            見るべきは儲けた額ではなく、判断の中身です。初期資本 <span className="tabular-nums">{formatUSD(INITIAL_CASH)}</span>
           </p>
         </div>
         {/* whitespace-nowrap と shrink-0 が無いと、スマホ幅で見出しに押されて
             「リセ / ッ / ト」の3行に折れる（実測 64x58px）。 */}
         <button
           onClick={handleReset}
-          className="shrink-0 whitespace-nowrap px-4 py-2 bg-red-900/40 hover:bg-red-800/60 border border-red-700 text-red-300 hover:text-red-200 text-sm font-medium rounded-lg transition-colors"
+          className="shrink-0 whitespace-nowrap px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 hover:text-red-800 text-sm font-medium rounded-lg transition-colors"
         >
           リセット
         </button>
@@ -161,7 +161,10 @@ export default function PortfolioPage() {
 
       {/* 判断と結果の突き合わせ — この面の主役。金額より先に出す */}
       <div>
-        <h2 className="text-white font-semibold text-sm mb-3">判断と、その結果</h2>
+        {/* この面の主役。ページは「見るべきは儲けた額ではなく判断の中身」と書いて
+            いるのに、金額サマリ(text-2xl)より小さく出ていて、視覚が自分の主張を
+            否定していた。見出しを20pxに上げ、金額側を下げて主従を入れ替える。 */}
+        <h2 className="text-ink font-semibold text-xl mb-3">判断と、その結果</h2>
         {(() => {
           const { judgements, closedCount, openCount, withEntryReason, entryCount } =
             buildJudgements(portfolio.trades)
@@ -169,20 +172,20 @@ export default function PortfolioPage() {
           if (entryCount === 0) {
             return (
               <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-2">
-                <p className="text-sm text-slate-300">まだ判断の記録がありません</p>
-                <p className="text-xs text-muted">
+                <p className="text-base text-ink font-medium">まだ判断の記録がありません</p>
+                <p className="text-base text-ink-2 leading-relaxed">
                   「やる」で売買すると、そのときに書いた理由と、あとで出た結果がここに並びます。
                 </p>
                 {/* 結果が出るまで待たずに始められる道を、空の状態でこそ見せる。
                     すでに実際に売買している人は、来た時点で振り返る材料を持っている。 */}
-                <p className="text-xs text-muted leading-relaxed pt-1">
-                  すでに実際に売買したことがあるなら、<strong className="text-slate-300">過去の取引を入れれば今日から振り返れます。</strong>
+                <p className="text-base text-ink-2 leading-relaxed pt-1">
+                  すでに実際に売買したことがあるなら、<strong className="text-ink">過去の取引を入れれば今日から振り返れます。</strong>
                 </p>
                 <div className="flex items-center justify-center gap-4 flex-wrap pt-1">
-                  <Link href="/trade" className="text-xs text-emerald-400 hover:text-emerald-300">
+                  <Link href="/trade" className="text-sm text-emerald-700 hover:text-emerald-800">
                     やってみる →
                   </Link>
-                  <Link href="/review/backfill" className="text-xs text-emerald-400 hover:text-emerald-300">
+                  <Link href="/review/backfill" className="text-sm text-emerald-700 hover:text-emerald-800">
                     過去の取引を記録する →
                   </Link>
                 </div>
@@ -193,11 +196,11 @@ export default function PortfolioPage() {
           return (
             <div className="space-y-3">
               {/* 数えられる事実だけを出す。判断の質を点数にはしない */}
-              <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
-                <span>買った回数 <span className="text-slate-200 tabular-nums font-semibold">{entryCount}</span></span>
-                <span>うち理由が残っているもの <span className="text-slate-200 tabular-nums font-semibold">{withEntryReason}</span></span>
-                <span>結果が出たもの <span className="text-slate-200 tabular-nums font-semibold">{closedCount}</span></span>
-                <span>保有中 <span className="text-slate-200 tabular-nums font-semibold">{openCount}</span></span>
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
+                <span>買った回数 <span className="text-ink tabular-nums font-semibold">{entryCount}</span></span>
+                <span>うち理由が残っているもの <span className="text-ink tabular-nums font-semibold">{withEntryReason}</span></span>
+                <span>結果が出たもの <span className="text-ink tabular-nums font-semibold">{closedCount}</span></span>
+                <span>保有中 <span className="text-ink tabular-nums font-semibold">{openCount}</span></span>
               </div>
 
               {judgements.slice(0, 12).map((j, i) => {
@@ -206,44 +209,44 @@ export default function PortfolioPage() {
                 return (
                   <div key={`${j.symbol}-${j.entryAt}-${i}`} className="bg-panel border border-border rounded-xl p-4 space-y-3">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="font-mono font-bold text-white text-sm">{j.symbol}</span>
+                      <span className="font-mono font-bold text-ink text-base">{j.symbol}</span>
                       {/* 練習場の売買と «実際にやった取引の記録» を必ず見分けられるようにする。
                           混ぜて見せると、どれが練習でどれが本物か本人にも分からなくなる。 */}
                       {j.source === 'past' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-blue-700/60 bg-blue-950/30 text-blue-300">
+                        <span className="text-xs px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700">
                           実際の取引の記録
                         </span>
                       )}
-                      <span className="text-xs text-muted">{j.shares.toLocaleString()}株</span>
+                      <span className="text-sm text-muted tabular-nums">{j.shares.toLocaleString()}株</span>
                       {closedTrade ? (
                         <>
-                          <span className={`text-xs font-bold tabular-nums ${win ? 'text-green-400' : 'text-red-400'}`}>
+                          <span className={`text-sm font-bold tabular-nums ${win ? 'text-green-700' : 'text-red-700'}`}>
                             {win ? '+' : ''}{j.pnlPct!.toFixed(2)}%
                           </span>
-                          <span className="text-xs text-muted">{j.heldDays}日保有</span>
+                          <span className="text-sm text-muted tabular-nums">{j.heldDays}日保有</span>
                         </>
                       ) : (
-                        <span className="text-xs text-amber-500">保有中（結果はまだ出ていません）</span>
+                        <span className="text-sm text-amber-700">保有中（結果はまだ出ていません）</span>
                       )}
-                      <span className="text-xs text-muted ml-auto font-mono">{formatDate(j.entryAt)}</span>
+                      <span className="text-sm text-muted ml-auto font-mono tabular-nums">{formatDate(j.entryAt)}</span>
                     </div>
 
                     <div className="space-y-2 pl-3 border-l-2 border-border">
                       <div>
-                        <p className="text-[11px] text-muted mb-0.5">買ったときに考えていたこと</p>
+                        <p className="text-sm text-muted mb-1">買ったときに考えていたこと</p>
                         {j.entryReason ? (
                           <ReasonReadout text={j.entryReason} />
                         ) : (
-                          <p className="text-xs text-slate-600">理由が残っていません（記録を始める前の取引です）</p>
+                          <p className="text-sm text-muted">理由が残っていません（記録を始める前の取引です）</p>
                         )}
                       </div>
                       {closedTrade && (
                         <div>
-                          <p className="text-[11px] text-muted mb-0.5">売ったときに考えていたこと</p>
+                          <p className="text-sm text-muted mb-1">売ったときに考えていたこと</p>
                           {j.exitReason ? (
                             <ReasonReadout text={j.exitReason} />
                           ) : (
-                            <p className="text-xs text-slate-600">理由が残っていません</p>
+                            <p className="text-sm text-muted">理由が残っていません</p>
                           )}
                         </div>
                       )}
@@ -252,11 +255,11 @@ export default function PortfolioPage() {
                 )
               })}
 
-              <p className="text-[11px] text-muted leading-relaxed">
+              <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
                 買いと売りは「買った順に売れていく」とみなして対応づけています。
                 練習場の売買と「実際の取引の記録」は別々に突き合わせます。
                 {closedCount < 3 && '結果が出た取引が3件未満のため、傾向としてはまだ読めません。'}
-                <Link href="/review/backfill" className="text-emerald-400 hover:text-emerald-300 ml-1">
+                <Link href="/review/backfill" className="text-emerald-700 hover:text-emerald-800 ml-1">
                   過去の取引を記録する →
                 </Link>
               </p>
@@ -267,43 +270,45 @@ export default function PortfolioPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* 金額は text-2xl でページ内最大だった。上の「判断と、その結果」より小さく
+            して主従を入れ替える（text-2xl → text-xl）。 */}
         <div className="bg-panel border border-border rounded-xl p-5">
-          <p className="text-muted text-xs mb-1">総資産</p>
-          <p className="text-white text-2xl font-bold font-mono">{formatUSD(totalAssets)}</p>
+          <p className="text-muted text-sm mb-1">総資産</p>
+          <p className="text-ink text-xl font-bold font-mono tabular-nums">{formatUSD(totalAssets)}</p>
         </div>
         <div className="bg-panel border border-border rounded-xl p-5">
-          <p className="text-muted text-xs mb-1">損益</p>
-          <p className={`text-2xl font-bold font-mono ${pnlPositive ? 'text-green-400' : 'text-red-400'}`}>
+          <p className="text-muted text-sm mb-1">損益</p>
+          <p className={`text-xl font-bold font-mono tabular-nums ${pnlPositive ? 'text-green-700' : 'text-red-700'}`}>
             {pnlPositive ? '+' : ''}{formatUSD(totalPnL)}
           </p>
-          <p className={`text-sm font-mono ${pnlPositive ? 'text-green-400' : 'text-red-400'}`}>
+          <p className={`text-sm font-mono tabular-nums ${pnlPositive ? 'text-green-700' : 'text-red-700'}`}>
             ({pnlPositive ? '+' : ''}{totalPnLPct.toFixed(2)}%)
           </p>
         </div>
         <div className="bg-panel border border-border rounded-xl p-5">
-          <p className="text-muted text-xs mb-1">現金</p>
-          <p className="text-white text-2xl font-bold font-mono">{formatUSD(portfolio.cash)}</p>
+          <p className="text-muted text-sm mb-1">現金</p>
+          <p className="text-ink text-xl font-bold font-mono tabular-nums">{formatUSD(portfolio.cash)}</p>
         </div>
       </div>
 
       {/* Holdings Table */}
       <div>
-        <h2 className="text-white font-semibold text-sm mb-3">保有銘柄</h2>
+        <h2 className="text-ink font-semibold text-xl mb-3">保有銘柄</h2>
         {loadingPrices ? (
-          <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-sm animate-pulse">
+          <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-base animate-pulse">
             価格を取得中...
           </div>
         ) : portfolio.positions.length === 0 ? (
-          <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-sm space-y-3">
+          <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-base space-y-3">
             <p>まだ保有銘柄がありません。</p>
             {/* 「銘柄を探す」は `/`（LP）に戻るだけで銘柄を探せず、「スクリーナー」は
                 導線から外した `/screener` の旧名だった。実データで銘柄を出せるのは
                 `/learn` の自動スクリーニングだけなので、文言と行き先を揃える。 */}
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              <Link href="/learn" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors">
+              <Link href="/learn" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors">
                 条件から銘柄を探す
               </Link>
-              <Link href="/trade" className="px-4 py-2 bg-panel border border-border hover:border-blue-500 text-slate-300 hover:text-white text-xs font-medium rounded-lg transition-colors">
+              <Link href="/trade" className="px-4 py-2 bg-panel border border-border hover:border-blue-400 text-ink-2 hover:text-ink text-sm font-medium rounded-lg transition-colors">
                 自分で判断して売買する
               </Link>
             </div>
@@ -313,7 +318,7 @@ export default function PortfolioPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-muted text-xs">
+                  <tr className="border-b border-border text-muted text-sm">
                     <th className="text-left px-4 py-3 font-medium">シンボル</th>
                     <th className="text-left px-4 py-3 font-medium">社名</th>
                     <th className="text-right px-4 py-3 font-medium">株数</th>
@@ -335,28 +340,28 @@ export default function PortfolioPage() {
                         <td className="px-4 py-3">
                           <Link
                             href={`/stocks/${pos.symbol}`}
-                            className="font-mono font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                            className="font-mono font-bold text-blue-700 hover:text-blue-800 transition-colors"
                           >
                             {pos.symbol}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-slate-300 max-w-[180px] truncate">
+                        <td className="px-4 py-3 text-ink-2 max-w-[180px] truncate">
                           {pos.name}
                         </td>
-                        <td className="px-4 py-3 text-right text-white font-mono">
+                        <td className="px-4 py-3 text-right text-ink font-mono tabular-nums">
                           {pos.shares.toLocaleString()}株
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-300 font-mono">
+                        <td className="px-4 py-3 text-right text-ink-2 font-mono tabular-nums">
                           {formatUSD(pos.avgCost)}
                         </td>
-                        <td className="px-4 py-3 text-right text-white font-mono">
+                        <td className="px-4 py-3 text-right text-ink font-mono tabular-nums">
                           {formatUSD(currentPrice)}
                         </td>
-                        <td className="px-4 py-3 text-right text-white font-mono">
+                        <td className="px-4 py-3 text-right text-ink font-mono tabular-nums">
                           {formatUSD(marketValue)}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono">
-                          <span className={posPositive ? 'text-green-400' : 'text-red-400'}>
+                        <td className="px-4 py-3 text-right font-mono tabular-nums">
+                          <span className={posPositive ? 'text-green-700' : 'text-red-700'}>
                             {posPositive ? '+' : ''}{formatUSD(pnl)}<br />
                             <span className="text-xs">
                               ({posPositive ? '+' : ''}{pnlPct.toFixed(2)}%)
@@ -375,9 +380,9 @@ export default function PortfolioPage() {
 
       {/* Trade History */}
       <div>
-        <h2 className="text-white font-semibold text-sm mb-3">取引履歴（最新10件）</h2>
+        <h2 className="text-ink font-semibold text-xl mb-3">取引履歴（最新10件）</h2>
         {portfolio.trades.length === 0 ? (
-          <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-sm">
+          <div className="bg-panel border border-border rounded-xl p-8 text-center text-muted text-base">
             取引履歴がありません。
           </div>
         ) : (
@@ -385,7 +390,7 @@ export default function PortfolioPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-muted text-xs">
+                  <tr className="border-b border-border text-muted text-sm">
                     <th className="text-left px-4 py-3 font-medium">日時</th>
                     <th className="text-left px-4 py-3 font-medium">種別</th>
                     <th className="text-left px-4 py-3 font-medium">シンボル</th>
@@ -398,14 +403,14 @@ export default function PortfolioPage() {
                 <tbody className="divide-y divide-border">
                   {portfolio.trades.slice(0, 10).map(trade => (
                     <tr key={trade.id} className="hover:bg-surface/50 transition-colors">
-                      <td className="px-4 py-3 text-slate-300 text-xs font-mono whitespace-nowrap">
+                      <td className="px-4 py-3 text-ink-2 text-sm font-mono tabular-nums whitespace-nowrap">
                         {formatDate(trade.timestamp)}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                        <span className={`text-sm font-bold px-2 py-0.5 rounded ${
                           trade.action === 'buy'
-                            ? 'bg-green-900/40 text-green-400'
-                            : 'bg-red-900/40 text-red-400'
+                            ? 'bg-green-50 text-green-700'
+                            : 'bg-red-50 text-red-700'
                         }`}>
                           {trade.action === 'buy' ? 'BUY' : 'SELL'}
                         </span>
@@ -413,21 +418,21 @@ export default function PortfolioPage() {
                       <td className="px-4 py-3">
                         <Link
                           href={`/stocks/${trade.symbol}`}
-                          className="font-mono font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                          className="font-mono font-bold text-blue-700 hover:text-blue-800 transition-colors"
                         >
                           {trade.symbol}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-slate-300 max-w-[160px] truncate">
+                      <td className="px-4 py-3 text-ink-2 max-w-[160px] truncate">
                         {trade.name}
                       </td>
-                      <td className="px-4 py-3 text-right text-white font-mono">
+                      <td className="px-4 py-3 text-right text-ink font-mono tabular-nums">
                         {trade.shares.toLocaleString()}株
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-300 font-mono">
+                      <td className="px-4 py-3 text-right text-ink-2 font-mono tabular-nums">
                         {formatUSD(trade.price)}
                       </td>
-                      <td className="px-4 py-3 text-right text-white font-mono">
+                      <td className="px-4 py-3 text-right text-ink font-mono tabular-nums">
                         {formatUSD(trade.shares * trade.price)}
                       </td>
                     </tr>

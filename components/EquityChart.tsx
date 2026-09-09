@@ -29,21 +29,21 @@ export function EquityChart({ history, capital, height = 220 }: Props) {
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#0a0f1e' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: '#FFFFFF' },
+        textColor: '#6B6862',
       },
       grid: {
-        vertLines: { color: '#1e293b' },
-        horzLines: { color: '#1e293b' },
+        vertLines: { color: '#EFECE3' },
+        horzLines: { color: '#EFECE3' },
       },
-      rightPriceScale: { borderColor: '#1e293b' },
-      timeScale: { borderColor: '#1e293b', timeVisible: true },
+      rightPriceScale: { borderColor: '#D6D0C3' },
+      timeScale: { borderColor: '#D6D0C3', timeVisible: true },
       width:  containerRef.current.clientWidth,
       height,
     })
 
     const portfolioSeries = chart.addSeries(LineSeries, {
-      color: '#22d3ee',
+      color: '#0E7490',
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -59,7 +59,7 @@ export function EquityChart({ history, capital, height = 220 }: Props) {
     const hasBenchmark = history.some(p => p.benchmarkPct != null)
     if (hasBenchmark) {
       const benchSeries = chart.addSeries(LineSeries, {
-        color: '#475569',
+        color: '#6B6862',
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         priceLineVisible: false,
@@ -76,7 +76,7 @@ export function EquityChart({ history, capital, height = 220 }: Props) {
     }
 
     const baseSeries = chart.addSeries(LineSeries, {
-      color: '#334155',
+      color: '#D6D0C3',
       lineWidth: 1,
       lineStyle: LineStyle.Dotted,
       priceLineVisible: false,
@@ -106,7 +106,7 @@ export function EquityChart({ history, capital, height = 220 }: Props) {
 
   if (history.length < 2) {
     return (
-      <div className="flex items-center justify-center text-slate-600 text-xs" style={{ height }}>
+      <div className="flex items-center justify-center text-muted text-base" style={{ height }}>
         Tick を実行するとエクイティカーブが表示されます
       </div>
     )

@@ -39,10 +39,10 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
     macdChartRef.current?.remove(); macdChartRef.current = null
 
     const baseOpts = {
-      layout: { background: { type: ColorType.Solid, color: '#0f172a' }, textColor: '#94a3b8' },
-      grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-      rightPriceScale: { borderColor: '#334155' },
-      timeScale: { borderColor: '#334155', timeVisible: true, secondsVisible: false },
+      layout: { background: { type: ColorType.Solid, color: '#FFFFFF' }, textColor: '#6B6862' },
+      grid: { vertLines: { color: '#EFECE3' }, horzLines: { color: '#EFECE3' } },
+      rightPriceScale: { borderColor: '#D6D0C3' },
+      timeScale: { borderColor: '#D6D0C3', timeVisible: true, secondsVisible: false },
     }
 
     const t = (v: number) => v as unknown as Time
@@ -63,7 +63,7 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
     if (earningsDates.length > 0) {
       createSeriesMarkers(candles, earningsDates.map(ts => ({
         time: t(ts), position: 'aboveBar' as const,
-        color: '#fbbf24', shape: 'arrowDown' as const, text: '決算',
+        color: '#B45309', shape: 'arrowDown' as const, text: '決算',
       })))
     }
 
@@ -151,13 +151,13 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
       <div ref={containerRef} className="w-full" />
       {indicators.rsi && (
         <div className="relative w-full">
-          <span className="absolute top-1 left-2 z-10 text-xs text-purple-300 font-medium pointer-events-none">RSI(14)</span>
+          <span className="absolute top-1 left-2 z-10 text-xs text-purple-700 font-medium pointer-events-none">RSI(14)</span>
           <div ref={rsiContainerRef} className="w-full" />
         </div>
       )}
       {indicators.macd && (
         <div className="relative w-full">
-          <span className="absolute top-1 left-2 z-10 text-xs text-blue-300 font-medium pointer-events-none">MACD</span>
+          <span className="absolute top-1 left-2 z-10 text-xs text-blue-700 font-medium pointer-events-none">MACD</span>
           <div ref={macdContainerRef} className="w-full" />
         </div>
       )}

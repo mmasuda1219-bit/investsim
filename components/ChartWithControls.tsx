@@ -43,12 +43,12 @@ export function ChartWithControls({ symbol, period }: Props) {
     setIndicators(prev => ({ ...prev, [key]: !prev[key] }))
 
   const CONTROLS = [
-    { key: 'ma20',  label: 'MA20',  color: 'text-blue-400' },
-    { key: 'ma50',  label: 'MA50',  color: 'text-yellow-400' },
-    { key: 'ma200', label: 'MA200', color: 'text-red-400' },
-    { key: 'bb',    label: 'BB',    color: 'text-purple-400' },
-    { key: 'rsi',   label: 'RSI',   color: 'text-purple-300' },
-    { key: 'macd',  label: 'MACD',  color: 'text-blue-300' },
+    { key: 'ma20',  label: 'MA20',  color: 'text-blue-700' },
+    { key: 'ma50',  label: 'MA50',  color: 'text-yellow-700' },
+    { key: 'ma200', label: 'MA200', color: 'text-red-700' },
+    { key: 'bb',    label: 'BB',    color: 'text-purple-700' },
+    { key: 'rsi',   label: 'RSI',   color: 'text-purple-700' },
+    { key: 'macd',  label: 'MACD',  color: 'text-blue-700' },
   ] as const
 
   return (
@@ -62,7 +62,7 @@ export function ChartWithControls({ symbol, period }: Props) {
             className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
               indicators[c.key]
                 ? `border-current ${c.color} bg-current/10`
-                : 'border-border text-muted hover:text-white'
+                : 'border-border text-muted hover:text-ink'
             }`}
           >
             {c.label}
@@ -79,7 +79,7 @@ export function ChartWithControls({ symbol, period }: Props) {
 
       {!loading && error && (
         <div className="flex items-center justify-center bg-surface rounded-lg text-muted" style={{ height: 420 }}>
-          <span className="text-sm text-red-400">{error}</span>
+          <span className="text-sm text-red-700">{error}</span>
         </div>
       )}
 

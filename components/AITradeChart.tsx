@@ -43,16 +43,16 @@ export function AITradeChart({ data, trades, height = 380, symbol }: Props) {
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#0a0f1e' },
-        textColor: '#94a3b8',
+        background: { type: ColorType.Solid, color: '#FFFFFF' },
+        textColor: '#6B6862',
       },
       grid: {
-        vertLines: { color: '#1e293b' },
-        horzLines: { color: '#1e293b' },
+        vertLines: { color: '#EFECE3' },
+        horzLines: { color: '#EFECE3' },
       },
-      rightPriceScale: { borderColor: '#334155' },
+      rightPriceScale: { borderColor: '#D6D0C3' },
       timeScale: {
-        borderColor: '#334155',
+        borderColor: '#D6D0C3',
         timeVisible: true,
         secondsVisible: false,
       },
@@ -124,15 +124,15 @@ export function AITradeChart({ data, trades, height = 380, symbol }: Props) {
   return (
     <div className="w-full rounded-lg overflow-hidden relative">
       <div className="absolute top-2 left-3 z-10 flex items-center gap-3 pointer-events-none">
-        <span className="text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded">{symbol}</span>
-        <span className="flex items-center gap-1 text-xs text-blue-400">
+        <span className="text-xs font-bold text-ink bg-card/80 px-2 py-0.5 rounded">{symbol}</span>
+        <span className="flex items-center gap-1 text-xs text-blue-700">
           <span className="w-3 h-0.5 bg-blue-400 inline-block" /> MA20
         </span>
-        <span className="flex items-center gap-1 text-xs text-yellow-400">
+        <span className="flex items-center gap-1 text-xs text-yellow-700">
           <span className="w-3 h-0.5 bg-yellow-400 inline-block" /> MA50
         </span>
-        <span className="flex items-center gap-1 text-xs text-green-400">▲ 買い</span>
-        <span className="flex items-center gap-1 text-xs text-red-400">▼ 売り</span>
+        <span className="flex items-center gap-1 text-xs text-green-700">▲ 買い</span>
+        <span className="flex items-center gap-1 text-xs text-red-700">▼ 売り</span>
       </div>
       <div ref={containerRef} className="w-full" />
     </div>

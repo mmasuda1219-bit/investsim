@@ -119,7 +119,7 @@ export default function SimulatePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">AIシミュレーション</h1>
+        <h1 className="text-2xl font-bold text-ink">AIシミュレーション</h1>
         <p className="text-muted text-sm mt-1">著名投資家のロジックで1ヶ月の自動売買をシミュレーション</p>
       </div>
 
@@ -137,11 +137,11 @@ export default function SimulatePage() {
                   onClick={() => setInvestorId(inv.id)}
                   style={active ? { borderColor: inv.color, backgroundColor: `${inv.color}1a` } : undefined}
                   className={`rounded-xl p-3 border text-left transition-all ${
-                    active ? '' : 'border-border hover:border-slate-600 bg-surface/30'
+                    active ? '' : 'border-border hover:border-accent bg-surface/30'
                   }`}
                 >
                   <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-950 text-sm font-bold mb-2"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-ink text-sm font-bold mb-2"
                     style={{ backgroundColor: inv.color }}
                   >
                     {inv.initial}
@@ -169,7 +169,7 @@ export default function SimulatePage() {
                     className="mt-0.5 accent-blue-500"
                   />
                   <div>
-                    <p className="text-sm text-slate-300 group-hover:text-white transition-colors">{u.label}</p>
+                    <p className="text-sm text-ink-2 group-hover:text-ink transition-colors">{u.label}</p>
                     <p className="text-xs text-muted">{u.desc}</p>
                   </div>
                 </label>
@@ -185,7 +185,7 @@ export default function SimulatePage() {
               step="1000"
               value={capital}
               onChange={e => setCapital(e.target.value)}
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
             />
             <p className="text-xs text-muted mt-1">
               {formatUSD(Number(capital) || 100_000)} からスタート
@@ -198,7 +198,7 @@ export default function SimulatePage() {
           disabled={loading}
           style={loading ? undefined : { backgroundColor: selectedInvestor.color }}
           className={`px-6 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-            loading ? 'bg-slate-700 text-white cursor-not-allowed' : 'text-gray-950 hover:opacity-80'
+            loading ? 'bg-surface text-muted cursor-not-allowed' : 'text-on-accent hover:opacity-80'
           }`}
         >
           {loading ? `シミュレーション中... (${elapsed}秒)` : '1ヶ月シミュレーション実行'}
@@ -207,7 +207,7 @@ export default function SimulatePage() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-red-300 text-sm">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
           {error}
         </div>
       )}
@@ -215,7 +215,7 @@ export default function SimulatePage() {
       {/* Loading */}
       {loading && (
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin mx-auto" />
+          <div className="w-8 h-8 border-2 border-border border-t-blue-500 rounded-full animate-spin mx-auto" />
           <p className="text-muted text-sm">Yahoo Financeから実データを取得中...</p>
           <p className="text-xs text-muted">銘柄数によっては20〜30秒かかることがあります</p>
         </div>
@@ -234,28 +234,28 @@ export default function SimulatePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">最終資産</p>
-              <p className="text-white text-xl font-bold font-mono">{formatUSD(result.finalValue)}</p>
+              <p className="text-ink text-xl font-bold font-mono">{formatUSD(result.finalValue)}</p>
               <p className="text-xs text-muted mt-0.5">初期: {formatUSD(result.startCapital)}</p>
             </div>
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">損益</p>
-              <p className={`text-xl font-bold font-mono ${pnlPositive ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`text-xl font-bold font-mono ${pnlPositive ? 'text-green-700' : 'text-red-700'}`}>
                 {pnlPositive ? '+' : ''}{formatUSD(result.pnl)}
               </p>
-              <p className={`text-xs font-mono ${pnlPositive ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`text-xs font-mono ${pnlPositive ? 'text-green-700' : 'text-red-700'}`}>
                 {pnlPositive ? '▲' : '▼'} {Math.abs(result.pnlPct).toFixed(2)}%
               </p>
             </div>
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">勝率</p>
-              <p className="text-white text-xl font-bold font-mono">{result.winRate.toFixed(0)}%</p>
+              <p className="text-ink text-xl font-bold font-mono">{result.winRate.toFixed(0)}%</p>
               <p className="text-xs text-muted mt-0.5">
                 {result.winningPositions}勝 / {result.losingPositions}敗
               </p>
             </div>
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">総トレード数</p>
-              <p className="text-white text-xl font-bold font-mono">{result.trades.length}件</p>
+              <p className="text-ink text-xl font-bold font-mono">{result.trades.length}件</p>
               <p className="text-xs text-muted mt-0.5">
                 買: {result.trades.filter(t => t.action === 'buy').length} / 売: {result.trades.filter(t => t.action === 'sell').length}
               </p>
@@ -264,7 +264,7 @@ export default function SimulatePage() {
 
           {/* Portfolio chart */}
           <div className="bg-panel border border-border rounded-xl p-5">
-            <h2 className="text-white font-semibold text-sm mb-3">ポートフォリオ推移</h2>
+            <h2 className="text-ink font-semibold text-sm mb-3">ポートフォリオ推移</h2>
             <MiniChart values={result.dailyValues} />
           </div>
 
@@ -272,26 +272,26 @@ export default function SimulatePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Stock signals */}
             <div className="bg-panel border border-border rounded-xl p-5">
-              <h2 className="text-white font-semibold text-sm mb-3">銘柄シグナル</h2>
+              <h2 className="text-ink font-semibold text-sm mb-3">銘柄シグナル</h2>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {result.stockResults.sort((a, b) => (b.bought ? 1 : 0) - (a.bought ? 1 : 0)).map(s => (
                   <div key={s.symbol} className={`flex items-center justify-between px-3 py-2 rounded-lg ${s.bought ? 'bg-surface' : 'bg-surface/30'}`}>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-blue-400">{s.symbol}</span>
+                      <span className="font-mono font-bold text-sm text-blue-700">{s.symbol}</span>
                       {s.bought && (
-                        <span className="text-xs bg-blue-900/40 text-blue-300 px-1.5 py-0.5 rounded">保有</span>
+                        <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">保有</span>
                       )}
                     </div>
                     <div className="flex items-center gap-3">
                       {s.buyPrice && (
-                        <span className={`text-xs font-mono ${s.pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`text-xs font-mono ${s.pnlPct >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                           {s.pnlPct >= 0 ? '+' : ''}{s.pnlPct.toFixed(1)}%
                         </span>
                       )}
                       <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                        s.signal === 'buy'  ? 'bg-green-900/40 text-green-400' :
-                        s.signal === 'sell' ? 'bg-red-900/40 text-red-400' :
-                        'bg-slate-800 text-muted'
+                        s.signal === 'buy'  ? 'bg-green-50 text-green-700' :
+                        s.signal === 'sell' ? 'bg-red-50 text-red-700' :
+                        'bg-surface text-muted'
                       }`}>
                         {s.signal === 'buy' ? 'BUY' : s.signal === 'sell' ? 'SELL' : 'HOLD'}
                       </span>
@@ -303,7 +303,7 @@ export default function SimulatePage() {
 
             {/* Trade log */}
             <div className="bg-panel border border-border rounded-xl p-5">
-              <h2 className="text-white font-semibold text-sm mb-3">取引履歴</h2>
+              <h2 className="text-ink font-semibold text-sm mb-3">取引履歴</h2>
               {result.trades.length === 0 ? (
                 <p className="text-muted text-sm">このユニバースでは買いシグナルが発生しませんでした</p>
               ) : (
@@ -311,16 +311,16 @@ export default function SimulatePage() {
                   {result.trades.map((t, i) => (
                     <div key={i} className="flex items-start gap-3 px-3 py-2 bg-surface/50 rounded-lg">
                       <span className={`shrink-0 mt-0.5 text-xs font-bold px-2 py-0.5 rounded ${
-                        t.action === 'buy' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'
+                        t.action === 'buy' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
                       }`}>
                         {t.action === 'buy' ? 'BUY' : 'SELL'}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between">
-                          <span className="font-mono font-bold text-sm text-white">{t.symbol}</span>
+                          <span className="font-mono font-bold text-sm text-ink">{t.symbol}</span>
                           <span className="text-xs text-muted font-mono">{t.date}</span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-ink-2 mt-0.5">
                           {t.shares.toFixed(2)}株 × ${t.price.toFixed(2)} = ${t.total.toLocaleString()}
                         </p>
                         {t.reasons[0] && (

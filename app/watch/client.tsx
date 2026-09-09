@@ -14,7 +14,7 @@ import { MarketOverview } from '@/components/MarketOverview'
 const TradingChart = dynamic(() => import('@/components/TradingChart'), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-[500px] bg-[#0f1117] rounded-xl text-gray-400 animate-pulse text-sm">
+    <div className="flex items-center justify-center h-[500px] bg-[#0f1117] rounded-xl text-ink-2 animate-pulse text-sm">
       チャートデータ読み込み中…
     </div>
   ),
@@ -22,11 +22,11 @@ const TradingChart = dynamic(() => import('@/components/TradingChart'), {
 
 const EquityChart = dynamic(
   () => import('@/components/EquityChart').then(m => m.EquityChart),
-  { ssr: false, loading: () => <div className="h-56 flex items-center justify-center text-gray-500 text-sm bg-[#0f1117] rounded-lg">グラフ読込中...</div> }
+  { ssr: false, loading: () => <div className="h-56 flex items-center justify-center text-muted text-sm bg-[#0f1117] rounded-lg">グラフ読込中...</div> }
 )
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-const pnlCls = (v: number) => v > 0 ? 'text-emerald-400' : v < 0 ? 'text-red-400' : 'text-gray-400'
+const pnlCls = (v: number) => v > 0 ? 'text-emerald-700' : v < 0 ? 'text-red-700' : 'text-ink-2'
 const fmtUSD = (n: number, dec = 2) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`
 const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
@@ -114,31 +114,31 @@ function StartScreen({ onStart }: { onStart: (capital: number, persona?: Investo
       <div className="w-full max-w-md space-y-6 text-center">
         <div className="space-y-2">
           <div className="text-4xl font-black tracking-tight">
-            <span className="text-emerald-400">AI</span>
-            <span className="text-white"> TRADER</span>
+            <span className="text-emerald-700">AI</span>
+            <span className="text-ink"> TRADER</span>
           </div>
-          <p className="text-gray-400 text-sm leading-relaxed">
+          <p className="text-ink-2 text-base leading-relaxed max-w-[42rem] mx-auto">
             Claude が自律的にリアルタイム市場データを分析し、<br />
             ファンダメンタル＋テクニカル＋ニュースを総合判断して<br />
             仮想売買を行います
           </p>
         </div>
 
-        <div className="flex items-center justify-center gap-5 text-xs text-gray-500">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-muted">
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Yahoo Finance</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> ファンダメンタル分析</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-400 inline-block" /> Claude AI</span>
         </div>
 
-        <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 space-y-4 text-left">
+        <div className="bg-panel border border-border rounded-2xl p-6 space-y-4 text-left">
           <div>
-            <label className="text-xs text-gray-500 block mb-2">初期資金 (USD)</label>
+            <label className="text-sm text-ink-2 block mb-2">初期資金 (USD)</label>
             <input
               type="number"
               value={capital}
               onChange={e => setCapital(Number(e.target.value))}
               min={10000} max={10000000} step={10000}
-              className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+              className="w-full bg-background border border-border rounded-lg px-4 py-3 text-ink text-base tabular-nums focus:outline-none focus:border-emerald-200 transition-colors"
             />
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -146,10 +146,10 @@ function StartScreen({ onStart }: { onStart: (capital: number, persona?: Investo
               <button
                 key={v}
                 onClick={() => setCapital(v)}
-                className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
+                className={`py-2 rounded-lg text-sm font-medium tabular-nums border transition-colors ${
                   capital === v
-                    ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
-                    : 'border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                    ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
+                    : 'border-border text-muted hover:border-accent hover:text-ink'
                 }`}
               >
                 ${(v / 1000).toFixed(0)}K
@@ -157,16 +157,16 @@ function StartScreen({ onStart }: { onStart: (capital: number, persona?: Investo
             ))}
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-2">投資家人格</label>
+            <label className="text-sm text-ink-2 block mb-2">投資家人格</label>
             <div className="grid grid-cols-2 gap-2">
               {PERSONA_OPTIONS.map(opt => (
                 <button
                   key={opt.label}
                   onClick={() => setPersona(opt.id)}
-                  className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
+                  className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
                     persona === opt.id
-                      ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
-                      : 'border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                      ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
+                      : 'border-border text-muted hover:border-accent hover:text-ink'
                   }`}
                 >
                   {opt.label}
@@ -177,7 +177,7 @@ function StartScreen({ onStart }: { onStart: (capital: number, persona?: Investo
           <button
             onClick={() => { setLoading(true); onStart(capital, persona) }}
             disabled={loading}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+            className="w-full bg-accent disabled:opacity-50 text-on-accent font-bold py-3 rounded-xl text-sm transition-colors"
           >
             {loading ? '分析開始中...' : '▶ 自動売買を開始する'}
           </button>
@@ -194,28 +194,28 @@ interface NavBarProps {
 }
 function NavBar({ session, ticking }: NavBarProps) {
   return (
-    <nav className="border-b border-gray-800 bg-gray-900/90 backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4 sticky top-0 z-30">
+    <nav className="border-b border-border bg-panel backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4 sticky top-0 z-30">
       {/* ロゴとページ間リンクはグローバルの SiteNav が持つ。ここに置くと
           ロゴが縦に2つ並ぶため、この帯は運用状態の表示だけに専念する。
           スマホ幅では横に詰まって「AIの判 / 断」「Tick / #1」と語中で折れるため、
           この帯の項目はすべて whitespace-nowrap で1行に固定する。 */}
-      <span className="text-sm font-semibold text-white whitespace-nowrap">AIの判断</span>
-      <span className="text-xs text-gray-500 border border-gray-700 px-2 py-0.5 rounded whitespace-nowrap">Beta</span>
+      <span className="text-xl font-semibold text-ink whitespace-nowrap">AIの判断</span>
+      <span className="text-xs text-muted border border-border px-2 py-0.5 rounded whitespace-nowrap">Beta</span>
       {session && (
         <div className="ml-auto flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border whitespace-nowrap shrink-0 ${
+          <div className={`flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border whitespace-nowrap shrink-0 ${
             ticking
-              ? 'border-yellow-600/50 text-yellow-400 bg-yellow-500/10 animate-pulse'
-              : 'border-emerald-600/40 text-emerald-400 bg-emerald-500/10'
+              ? 'border-yellow-200 text-yellow-700 bg-yellow-50 animate-pulse'
+              : 'border-emerald-200 text-emerald-700 bg-emerald-50'
           }`}>
             <span className="w-1.5 h-1.5 rounded-full bg-current" />
             {ticking ? '分析中...' : 'LIVE'}
           </div>
-          <div className={`text-sm font-bold tabular-nums whitespace-nowrap ${pnlCls(session.pnl)}`}>
+          <div className={`text-base font-bold tabular-nums whitespace-nowrap ${pnlCls(session.pnl)}`}>
             {session.pnl >= 0 ? '+' : ''}{fmtUSD(session.pnl)} ({fmtPct(session.pnlPct)})
           </div>
           {/* Tick番号は最も情報量が低いので、幅が足りないスマホでは落とす */}
-          <div className="hidden sm:block text-xs text-gray-600 whitespace-nowrap">Tick #{session.tickCount}</div>
+          <div className="hidden sm:block text-sm text-muted tabular-nums whitespace-nowrap">Tick #{session.tickCount}</div>
         </div>
       )}
     </nav>
@@ -401,16 +401,16 @@ export function AISessionClient() {
 
   // Loading
   if (restoring) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="flex items-center gap-3 text-gray-400">
-        <div className="w-5 h-5 border-2 border-gray-700 border-t-emerald-400 rounded-full animate-spin" />
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex items-center gap-3 text-ink-2">
+        <div className="w-5 h-5 border-2 border-border border-t-emerald-400 rounded-full animate-spin" />
         <span className="text-sm">セッション復元中...</span>
       </div>
     </div>
   )
 
   if (!session) return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-background text-ink">
       <NavBar session={null} ticking={false} />
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pt-4">
         <MarketOverview />
@@ -439,12 +439,12 @@ export function AISessionClient() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-background text-ink">
       <NavBar session={session} ticking={ticking} />
 
       {error && (
         <div className="max-w-screen-2xl mx-auto px-6 pt-4">
-          <div className="bg-red-900/30 border border-red-700/40 rounded-lg px-4 py-2 text-red-400 text-sm">{error}</div>
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-red-700 text-sm">{error}</div>
         </div>
       )}
 
@@ -458,28 +458,28 @@ export function AISessionClient() {
         <div className="space-y-4">
 
           {/* Portfolio */}
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 space-y-3">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-widest">ポートフォリオ</div>
+          <div className="bg-panel rounded-xl border border-border p-4 space-y-3">
+            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest">ポートフォリオ</div>
             <div className="space-y-2.5">
               {[
-                { label: '総資産', value: fmtUSD(totalValue, 0), cls: 'font-bold text-white' },
-                { label: '現金', value: fmtUSD(cash, 0), cls: 'text-gray-300' },
+                { label: '総資産', value: fmtUSD(totalValue, 0), cls: 'font-bold text-ink' },
+                { label: '現金', value: fmtUSD(cash, 0), cls: 'text-ink-2' },
                 { label: '損益', value: `${pnl >= 0 ? '+' : ''}${fmtUSD(pnl)} (${fmtPct(pnlPct)})`, cls: `font-bold ${pnlCls(pnl)}` },
-                { label: '初期資金', value: fmtUSD(capital, 0), cls: 'text-gray-500' },
+                { label: '初期資金', value: fmtUSD(capital, 0), cls: 'text-muted' },
               ].map(({ label, value, cls }) => (
                 <div key={label} className="flex justify-between text-sm">
-                  <span className="text-gray-500">{label}</span>
+                  <span className="text-muted">{label}</span>
                   <span className={`tabular-nums ${cls}`}>{value}</span>
                 </div>
               ))}
             </div>
             {/* Cash bar */}
             <div>
-              <div className="flex justify-between text-xs text-gray-600 mb-1">
+              <div className="flex justify-between text-sm text-muted mb-1">
                 <span>現金比率</span>
-                <span>{((cash / totalValue) * 100).toFixed(0)}%</span>
+                <span className="tabular-nums">{((cash / totalValue) * 100).toFixed(0)}%</span>
               </div>
-              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all"
                   style={{ width: `${Math.min((cash / totalValue) * 100, 100)}%` }}
@@ -489,12 +489,12 @@ export function AISessionClient() {
           </div>
 
           {/* Holdings */}
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-              保有銘柄 <span className="text-gray-700">({holdingSymbols.length}/5)</span>
+          <div className="bg-panel rounded-xl border border-border p-4">
+            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest mb-3">
+              保有銘柄 <span className="text-muted tabular-nums">({holdingSymbols.length}/5)</span>
             </div>
             {holdingSymbols.length === 0 ? (
-              <p className="text-xs text-gray-700">ポジションなし</p>
+              <p className="text-sm text-muted">ポジションなし</p>
             ) : (
               <div className="space-y-2">
                 {holdingSymbols.map(sym => {
@@ -505,17 +505,17 @@ export function AISessionClient() {
                       onClick={() => setChartSymbol(sym)}
                       className={`w-full text-left rounded-lg p-2.5 border transition-colors ${
                         chartSymbol === sym
-                          ? 'border-emerald-600/50 bg-emerald-900/10'
-                          : 'border-gray-800 hover:border-gray-600'
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : 'border-border hover:border-accent'
                       }`}
                     >
                       <div className="flex justify-between items-center">
-                        <span className="font-mono font-semibold text-sm text-white">{sym}</span>
-                        <span className="text-xs text-gray-500">{pos.shares.toFixed(2)}株</span>
+                        <span className="font-mono font-semibold text-base text-ink">{sym}</span>
+                        <span className="text-sm text-muted tabular-nums">{pos.shares.toFixed(2)}株</span>
                       </div>
-                      <div className="flex justify-between text-xs mt-0.5">
-                        <span className="text-gray-600">avg {fmtUSD(pos.avgCost)}</span>
-                        <span className="text-gray-400">{fmtUSD(pos.shares * pos.avgCost, 0)}</span>
+                      <div className="flex justify-between text-sm mt-0.5 tabular-nums">
+                        <span className="text-muted">avg {fmtUSD(pos.avgCost)}</span>
+                        <span className="text-ink-2">{fmtUSD(pos.shares * pos.avgCost, 0)}</span>
                       </div>
                     </button>
                   )
@@ -525,29 +525,29 @@ export function AISessionClient() {
           </div>
 
           {/* Learning */}
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">学習状態</div>
-            <div className="space-y-2 text-xs">
+          <div className="bg-panel rounded-xl border border-border p-4">
+            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest mb-3">学習状態</div>
+            <div className="space-y-2 text-sm tabular-nums">
               <div className="flex justify-between">
-                <span className="text-gray-500">クローズ取引</span>
-                <span className="text-gray-300">{learning.stats.totalTrades}件</span>
+                <span className="text-muted">クローズ取引</span>
+                <span className="text-ink-2">{learning.stats.totalTrades}件</span>
               </div>
               {learning.stats.totalTrades > 0 && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">勝率</span>
+                    <span className="text-muted">勝率</span>
                     <span className={pnlCls(learning.stats.winRate - 50)}>{learning.stats.winRate}%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">平均利益</span>
-                    <span className="text-emerald-400">+{learning.stats.avgGainPct}%</span>
+                    <span className="text-muted">平均利益</span>
+                    <span className="text-emerald-700">+{learning.stats.avgGainPct}%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">平均損失</span>
-                    <span className="text-red-400">{learning.stats.avgLossPct}%</span>
+                    <span className="text-muted">平均損失</span>
+                    <span className="text-red-700">{learning.stats.avgLossPct}%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">合計P&L</span>
+                    <span className="text-muted">合計P&L</span>
                     <span className={`font-semibold ${pnlCls(learning.stats.totalPnl)}`}>
                       {learning.stats.totalPnl >= 0 ? '+' : ''}{fmtUSD(learning.stats.totalPnl, 0)}
                     </span>
@@ -555,8 +555,8 @@ export function AISessionClient() {
                 </>
               )}
               <div className="flex justify-between">
-                <span className="text-gray-500">学習済み教訓</span>
-                <span className="text-gray-300">{learning.lessons.length}件</span>
+                <span className="text-muted">学習済み教訓</span>
+                <span className="text-ink-2">{learning.lessons.length}件</span>
               </div>
             </div>
           </div>
@@ -566,13 +566,13 @@ export function AISessionClient() {
               サイトの記録そのものを消す。以前はどちらも訪問者が押せる状態だった。
               隠すのは親切のためで、権限の実体は各APIルート側にある。 */}
           {isAdmin && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 space-y-3">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Auto Tick</div>
+          <div className="bg-panel rounded-xl border border-border p-4 space-y-3">
+            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest">Auto Tick</div>
             <div className="flex items-center justify-between">
               <select
                 value={interval}
                 onChange={e => setIntervalS(Number(e.target.value))}
-                className="bg-gray-800 border border-gray-700 text-xs text-gray-300 px-2 py-1.5 rounded-lg"
+                className="bg-surface border border-border text-sm text-ink-2 px-2 py-1.5 rounded-lg"
               >
                 <option value={60}>60秒</option>
                 <option value={120}>2分</option>
@@ -580,11 +580,11 @@ export function AISessionClient() {
                 <option value={600}>10分</option>
               </select>
               {autoTick && countdown > 0 && (
-                <span className="text-sm font-mono font-bold text-gray-400">{countdown}s</span>
+                <span className="text-sm font-mono font-bold text-ink-2">{countdown}s</span>
               )}
               <button
                 onClick={() => setAutoTick(v => !v)}
-                className={`relative w-9 h-5 rounded-full transition-colors ${autoTick ? 'bg-emerald-600' : 'bg-gray-700'}`}
+                className={`relative w-9 h-5 rounded-full transition-colors ${autoTick ? 'bg-success' : 'bg-[var(--muted)]'}`}
               >
                 <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoTick ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </button>
@@ -592,29 +592,29 @@ export function AISessionClient() {
             <button
               onClick={() => runTick()}
               disabled={ticking}
-              className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+              className="w-full bg-accent disabled:opacity-40 text-on-accent text-sm font-bold py-2 rounded-lg transition-colors"
             >
               {ticking ? '⟳ 分析中...' : '▶ 今すぐ Tick 実行'}
             </button>
 
             {/* サーバー側 自動運転（ブラウザを閉じてもcronがtickする）*/}
-            <div className="pt-1 border-t border-gray-800 space-y-2">
+            <div className="pt-1 border-t border-border space-y-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-semibold text-gray-400">自動運転</div>
-                  <div className="text-[11px] text-gray-600">ブラウザを閉じてもサーバーが自動でtick</div>
+                  <div className="text-base font-semibold text-ink">自動運転</div>
+                  <div className="text-sm text-muted leading-relaxed">ブラウザを閉じてもサーバーが自動でtick</div>
                 </div>
                 <button
                   onClick={toggleAutoDrive}
                   disabled={autoDriveSaving}
-                  className={`relative w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${session.auto?.enabled ? 'bg-emerald-600' : 'bg-gray-700'}`}
+                  className={`relative w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${session.auto?.enabled ? 'bg-success' : 'bg-[var(--muted)]'}`}
                 >
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${session.auto?.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </button>
               </div>
-              <div className="flex justify-between text-[11px]">
-                <span className="text-gray-600">本日の自動tick</span>
-                <span className={`tabular-nums font-mono ${session.auto?.enabled ? 'text-emerald-400' : 'text-gray-500'}`}>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted">本日の自動tick</span>
+                <span className={`tabular-nums font-mono ${session.auto?.enabled ? 'text-emerald-700' : 'text-muted'}`}>
                   {autoCountToday(session)}/3
                 </span>
               </div>
@@ -626,7 +626,7 @@ export function AISessionClient() {
                 localStorage.removeItem('ai_session_id')
                 localStorage.removeItem('ai_auto_tick')
               }}
-              className="w-full border border-gray-700 text-gray-500 hover:text-gray-300 text-xs py-1.5 rounded-lg transition-colors"
+              className="w-full border border-border text-muted hover:text-ink-2 text-sm py-1.5 rounded-lg transition-colors"
             >
               ✕ セッションをリセット
             </button>
@@ -634,9 +634,9 @@ export function AISessionClient() {
           )}
 
           {/* Data sources */}
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">データソース</div>
-            <div className="space-y-2 text-xs text-gray-500">
+          <div className="bg-panel rounded-xl border border-border p-4">
+            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest mb-3">データソース</div>
+            <div className="space-y-2 text-sm text-muted">
               {[
                 { color: 'bg-blue-400',   label: 'Yahoo Finance',        sub: 'リアルタイム株価・10年チャート' },
                 { color: 'bg-emerald-400', label: 'ファンダメンタル分析', sub: 'PER/ROE/ROA/FCF/D&E' },
@@ -646,8 +646,8 @@ export function AISessionClient() {
                 <div key={s.label} className="flex items-start gap-2">
                   <span className={`w-2 h-2 rounded-full ${s.color} mt-0.5 shrink-0`} />
                   <div>
-                    <div className="text-gray-400">{s.label}</div>
-                    <div className="text-gray-700 text-[11px]">{s.sub}</div>
+                    <div className="text-ink-2">{s.label}</div>
+                    <div className="text-muted text-sm leading-relaxed">{s.sub}</div>
                   </div>
                 </div>
               ))}
@@ -659,47 +659,47 @@ export function AISessionClient() {
         <div className="space-y-5 min-w-0">
 
           {/* Symbol + Period controls — same style as investsim */}
-          <div className="bg-gray-900 rounded-xl border border-gray-800 px-5 py-4 flex flex-wrap items-center gap-4">
+          <div className="bg-panel rounded-xl border border-border px-5 py-4 flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-500">銘柄</span>
+              <span className="text-sm text-muted">銘柄</span>
               <div className="flex flex-wrap gap-1.5">
                 {allSymbols.map(sym => (
                   <button
                     key={sym}
                     onClick={() => setChartSymbol(sym)}
-                    className={`text-xs px-2.5 py-1 rounded border font-mono transition-colors ${
+                    className={`text-sm px-2.5 py-1 rounded border font-mono transition-colors ${
                       chartSymbol === sym
-                        ? 'bg-emerald-900/50 border-emerald-600 text-emerald-300'
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                         : holdingSymbols.includes(sym)
-                          ? 'bg-emerald-950/30 border-emerald-800 text-emerald-500 hover:border-emerald-600'
-                          : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:border-emerald-400'
+                          : 'bg-surface border-border text-ink-2 hover:border-accent'
                     }`}
                   >
                     {sym}
-                    {holdingSymbols.includes(sym) && <span className="ml-1 text-emerald-400">●</span>}
+                    {holdingSymbols.includes(sym) && <span className="ml-1 text-emerald-700">●</span>}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-gray-500">表示期間</span>
+              <span className="text-sm text-muted">表示期間</span>
               <div className="flex gap-1">
                 {PERIODS.map(p => (
                   <button
                     key={p.value}
                     onClick={() => setViewPeriod(p.value)}
-                    className={`text-xs px-3 py-1 rounded border transition-colors font-medium ${
+                    className={`text-sm px-3 py-1 rounded border transition-colors font-medium ${
                       viewPeriod === p.value
-                        ? 'bg-blue-900/50 border-blue-600 text-blue-300'
-                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                        ? 'bg-blue-50 border-blue-200 text-blue-700'
+                        : 'bg-surface border-border text-ink-2 hover:border-accent'
                     }`}
                   >
                     {p.label}
                   </button>
                 ))}
               </div>
-              <span className="text-xs text-gray-700 ml-1 hidden sm:inline">← ドラッグで遡れます</span>
+              <span className="text-sm text-muted ml-1 hidden sm:inline">← ドラッグで遡れます</span>
             </div>
           </div>
 
@@ -712,8 +712,8 @@ export function AISessionClient() {
           />
 
           {/* Tabs */}
-          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-            <div className="flex border-b border-gray-800 overflow-x-auto">
+          <div className="bg-panel rounded-xl border border-border overflow-hidden">
+            <div className="flex border-b border-border overflow-x-auto">
               {([
                 { key: 'performance', label: '📈 運用成績' },
                 { key: 'decisions',   label: 'AI判断ログ',  count: decisions.length },
@@ -723,15 +723,15 @@ export function AISessionClient() {
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`px-5 py-3 text-xs font-semibold whitespace-nowrap transition-colors ${
+                  className={`px-5 py-3 text-sm font-semibold whitespace-nowrap transition-colors ${
                     tab === t.key
-                      ? 'text-white border-b-2 border-emerald-400 bg-emerald-500/5'
-                      : 'text-gray-500 hover:text-gray-300'
+                      ? 'text-ink border-b-2 border-emerald-400 bg-emerald-50'
+                      : 'text-muted hover:text-ink'
                   }`}
                 >
                   {t.label}
                   {'count' in t && t.count > 0 && (
-                    <span className="ml-1.5 bg-gray-800 text-gray-400 text-xs px-1.5 py-0.5 rounded-full">
+                    <span className="ml-1.5 bg-surface text-ink-2 text-xs tabular-nums px-1.5 py-0.5 rounded-full">
                       {t.count}
                     </span>
                   )}
@@ -753,9 +753,9 @@ export function AISessionClient() {
                   <div className="space-y-5">
                     <div>
                       <div className="flex items-center gap-3 mb-3">
-                        <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider">エクイティカーブ</span>
-                        <span className="flex items-center gap-1 text-xs text-emerald-400"><span className="w-3 h-0.5 bg-emerald-400 inline-block"/>AI</span>
-                        <span className="flex items-center gap-1 text-xs text-gray-500"><span className="w-3 h-0.5 bg-gray-500 inline-block"/>SPY</span>
+                        <span className="text-sm text-ink-2 font-semibold uppercase tracking-wider">エクイティカーブ</span>
+                        <span className="flex items-center gap-1 text-sm text-emerald-700"><span className="w-3 h-0.5 bg-emerald-400 inline-block"/>AI</span>
+                        <span className="flex items-center gap-1 text-sm text-muted"><span className="w-3 h-0.5 bg-[var(--muted)] inline-block"/>SPY</span>
                       </div>
                       <EquityChart history={eq} capital={capital} height={220} />
                     </div>
@@ -763,20 +763,20 @@ export function AISessionClient() {
                       {[
                         { label: '運用日数',        value: `${s.daysRunning ?? 0}日` },
                         { label: '年率換算リターン', value: `${(s.annualizedReturnPct ?? 0) >= 0 ? '+' : ''}${(s.annualizedReturnPct ?? 0).toFixed(1)}%`, cls: pnlCls(s.annualizedReturnPct ?? 0) },
-                        { label: '最大ドローダウン', value: `-${(s.maxDrawdownPct ?? 0).toFixed(1)}%`, cls: 'text-red-400' },
-                        { label: 'シャープレシオ',  value: (s.sharpeRatio ?? 0).toFixed(2), cls: (s.sharpeRatio ?? 0) > 1 ? 'text-emerald-400' : 'text-gray-300' },
+                        { label: '最大ドローダウン', value: `-${(s.maxDrawdownPct ?? 0).toFixed(1)}%`, cls: 'text-red-700' },
+                        { label: 'シャープレシオ',  value: (s.sharpeRatio ?? 0).toFixed(2), cls: (s.sharpeRatio ?? 0) > 1 ? 'text-emerald-700' : 'text-ink-2' },
                         { label: 'AI総リターン',    value: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`, cls: pnlCls(pnlPct) },
                         { label: 'SPYリターン',     value: benchPct != null ? `${benchPct >= 0 ? '+' : ''}${benchPct.toFixed(2)}%` : 'N/A', cls: pnlCls(benchPct ?? 0) },
                         { label: 'アルファ',        value: alpha != null ? `${alpha >= 0 ? '+' : ''}$${Math.abs(alpha).toFixed(0)}` : 'N/A', cls: pnlCls(alpha ?? 0) },
-                        { label: '勝率',            value: `${(s.winRate ?? 0).toFixed(0)}%`, cls: (s.winRate ?? 0) >= 50 ? 'text-emerald-400' : 'text-red-400' },
+                        { label: '勝率',            value: `${(s.winRate ?? 0).toFixed(0)}%`, cls: (s.winRate ?? 0) >= 50 ? 'text-emerald-700' : 'text-red-700' },
                       ].map(({ label, value, cls }) => (
-                        <div key={label} className="bg-gray-950 border border-gray-800 rounded-xl p-3">
-                          <div className="text-xs text-gray-600 mb-1">{label}</div>
-                          <div className={`text-base font-bold tabular-nums ${cls ?? 'text-white'}`}>{value}</div>
+                        <div key={label} className="bg-background border border-border rounded-xl p-3">
+                          <div className="text-sm text-muted mb-1">{label}</div>
+                          <div className={`text-base font-bold tabular-nums ${cls ?? 'text-ink'}`}>{value}</div>
                         </div>
                       ))}
                     </div>
-                    <div className="text-xs text-gray-700 text-center">
+                    <div className="text-sm text-muted text-center tabular-nums">
                       {eq.length} ポイント記録済み · 総取引 {s.totalTradeCount ?? 0}件 · Tick #{tickCount} · {ago(lastTickAt)}
                     </div>
                   </div>
@@ -786,61 +786,61 @@ export function AISessionClient() {
               {/* AI Decisions tab */}
               {tab === 'decisions' && (
                 decisions.length === 0 ? (
-                  <div className="text-gray-600 text-sm py-10 text-center">
+                  <div className="text-muted text-base py-10 text-center">
                     Tickを実行するとClaudeの判断ログが表示されます
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
                     {decisions.slice(0, 20).map((dec: AIDecision, i) => {
                       const actionStyle: Record<string, string> = {
-                        buy:   'bg-emerald-900/40 border-emerald-700 text-emerald-300',
-                        sell:  'bg-red-900/40 border-red-700 text-red-300',
-                        hold:  'bg-yellow-900/40 border-yellow-700 text-yellow-300',
-                        watch: 'bg-gray-800 border-gray-700 text-gray-400',
+                        buy:   'bg-emerald-50 border-emerald-200 text-emerald-700',
+                        sell:  'bg-red-50 border-red-200 text-red-700',
+                        hold:  'bg-yellow-50 border-yellow-200 text-yellow-700',
+                        watch: 'bg-surface border-border text-ink-2',
                       }
                       const actionLabel: Record<string, string> = { buy: '買い', sell: '売り', hold: 'ホールド', watch: '監視' }
                       return (
-                        <div key={i} className="border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-colors">
+                        <div key={i} className="border border-border rounded-xl p-4 hover:border-accent transition-colors">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="font-mono font-bold text-white">{dec.symbol}</span>
-                            <span className="text-xs text-gray-600">{dec.name}</span>
+                            <span className="font-mono font-bold text-ink text-base">{dec.symbol}</span>
+                            <span className="text-sm text-muted">{dec.name}</span>
                             <span className={`text-xs px-2 py-0.5 rounded border font-semibold ${actionStyle[dec.action] ?? actionStyle.watch}`}>
                               {actionLabel[dec.action] ?? dec.action}
                             </span>
                             <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                              dec.confidence === 'high' ? 'bg-emerald-900/40 text-emerald-400'
-                              : dec.confidence === 'medium' ? 'bg-yellow-900/40 text-yellow-400'
-                              : 'bg-red-900/40 text-red-400'
+                              dec.confidence === 'high' ? 'bg-emerald-50 text-emerald-700'
+                              : dec.confidence === 'medium' ? 'bg-yellow-50 text-yellow-700'
+                              : 'bg-red-50 text-red-700'
                             }`}>
                               {dec.confidence}
                             </span>
-                            <span className="ml-auto font-mono font-bold text-sm">{fmtUSD(dec.price)}</span>
-                            <span className={`text-xs tabular-nums ${pnlCls(dec.change)}`}>
+                            <span className="ml-auto font-mono font-bold text-base tabular-nums">{fmtUSD(dec.price)}</span>
+                            <span className={`text-sm tabular-nums ${pnlCls(dec.change)}`}>
                               {dec.change >= 0 ? '+' : ''}{dec.change.toFixed(2)}%
                             </span>
                           </div>
-                          <p className="text-sm text-gray-200 mb-3 leading-relaxed">{dec.reasoning}</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                            <div className="bg-gray-950 rounded-lg p-2.5">
-                              <div className="text-gray-600 mb-1 font-medium">テクニカル</div>
-                              <div className="text-gray-400">{dec.technicals}</div>
+                          <p className="text-base text-ink-2 mb-3 leading-relaxed max-w-[42rem]">{dec.reasoning}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                            <div className="bg-background rounded-lg p-2.5">
+                              <div className="text-muted mb-1 font-medium">テクニカル</div>
+                              <div className="text-ink-2 leading-relaxed">{dec.technicals}</div>
                             </div>
-                            <div className="bg-gray-950 rounded-lg p-2.5">
-                              <div className="text-gray-600 mb-1 font-medium">ファンダメンタル</div>
-                              <div className="text-gray-400 line-clamp-2">{dec.fundamentals}</div>
+                            <div className="bg-background rounded-lg p-2.5">
+                              <div className="text-muted mb-1 font-medium">ファンダメンタル</div>
+                              <div className="text-ink-2 leading-relaxed line-clamp-2">{dec.fundamentals}</div>
                             </div>
                           </div>
                           {dec.newsInfluence && (
-                            <div className="mt-2 text-xs text-gray-500 flex items-start gap-1">
-                              <span className="text-yellow-500 shrink-0">📰</span>
+                            <div className="mt-2 text-sm text-ink-2 leading-relaxed flex items-start gap-1 max-w-[42rem]">
+                              <span className="text-yellow-700 shrink-0">📰</span>
                               {dec.newsInfluence}
                             </div>
                           )}
                           {!!dec.knowledgeRefs?.length && (
                             <div className="mt-2 flex flex-wrap items-center gap-1">
-                              <span className="text-xs text-emerald-600 mr-1">参照した原則</span>
+                              <span className="text-sm text-emerald-700 mr-1">参照した原則</span>
                               {dec.knowledgeRefs.map((ref) => (
-                                <span key={ref.id} className="text-xs bg-emerald-950/40 text-emerald-400 border border-emerald-900/50 px-2 py-0.5 rounded-full">
+                                <span key={ref.id} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
                                   {ref.title}
                                 </span>
                               ))}
@@ -848,7 +848,7 @@ export function AISessionClient() {
                           )}
                           <div className="mt-2 flex flex-wrap gap-1">
                             {dec.sources.map((src, si) => (
-                              <span key={si} className="text-xs bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">{src}</span>
+                              <span key={si} className="text-xs bg-surface text-ink-2 px-2 py-0.5 rounded-full">{src}</span>
                             ))}
                           </div>
                         </div>
@@ -861,12 +861,12 @@ export function AISessionClient() {
               {/* Trades tab */}
               {tab === 'trades' && (
                 trades.length === 0 ? (
-                  <div className="text-gray-600 text-sm py-10 text-center">取引履歴なし</div>
+                  <div className="text-muted text-base py-10 text-center">取引履歴なし</div>
                 ) : (
                   <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
-                    <table className="w-full text-xs min-w-[700px]">
-                      <thead className="sticky top-0 bg-gray-900">
-                        <tr className="text-gray-500 border-b border-gray-800">
+                    <table className="w-full text-sm min-w-[700px]">
+                      <thead className="sticky top-0 bg-panel">
+                        <tr className="text-muted border-b border-border">
                           <th className="text-left py-2 pr-4 font-medium">時刻</th>
                           <th className="text-left py-2 pr-4 font-medium">銘柄</th>
                           <th className="text-left py-2 pr-4 font-medium">売買</th>
@@ -878,12 +878,12 @@ export function AISessionClient() {
                       </thead>
                       <tbody>
                         {trades.map((t: AITrade, i) => (
-                          <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                            <td className="py-2.5 pr-4 text-gray-600">{ago(t.timestamp)}</td>
+                          <tr key={i} className="border-b border-border hover:bg-surface transition-colors">
+                            <td className="py-2.5 pr-4 text-muted tabular-nums">{ago(t.timestamp)}</td>
                             <td className="py-2.5 pr-4">
                               <button
                                 onClick={() => setChartSymbol(t.symbol)}
-                                className="font-mono font-semibold text-white hover:text-emerald-400 transition-colors"
+                                className="font-mono font-semibold text-ink hover:text-accent transition-colors"
                               >
                                 {t.symbol}
                               </button>
@@ -891,18 +891,18 @@ export function AISessionClient() {
                             <td className="py-2.5 pr-4">
                               <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                                 t.action === 'buy'
-                                  ? 'bg-emerald-900/50 text-emerald-400'
-                                  : 'bg-red-900/50 text-red-400'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-red-50 text-red-700'
                               }`}>
                                 {t.action === 'buy' ? '▲ 買い' : '▼ 売り'}
                               </span>
                             </td>
-                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono text-gray-300">{t.shares.toFixed(3)}</td>
+                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono text-ink-2">{t.shares.toFixed(3)}</td>
                             <td className="py-2.5 pr-4 text-right tabular-nums font-mono">{fmtUSD(t.price)}</td>
                             <td className="py-2.5 pr-4 text-right tabular-nums font-mono font-semibold">{fmtUSD(t.total, 0)}</td>
-                            <td className="py-2.5 text-gray-500 max-w-xs">
+                            <td className="py-2.5 text-ink-2 max-w-xs">
                               <div className="truncate">{t.reason}</div>
-                              {t.technicals && <div className="text-gray-700 truncate text-[11px]">{t.technicals}</div>}
+                              {t.technicals && <div className="text-muted truncate text-sm">{t.technicals}</div>}
                             </td>
                           </tr>
                         ))}
@@ -916,45 +916,45 @@ export function AISessionClient() {
               {tab === 'learning' && (
                 <div className="space-y-6">
                   <div>
-                    <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">
+                    <div className="text-sm text-ink-2 font-semibold uppercase tracking-wider mb-3">
                       Claude が学んだ教訓
                       {learning.lessons.length === 0 && (
-                        <span className="ml-2 text-gray-700 normal-case font-normal">(取引を積むと自動生成されます)</span>
+                        <span className="ml-2 text-muted normal-case font-normal">(取引を積むと自動生成されます)</span>
                       )}
                     </div>
                     {learning.lessons.length > 0 ? (
                       <div className="space-y-2">
                         {learning.lessons.map((lesson, i) => (
-                          <div key={i} className="flex items-start gap-3 bg-gray-950 rounded-lg p-3 border border-gray-800">
-                            <span className="text-emerald-500 font-bold text-xs mt-0.5 shrink-0 font-mono">{i + 1}</span>
-                            <p className="text-sm text-gray-300 leading-relaxed">{lesson}</p>
+                          <div key={i} className="flex items-start gap-3 bg-background rounded-lg p-3 border border-border">
+                            <span className="text-emerald-700 font-bold text-sm mt-0.5 shrink-0 font-mono tabular-nums">{i + 1}</span>
+                            <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">{lesson}</p>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-gray-700 text-sm py-6 text-center bg-gray-950 rounded-xl border border-gray-800">
+                      <div className="text-muted text-base py-6 text-center bg-background rounded-xl border border-border">
                         3 Tick実行後、クローズした取引があれば教訓が自動生成されます
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">
-                      今回提示した原則 <span className="text-gray-700">({session.knowledgeShown?.length ?? 0}件)</span>
+                    <div className="text-sm text-ink-2 font-semibold uppercase tracking-wider mb-3">
+                      今回提示した原則 <span className="text-muted tabular-nums">({session.knowledgeShown?.length ?? 0}件)</span>
                     </div>
                     {session.knowledgeShown && session.knowledgeShown.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5">
                         {session.knowledgeShown.map((k) => (
                           <span
                             key={k.id}
-                            className="text-xs bg-emerald-950/30 text-emerald-400 border border-emerald-900/50 px-2.5 py-1 rounded-full"
+                            className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full"
                           >
                             {k.title}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-gray-700 text-sm py-6 text-center bg-gray-950 rounded-xl border border-gray-800">
+                      <div className="text-muted text-base leading-relaxed py-6 px-4 text-center bg-background rounded-xl border border-border">
                         知識ベース未接続（supabase/migrations/0003_knowledge_items.sql の実行と scripts/sync-knowledge.ts の同期が必要）
                       </div>
                     )}
@@ -962,29 +962,29 @@ export function AISessionClient() {
 
                   {learning.closedTrades && learning.closedTrades.length > 0 && (
                     <div>
-                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">クローズ済み取引</div>
+                      <div className="text-sm text-ink-2 font-semibold uppercase tracking-wider mb-3">クローズ済み取引</div>
                       <div className="space-y-2 max-h-64 overflow-y-auto">
                         {(learning.closedTrades as ClosedTrade[]).slice(0, 15).map((t, i) => (
                           <div key={i} className={`flex items-start gap-3 rounded-lg p-3 border ${
                             t.outcome === 'profit'
-                              ? 'border-emerald-900/50 bg-emerald-950/20'
-                              : 'border-red-900/50 bg-red-950/20'
+                              ? 'border-emerald-200 bg-emerald-50'
+                              : 'border-red-200 bg-red-50'
                           }`}>
-                            <span className={`text-sm font-bold ${t.outcome === 'profit' ? 'text-emerald-400' : 'text-red-400'}`}>
+                            <span className={`text-base font-bold ${t.outcome === 'profit' ? 'text-emerald-700' : 'text-red-700'}`}>
                               {t.outcome === 'profit' ? '✓' : '✗'}
                             </span>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="font-mono font-bold text-white">{t.symbol}</span>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="font-mono font-bold text-ink">{t.symbol}</span>
                                 <span className={`font-bold tabular-nums ${pnlCls(t.pnlPct)}`}>
                                   {t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(2)}%
                                 </span>
                                 <span className={`tabular-nums ${pnlCls(t.pnl)}`}>
                                   ({t.pnl >= 0 ? '+' : ''}{fmtUSD(t.pnl, 0)})
                                 </span>
-                                <span className="text-gray-600">保有{t.holdingHours}h</span>
+                                <span className="text-muted tabular-nums">保有{t.holdingHours}h</span>
                               </div>
-                              <p className="text-xs text-gray-600 mt-0.5 truncate">{t.entryReasoning}</p>
+                              <p className="text-sm text-ink-2 leading-relaxed mt-1 truncate">{t.entryReasoning}</p>
                             </div>
                           </div>
                         ))}

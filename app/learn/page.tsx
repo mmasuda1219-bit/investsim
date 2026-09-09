@@ -105,14 +105,14 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     .map((part, i) => {
       const key = `${keyPrefix}-${i}`
       if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={key} className="text-white font-semibold">{part.slice(2, -2)}</strong>
+        return <strong key={key} className="text-ink font-semibold">{part.slice(2, -2)}</strong>
       }
       const md = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/)
       if (md) {
-        return <a key={key} href={md[2]} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all">{md[1]}</a>
+        return <a key={key} href={md[2]} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline hover:text-blue-800 break-all">{md[1]}</a>
       }
       if (/^https?:\/\//.test(part)) {
-        return <a key={key} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all">{part}</a>
+        return <a key={key} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline hover:text-blue-800 break-all">{part}</a>
       }
       return <span key={key}>{part}</span>
     })
@@ -121,22 +121,22 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 function MarkdownView({ text }: { text: string }) {
   const lines = text.split('\n')
   return (
-    <div className="space-y-1.5 text-sm leading-relaxed text-slate-300">
+    <div className="space-y-1.5 text-base leading-relaxed text-ink-2 max-w-[42rem]">
       {lines.map((line, i) => {
         if (line.startsWith('## ')) {
           return (
-            <h2 key={i} className="text-white text-base font-bold mt-5 mb-1 pb-1 border-b border-border">
+            <h2 key={i} className="text-ink text-xl font-bold mt-6 mb-2 pb-1 border-b border-border">
               {line.slice(3)}
             </h2>
           )
         }
         if (line.startsWith('### ')) {
-          return <h3 key={i} className="text-white text-sm font-semibold mt-3">{line.slice(4)}</h3>
+          return <h3 key={i} className="text-ink text-base font-semibold mt-4">{line.slice(4)}</h3>
         }
         if (/^\s*[-•*]\s+/.test(line)) {
           return (
             <div key={i} className="flex gap-2 pl-2">
-              <span className="text-slate-500 shrink-0">•</span>
+              <span className="text-muted shrink-0">•</span>
               <span>{renderInline(line.replace(/^\s*[-•*]\s+/, ''), `l${i}`)}</span>
             </div>
           )
@@ -524,11 +524,11 @@ export default function AnalyzePage() {
           {
             label: '総リターン（5年）',
             value: `${returnPositive ? '+' : ''}${m.totalReturnPct.toFixed(2)}%`,
-            valueClassName: returnPositive ? 'text-green-400' : 'text-red-400',
+            valueClassName: returnPositive ? 'text-green-700' : 'text-red-700',
             sub: formatMoney(previewRes.result.finalValue, previewRes.result.currency),
           },
           { label: '勝率', value: `${m.winRate.toFixed(0)}%` },
-          { label: '最大DD', value: `-${m.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-red-400' },
+          { label: '最大DD', value: `-${m.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-red-700' },
           { label: 'シャープレシオ', value: m.sharpeRatio.toFixed(2) },
           { label: '取引数', value: `${m.tradeCount}件` },
         ]
@@ -553,15 +553,15 @@ export default function AnalyzePage() {
           {
             label: '総リターン（5年）',
             value: `${bm.totalReturnPct >= 0 ? '+' : ''}${bm.totalReturnPct.toFixed(2)}%`,
-            valueClassName: bm.totalReturnPct >= 0 ? 'text-green-400' : 'text-red-400',
+            valueClassName: bm.totalReturnPct >= 0 ? 'text-green-700' : 'text-red-700',
           },
           {
             label: 'バイ&ホールド',
             value: `${bundle.backtest.buyHoldReturnPct >= 0 ? '+' : ''}${bundle.backtest.buyHoldReturnPct.toFixed(2)}%`,
-            valueClassName: bundle.backtest.buyHoldReturnPct >= 0 ? 'text-green-400' : 'text-red-400',
+            valueClassName: bundle.backtest.buyHoldReturnPct >= 0 ? 'text-green-700' : 'text-red-700',
           },
           { label: '勝率', value: `${bm.winRate.toFixed(0)}%` },
-          { label: '最大DD', value: `-${bm.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-red-400' },
+          { label: '最大DD', value: `-${bm.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-red-700' },
           { label: '取引数', value: `${bm.tradeCount}件` },
         ]
       : []
@@ -618,7 +618,9 @@ export default function AnalyzePage() {
     .filter((v): v is string => Boolean(v && v.trim() !== ''))
 
   return (
-    <div className="space-y-6">
+    // このページだけ max-w が無く、大画面で本文が1行90文字まで流れていた。
+    // layout の max-w-6xl に加え、読み物の面としてもう一段絞る。
+    <div className="space-y-6 max-w-5xl">
       {/* Header + 恒久ディスクレーマ（免責）— S-B2でAnalyzeBannerに集約（横並び）。
           免責は設定中・プレビュー中・ストリーミング中も常に表示（内容は無改変）。 */}
       <AnalyzeBanner />
@@ -669,13 +671,13 @@ export default function AnalyzePage() {
         {/* 銘柄シンボル/初期資金（クイック・プロ共通・対象範囲=銘柄指定ありのみ機能） */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-muted mb-2">銘柄シンボル</label>
+            <label className="block text-sm text-ink-2 mb-2">銘柄シンボル</label>
             <input
               value={symbol}
               onChange={e => { setSymbol(e.target.value.toUpperCase()); resetDownstream() }}
               placeholder="AAPL / MSFT"
               list="us-universe"
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-base font-mono focus:outline-none focus:border-blue-200"
             />
             <datalist id="us-universe">
               {US_UNIVERSE.map(s => (
@@ -686,19 +688,19 @@ export default function AnalyzePage() {
             {symbol.trim() && (
               <Link
                 href={`/trade?symbol=${encodeURIComponent(symbol.trim())}`}
-                className="inline-block mt-2 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                className="inline-block mt-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
               >
                 {symbol.trim()} で自分も判断してみる →
               </Link>
             )}
           </div>
           <div>
-            <label className="block text-xs text-muted mb-2">初期資金（仮想）</label>
+            <label className="block text-sm text-ink-2 mb-2">初期資金（仮想）</label>
             <input
               type="number" min="1000" step="1000"
               value={capital}
               onChange={e => { setCapital(e.target.value); resetDownstream() }}
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-base font-mono focus:outline-none focus:border-blue-200"
             />
           </div>
         </div>
@@ -726,7 +728,7 @@ export default function AnalyzePage() {
         {mode === 'quick' && (
         <div className="border border-border rounded-lg p-4 space-y-4">
           <div>
-            <p className="text-sm text-white font-medium mb-2">ニーズ軸で選ぶ（5年・銘柄の参加条件つき）</p>
+            <p className="text-sm text-ink font-medium mb-2">ニーズ軸で選ぶ（5年・銘柄の参加条件つき）</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {NEEDS_PRESET_IDS.map(id => {
                 const p = NEEDS_PRESETS[id]
@@ -735,7 +737,7 @@ export default function AnalyzePage() {
                   <label
                     key={id}
                     className={`block rounded-lg border p-3 cursor-pointer transition-colors ${
-                      selected ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+                      selected ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50 hover:border-blue-400'
                     }`}
                   >
                     <span className="flex items-start gap-2">
@@ -748,8 +750,8 @@ export default function AnalyzePage() {
                         className="mt-1 accent-blue-500"
                       />
                       <span>
-                        <span className="block text-sm text-white font-medium">{p.label}</span>
-                        <span className="block text-xs text-muted mt-1 leading-relaxed">「{p.description}」</span>
+                        <span className="block text-base text-ink font-medium">{p.label}</span>
+                        <span className="block text-sm text-ink-2 mt-1 leading-relaxed">「{p.description}」</span>
                       </span>
                     </span>
                   </label>
@@ -757,7 +759,7 @@ export default function AnalyzePage() {
               })}
             </div>
             {nonUsWarning && (
-              <p className="mt-2 text-xs text-amber-400 bg-amber-950/30 border border-amber-700 rounded-lg px-3 py-2 leading-relaxed">
+              <p className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
                 ニーズ軸プリセットは米国株（USD建て）想定です。日本株（.T）では時価総額閾値の目安が実態とずれる可能性があります（実行は可能）。
               </p>
             )}
@@ -766,8 +768,8 @@ export default function AnalyzePage() {
           <button
             onClick={runPreview}
             disabled={busyPreview}
-            className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-              busyPreview ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+            className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+              busyPreview ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
             }`}
           >
             {busyPreview ? '無料プレビュー実行中...' : '無料プレビューを実行（純計算・AIは使いません）'}
@@ -788,7 +790,7 @@ export default function AnalyzePage() {
           <ProConditionPicker onConditionChange={handleProConditionChange} />
 
           {'error' in proCondition && (
-            <p className="text-xs text-amber-400 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-2">
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
               {proCondition.error}
             </p>
           )}
@@ -814,17 +816,17 @@ export default function AnalyzePage() {
         {scope === 'no-symbol' && (
           <div className="border border-border rounded-lg p-4 space-y-4">
             {mode === 'pro' ? (
-              <p className="text-sm text-amber-300 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-3 leading-relaxed">
+              <p className="text-base text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 leading-relaxed">
                 銘柄指定なし（自動スクリーニング）はプロ（カスタム条件）に対応していません。
                 クイックまたは投資家モデルのタブに切り替えてご利用ください。
               </p>
             ) : (
               <>
                 <div>
-                  <p className="text-sm text-white font-medium mb-1">
+                  <p className="text-xl text-ink font-semibold mb-1">
                     {mode === 'quick' ? 'ニーズ軸プリセットで適合銘柄を探す' : '投資家モデルで適合銘柄を探す'}
                   </p>
-                  <p className="text-xs text-muted leading-relaxed">
+                  <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
                     事前計算済みキャッシュ（現在値ファンダメンタル）にのみ条件を適用します。ライブ取得・バックテスト・決算派生の評価はここでは行いません。
                   </p>
                 </div>
@@ -838,7 +840,7 @@ export default function AnalyzePage() {
                         <label
                           key={id}
                           className={`block rounded-lg border p-3 cursor-pointer transition-colors ${
-                            selected ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+                            selected ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50 hover:border-blue-400'
                           }`}
                         >
                           <span className="flex items-start gap-2">
@@ -850,8 +852,8 @@ export default function AnalyzePage() {
                               className="mt-1 accent-blue-500"
                             />
                             <span>
-                              <span className="block text-sm text-white font-medium">{p.label}</span>
-                              <span className="block text-xs text-muted mt-1 leading-relaxed">「{p.description}」</span>
+                              <span className="block text-base text-ink font-medium">{p.label}</span>
+                              <span className="block text-sm text-ink-2 mt-1 leading-relaxed">「{p.description}」</span>
                             </span>
                           </span>
                         </label>
@@ -867,7 +869,7 @@ export default function AnalyzePage() {
                         <label
                           key={id}
                           className={`block rounded-lg border p-3 cursor-pointer transition-colors ${
-                            selected ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50 hover:border-blue-600'
+                            selected ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50 hover:border-blue-400'
                           }`}
                         >
                           <span className="flex items-start gap-2">
@@ -878,7 +880,7 @@ export default function AnalyzePage() {
                               onChange={() => { setScreenInvestorId(id); resetDownstream() }}
                               className="mt-1 accent-blue-500"
                             />
-                            <span className="block text-sm text-white font-medium">{p.label}</span>
+                            <span className="block text-sm text-ink font-medium">{p.label}</span>
                           </span>
                         </label>
                       )
@@ -889,8 +891,8 @@ export default function AnalyzePage() {
                 <button
                   onClick={runScreen}
                   disabled={screenPhase === 'loading'}
-                  className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                    screenPhase === 'loading' ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+                  className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+                    screenPhase === 'loading' ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
                   }`}
                 >
                   {screenPhase === 'loading' ? 'スクリーニング実行中...' : 'スクリーニング実行（キャッシュのみ・AIは使いません）'}
@@ -916,8 +918,8 @@ export default function AnalyzePage() {
             <button
               onClick={runProPreview}
               disabled={busyReport}
-              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                busyReport ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+              className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+                busyReport ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
               }`}
             >
               {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
@@ -925,15 +927,15 @@ export default function AnalyzePage() {
             <button
               onClick={runProGenerate}
               disabled={busyReport || reportPhase !== 'prepared'}
-              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                busyReport || reportPhase !== 'prepared' ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
+              className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+                busyReport || reportPhase !== 'prepared' ? 'bg-surface text-muted cursor-not-allowed' : 'bg-accent text-on-accent'
               }`}
             >
               {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
             </button>
           </div>
           {reportPhase === 'prepared' && (
-            <p className="text-xs text-muted">
+            <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
               プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます。
             </p>
           )}
@@ -946,8 +948,8 @@ export default function AnalyzePage() {
             <button
               onClick={runProPreview}
               disabled={busyReport}
-              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                busyReport ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+              className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+                busyReport ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
               }`}
             >
               {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
@@ -955,15 +957,15 @@ export default function AnalyzePage() {
             <button
               onClick={runProGenerate}
               disabled={busyReport || reportPhase !== 'prepared'}
-              className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                busyReport || reportPhase !== 'prepared' ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
+              className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+                busyReport || reportPhase !== 'prepared' ? 'bg-surface text-muted cursor-not-allowed' : 'bg-accent text-on-accent'
               }`}
             >
               {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
             </button>
           </div>
           {reportPhase === 'prepared' && (
-            <p className="text-xs text-muted">
+            <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
               プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます（投資家名はAIへは伝えません）。
             </p>
           )}
@@ -972,24 +974,24 @@ export default function AnalyzePage() {
 
       {/* Screening: error / loading（S5a・銘柄指定なし） */}
       {scope === 'no-symbol' && screenError && (
-        <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-red-300 text-sm">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
           {screenError}
         </div>
       )}
       {scope === 'no-symbol' && screenPhase === 'loading' && (
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin mx-auto" />
-          <p className="text-muted text-sm">キャッシュ済みユニバースを評価中...</p>
+          <div className="w-8 h-8 border-2 border-border border-t-blue-500 rounded-full animate-spin mx-auto" />
+          <p className="text-muted text-base">キャッシュ済みユニバースを評価中...</p>
         </div>
       )}
 
       {/* Screening: ranking result（S5a） */}
       {scope === 'no-symbol' && screenRes && screenPhase === 'done' && (
         <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
-          <h2 className="text-white font-semibold text-sm">
+          <h2 className="text-ink font-semibold text-xl">
             「{screenRes.presetLabel}」の適合度ランキング（キャッシュ評価・現在値）
           </h2>
-          <p className="text-xs text-muted leading-relaxed">
+          <p className="text-sm text-muted leading-relaxed tabular-nums max-w-[42rem]">
             {screenRes.universeSize}銘柄中 {screenRes.meta.evaluatedCount}件を評価
             ・鮮度切れ{screenRes.meta.excludedStaleCount}件除外
             ・データ欠損{screenRes.meta.excludedNoDataCount}件除外
@@ -998,7 +1000,7 @@ export default function AnalyzePage() {
           </p>
 
           {screenRes.candidates.length === 0 ? (
-            <p className="text-sm text-amber-300 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-3 leading-relaxed">
+            <p className="text-base text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 leading-relaxed">
               条件に適合する銘柄が見つかりませんでした（評価対象が0件、または該当銘柄が無い可能性があります）。
             </p>
           ) : (
@@ -1007,34 +1009,34 @@ export default function AnalyzePage() {
                 <button
                   key={c.symbol}
                   onClick={() => pickCandidateSymbol(c.symbol)}
-                  className="w-full text-left bg-surface/50 hover:bg-surface border border-border hover:border-blue-600 rounded-lg px-3 py-2.5 transition-colors"
+                  className="w-full text-left bg-surface/50 hover:bg-surface border border-border hover:border-blue-400 rounded-lg px-3 py-2.5 transition-colors"
                 >
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-xs font-mono text-muted w-5 shrink-0">{i + 1}</span>
-                    <span className="text-sm font-mono font-semibold text-white">{c.symbol}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded shrink-0 ${
-                      c.allPassed ? 'bg-green-900/50 text-green-400' : 'bg-amber-900/50 text-amber-400'
+                    <span className="text-sm font-mono text-muted w-5 shrink-0 tabular-nums">{i + 1}</span>
+                    <span className="text-base font-mono font-semibold text-ink">{c.symbol}</span>
+                    <span className={`text-xs font-bold tabular-nums px-2 py-0.5 rounded shrink-0 ${
+                      c.allPassed ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
                     }`}>
                       {c.passedCount}/{c.totalFilters}件成立
                     </span>
-                    <span className="text-xs text-muted ml-auto shrink-0">
+                    <span className="text-sm text-muted ml-auto shrink-0 tabular-nums">
                       取得: {new Date(c.fetchedAt).toLocaleDateString('ja-JP')}（{c.source}）
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 mt-1 pl-8">{c.reason}</p>
+                  <p className="text-sm text-ink-2 leading-relaxed mt-1 pl-8">{c.reason}</p>
                 </button>
               ))}
             </div>
           )}
 
           <div className="pt-1 border-t border-border/60">
-            <p className="text-xs text-muted mb-1.5 mt-2">このプリセットの実際の条件:</p>
-            <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside leading-relaxed">
+            <p className="text-sm text-muted mb-1.5 mt-2">このプリセットの実際の条件:</p>
+            <ul className="text-sm text-ink-2 space-y-1 list-disc list-inside leading-relaxed max-w-[42rem]">
               {screenRes.conditionNotes.map((note, i) => <li key={i}>{note}</li>)}
             </ul>
           </div>
 
-          <p className="text-xs text-muted/60">
+          <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
             銘柄をクリックすると「銘柄指定あり」に切り替わり、その銘柄でプレビュー・AIレポート生成を実行できます。
           </p>
         </div>
@@ -1042,13 +1044,13 @@ export default function AnalyzePage() {
 
       {/* Preview: error / loading */}
       {previewError && (
-        <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-red-300 text-sm">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
           {previewError}
         </div>
       )}
       {busyPreview && (
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin mx-auto" />
+          <div className="w-8 h-8 border-2 border-border border-t-blue-500 rounded-full animate-spin mx-auto" />
           <p className="text-muted text-sm">実データを取得して計算中...</p>
         </div>
       )}
@@ -1064,10 +1066,10 @@ export default function AnalyzePage() {
           emphasizeFailure
         >
           {!previewRes.gatePassed && previewRes.gateFailReason && (
-            <p className="text-amber-300 text-sm leading-relaxed">
+            <p className="text-amber-700 text-sm leading-relaxed">
               {previewRes.gateFailReason}
               <br />
-              <span className="text-amber-400/80 text-xs">
+              <span className="text-amber-700/90 text-sm">
                 参加条件不成立のためプレビューのバックテストは実行していません（AIレポートは不成立の理由も分析します）。
               </span>
             </p>
@@ -1079,8 +1081,8 @@ export default function AnalyzePage() {
           — previewRes段階ではbundleが無くDetailsSectionの4項目に該当しないため） */}
       {previewRes && previewPhase === 'done' && (
         <div className="bg-panel/60 border border-border/60 rounded-xl px-4 py-3">
-          <p className="text-xs text-muted mb-1.5">このプリセットの実際の条件:</p>
-          <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside leading-relaxed">
+          <p className="text-sm text-muted mb-1.5">このプリセットの実際の条件:</p>
+          <ul className="text-sm text-ink-2 space-y-1 list-disc list-inside leading-relaxed max-w-[42rem]">
             {previewRes.conditionNotes.map((note, i) => <li key={i}>{note}</li>)}
           </ul>
         </div>
@@ -1089,14 +1091,14 @@ export default function AnalyzePage() {
       {/* AIレポート生成ボタン（無料プレビュー完了後のみ・同じプリセット条件を流用・クイックモード専用） */}
       {mode === 'quick' && previewRes && previewPhase === 'done' && (
         <div className="bg-panel border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-          <p className="text-sm text-slate-300">
+          <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
             この条件（プリセット「{preset.label}」・{symbol}）でAIがレポート（現状分析・AIトレーダー実績・根拠つき未来予想）を執筆します。
           </p>
           <button
             onClick={runReport}
             disabled={busyReport}
-            className={`shrink-0 px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-              busyReport ? 'bg-slate-700 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
+            className={`shrink-0 px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+              busyReport ? 'bg-surface text-muted cursor-not-allowed' : 'bg-accent text-on-accent'
             }`}
           >
             {reportPhase === 'preparing' ? '実データを準備中...'
@@ -1108,15 +1110,15 @@ export default function AnalyzePage() {
 
       {/* Report: error / progress */}
       {reportError && (
-        <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-red-300 text-sm">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
           {reportError}
         </div>
       )}
       {busyReport && (
         <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
-            <div className="text-sm text-slate-300">
+            <div className="w-5 h-5 border-2 border-border border-t-blue-500 rounded-full animate-spin" />
+            <div className="text-sm text-ink-2">
               {reportPhase === 'preparing'
                 ? (mode === 'pro' || mode === 'investor'
                     ? '条件を検証し、Yahoo Financeの過去5年実データでバックテスト中（プレビュー）...'
@@ -1155,23 +1157,23 @@ export default function AnalyzePage() {
           AIレポート本文だけは絶対にDetailsSectionで包まない（生成直後は常に展開表示）。 */}
       {bundle && (
         <DetailsSection title="実行した条件・ゲート内訳の詳細版">
-          <div className="bg-surface/50 border border-blue-900/50 rounded-lg p-3 space-y-1">
-            <p className="text-xs text-blue-300 font-medium">実行した条件</p>
-            <p className="text-sm text-white font-medium">
+          <div className="bg-surface/50 border border-blue-200 rounded-lg p-3 space-y-1">
+            <p className="text-sm text-blue-700 font-medium">実行した条件</p>
+            <p className="text-base text-ink font-medium leading-relaxed">
               {describeCompositeCondition(bundle.request.condition)}
             </p>
           </div>
 
           {gate && gate.evaluations.length > 0 && (
             <div className={`rounded-lg p-3 space-y-1 border ${
-              gate.passed ? 'bg-surface/50 border-green-900/50' : 'bg-surface/50 border-amber-800/60'
+              gate.passed ? 'bg-surface/50 border-green-200' : 'bg-surface/50 border-amber-200'
             }`}>
-              <p className={`text-xs font-medium ${gate.passed ? 'text-green-400' : 'text-amber-400'}`}>
+              <p className={`text-sm font-medium ${gate.passed ? 'text-green-700' : 'text-amber-700'}`}>
                 ファンダメンタル・ゲート判定（現在値）: {gate.passed ? '成立' : '不成立'}
               </p>
               <ul className="space-y-0.5">
                 {gate.evaluations.map((ev, i) => (
-                  <li key={i} className="text-xs text-slate-300 font-mono">
+                  <li key={i} className="text-sm text-ink-2 font-mono tabular-nums leading-relaxed">
                     {ev.result === 'pass' ? '✓' : '✗'} {describeFundamentalFilter(ev.filter)}
                     {' → '}
                     {ev.result === 'no_data'
@@ -1181,7 +1183,7 @@ export default function AnalyzePage() {
                 ))}
               </ul>
               {!gate.passed && (
-                <p className="text-xs text-amber-400/90">
+                <p className="text-sm text-amber-700/90 leading-relaxed max-w-[42rem]">
                   条件不成立のためバックテストはスキップされました。レポートは「不成立の理由と成立に必要な変化」を分析します。
                 </p>
               )}
@@ -1189,7 +1191,7 @@ export default function AnalyzePage() {
           )}
 
           {bundle.aiEvidence.hasData && (
-            <p className="text-xs text-muted">
+            <p className="text-sm text-ink-2 leading-relaxed tabular-nums max-w-[42rem]">
               AIトレーダー実績: この銘柄を{bundle.aiEvidence.tradeCount}回売買
               {bundle.aiEvidence.tradeCount > 0 &&
                 `（勝率${bundle.aiEvidence.winRate.toFixed(0)}%・平均${bundle.aiEvidence.avgPnlPct >= 0 ? '+' : ''}${bundle.aiEvidence.avgPnlPct.toFixed(2)}%）`}
@@ -1207,7 +1209,7 @@ export default function AnalyzePage() {
           {transparency.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {transparency.tags.map((tag, i) => (
-                <span key={i} className="text-[11px] font-mono px-2 py-1 rounded-full bg-blue-950/40 border border-blue-800/50 text-blue-300">
+                <span key={i} className="text-xs font-mono px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700">
                   {tag}
                 </span>
               ))}
@@ -1217,8 +1219,8 @@ export default function AnalyzePage() {
           {transparency.reasons.length > 0 && (
             <ul className="space-y-1">
               {transparency.reasons.map((reason, i) => (
-                <li key={i} className="flex gap-2 text-xs text-slate-300">
-                  <span className="text-green-400 shrink-0">✓</span>
+                <li key={i} className="flex gap-2 text-sm text-ink-2 leading-relaxed max-w-[42rem]">
+                  <span className="text-green-700 shrink-0">✓</span>
                   <span>{reason}</span>
                 </li>
               ))}
@@ -1228,7 +1230,7 @@ export default function AnalyzePage() {
           {transparency.caveats.length > 0 && (
             <ul className="space-y-1 pt-1 border-t border-border/60">
               {transparency.caveats.map((caveat, i) => (
-                <li key={i} className="flex gap-2 text-xs text-amber-400/90">
+                <li key={i} className="flex gap-2 text-sm text-amber-700/90 leading-relaxed max-w-[42rem]">
                   <span className="shrink-0">※</span>
                   <span>{caveat}</span>
                 </li>
@@ -1243,21 +1245,21 @@ export default function AnalyzePage() {
         <DetailsSection title="教訓の使用状況（AI学習メモリ）">
           {bundle.learningUsage?.hasData ? (
             <>
-              <p className="text-xs text-muted">集計範囲: {bundle.learningUsage.scope}</p>
+              <p className="text-sm text-muted">集計範囲: {bundle.learningUsage.scope}</p>
               <ul className="space-y-1">
                 {bundle.learningUsage.usedLessons.map((lesson, i) => (
-                  <li key={i} className="flex gap-2 text-xs text-slate-300">
-                    <span className="text-blue-400 shrink-0">•</span>
+                  <li key={i} className="flex gap-2 text-sm text-ink-2 leading-relaxed max-w-[42rem]">
+                    <span className="text-blue-700 shrink-0">•</span>
                     <span>{lesson}</span>
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted/70">{bundle.learningUsage.note}</p>
+              <p className="text-sm text-muted leading-relaxed max-w-[42rem]">{bundle.learningUsage.note}</p>
             </>
           ) : (
             <>
-              <p className="text-xs text-slate-300">蓄積された教訓はまだ無く、本レポートでは未使用です。</p>
-              <p className="text-xs text-muted/70">
+              <p className="text-base text-ink-2 leading-relaxed">蓄積された教訓はまだ無く、本レポートでは未使用です。</p>
+              <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
                 {bundle.learningUsage?.note ?? '蓄積された教訓はまだありません。本レポートでは教訓を使用していません。'}
                 {' '}AIセッションで仮想売買を重ねると教訓が蒸留され、以後のレポートに反映されます。
               </p>
@@ -1281,12 +1283,12 @@ export default function AnalyzePage() {
         <DetailsSection title="引用元・参照リンク">
           <ol className="space-y-1">
             {bundle.sources.map(s => (
-              <li key={s.id} className="text-xs text-slate-300">
-                <span className="text-muted/70 font-mono">[{s.id}]</span>{' '}
+              <li key={s.id} className="text-sm text-ink-2 leading-relaxed">
+                <span className="text-muted font-mono tabular-nums">[{s.id}]</span>{' '}
                 {s.url
-                  ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline break-all">{s.label}</a>
+                  ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800 underline break-all">{s.label}</a>
                   : <span>{s.label}</span>}
-                <span className="text-muted/60"> — {s.usedFor}</span>
+                <span className="text-muted"> — {s.usedFor}</span>
               </li>
             ))}
           </ol>
@@ -1295,7 +1297,7 @@ export default function AnalyzePage() {
 
       {/* Disclaimer */}
       {(report || bundle || previewRes || screenRes) && (
-        <p className="text-xs text-muted/60 leading-relaxed">
+        <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
           ※ 数字プレビュー・AIレポートともに過去の実市場データに基づく参考情報です。
           ファンダメンタル条件は現在値の静的評価であり、過去5年のバックテスト期間には遡及しません。
           資金はすべて仮想であり、実際の投資成果を保証しません。投資判断はご自身の責任で行ってください。

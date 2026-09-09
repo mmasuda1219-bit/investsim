@@ -27,10 +27,10 @@ export function SiteNav() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-gray-800 bg-gray-900/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-border bg-panel backdrop-blur">
         <div className="max-w-screen-2xl mx-auto px-4 py-2.5 flex items-center gap-4">
           <Link href="/" className="font-black text-lg tracking-tight shrink-0">
-            <span className="text-emerald-400">Invest</span>Sim
+            <span className="text-emerald-700">Invest</span>Sim
           </Link>
 
           {/* スマホでは下部ナビに任せるので隠す */}
@@ -43,15 +43,15 @@ export function SiteNav() {
                   href={href}
                   title={hint}
                   aria-current={active ? 'page' : undefined}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     active
-                      ? 'bg-gray-800 text-white'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                      ? 'bg-surface text-ink'
+                      : 'text-muted hover:text-ink-2 hover:bg-surface'
                   }`}
                 >
                   {label}
                   {href === '/watch' && (
-                    <span className="ml-1 text-emerald-400 text-[10px]" aria-label="運用中">●</span>
+                    <span className="ml-1 text-emerald-700 text-xs" aria-label="運用中">●</span>
                   )}
                 </Link>
               )
@@ -83,7 +83,7 @@ function BottomNav({ path }: { path: string }) {
   return (
     <nav
       aria-label="メインナビゲーション"
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 border-t border-gray-800 bg-gray-900/95 backdrop-blur pb-[env(safe-area-inset-bottom)]"
+      className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 border-t border-border bg-panel backdrop-blur pb-[env(safe-area-inset-bottom)]"
     >
       {NAV.map(({ href, label, hint }, i) => {
         const active = isActive(path, href)
@@ -92,11 +92,11 @@ function BottomNav({ path }: { path: string }) {
             key={href}
             href={href}
             aria-current={active ? 'page' : undefined}
-            className={`flex flex-col items-center justify-center gap-0.5 h-14 text-[11px] transition-colors ${
-              active ? 'text-emerald-400 font-semibold' : 'text-gray-500'
+            className={`flex flex-col items-center justify-center gap-0.5 h-14 text-xs leading-tight transition-colors ${
+              active ? 'text-emerald-700 font-semibold' : 'text-muted'
             }`}
           >
-            <span aria-hidden className="text-[10px] tabular-nums opacity-70">{i + 1}</span>
+            <span aria-hidden className="text-xs tabular-nums opacity-70">{i + 1}</span>
             <span>{label}</span>
             <span className="sr-only">{hint}</span>
           </Link>

@@ -51,7 +51,7 @@ const usd = (n: number) =>
  */
 export default function TradePage() {
   return (
-    <Suspense fallback={<div className="max-w-3xl mx-auto text-sm text-slate-500">読み込み中…</div>}>
+    <Suspense fallback={<div className="max-w-3xl mx-auto text-base text-muted">読み込み中…</div>}>
       <TradePageBody />
     </Suspense>
   )
@@ -188,10 +188,10 @@ function TradePageBody() {
     <div className="max-w-3xl mx-auto space-y-6">
 
       <header className="space-y-2">
-        <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">03 やる</p>
-        <h1 className="text-2xl font-bold text-white">自分で判断して売買する</h1>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          仮想の資金で売買します。<strong className="text-slate-200">なぜそう判断したかを必ず書いてください。</strong>
+        <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">03 やる</p>
+        <h1 className="text-2xl font-bold text-ink">自分で判断して売買する</h1>
+        <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
+          仮想の資金で売買します。<strong className="text-ink">なぜそう判断したかを必ず書いてください。</strong>
           あとで「振り返る」を開いたとき、儲けた額ではなく判断の中身を見返せるようになります。
         </p>
       </header>
@@ -199,23 +199,23 @@ function TradePageBody() {
       {/* 未ログインの案内。判定が済むまで（signedIn === null）は出さない。
           先に出すとログイン済みの人にも一瞬ちらつく。 */}
       {signedIn === false && (
-        <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-4 py-3 text-sm text-amber-200 flex items-center justify-between gap-3 flex-wrap">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-center justify-between gap-3 flex-wrap">
           <span>売買の記録を残すにはログインが必要です。読むだけならログインは要りません。</span>
-          <LoginLink className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg bg-white text-gray-900 text-xs font-medium hover:bg-gray-100 transition-colors" />
+          <LoginLink className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg bg-accent text-on-accent text-sm font-medium transition-colors" />
         </div>
       )}
 
       {/* ── 銘柄を選ぶ ─────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
-        <h2 className="text-xs font-semibold text-slate-300">銘柄</h2>
+        <h2 className="text-xl font-semibold text-ink">銘柄</h2>
         <div className="flex flex-wrap gap-1.5">
           {PRESET.map(s => (
             <button
               key={s}
               type="button"
               onClick={() => { setSymbol(s); setResult(null) }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                symbol === s ? 'bg-emerald-500 text-gray-950' : 'bg-panel text-slate-400 hover:text-white'
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                symbol === s ? 'bg-accent text-on-accent' : 'bg-panel text-ink-2 hover:text-ink'
               }`}
             >
               {s}
@@ -238,7 +238,7 @@ function TradePageBody() {
             placeholder="銘柄名かティッカーで検索（例: Ford, BRK-B, 半導体銘柄のティッカー）"
             aria-label="銘柄を検索"
             autoComplete="off"
-            className="w-full min-w-0 px-3 py-2 rounded-lg bg-panel border border-border text-sm text-white placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+            className="w-full min-w-0 px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink placeholder:text-muted focus:border-emerald-200 focus:outline-none"
           />
 
           {input.trim() && (
@@ -250,14 +250,14 @@ function TradePageBody() {
                     onClick={() => pick(m.symbol)}
                     className="w-full flex items-baseline gap-2 px-3 py-2 text-left hover:bg-border transition-colors"
                   >
-                    <span className="text-sm font-semibold text-white shrink-0">{m.symbol}</span>
-                    <span className="text-xs text-slate-400 truncate">{m.name}</span>
-                    {m.market === 'JP' && <span className="ml-auto shrink-0 text-[10px] text-slate-500">東証</span>}
+                    <span className="text-base font-semibold text-ink shrink-0">{m.symbol}</span>
+                    <span className="text-sm text-ink-2 truncate">{m.name}</span>
+                    {m.market === 'JP' && <span className="ml-auto shrink-0 text-xs text-muted">東証</span>}
                   </button>
                 </li>
               ))}
               {matches.length === 0 && (
-                <li className="px-3 py-2 text-xs text-slate-500">
+                <li className="px-3 py-2 text-sm text-muted leading-relaxed">
                   {searching ? '検索中…' : '一覧に見つかりませんでした。ティッカーを直接入力して Enter でも表示できます。'}
                 </li>
               )}
@@ -265,7 +265,7 @@ function TradePageBody() {
           )}
         </form>
 
-        <p className="text-[11px] text-slate-600 leading-relaxed">
+        <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
           米国の主要取引所（NYSE・NYSE American・Nasdaq）に上場している普通株から検索できます。
           一覧は取引所の公式リストをもとに作り、実際に値が付くことを確認した銘柄だけを載せています。
         </p>
@@ -273,16 +273,16 @@ function TradePageBody() {
 
       {/* ── 現在値 ───────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border">
-        {loading && <p className="text-sm text-slate-500">価格を取得中…</p>}
+        {loading && <p className="text-base text-muted">価格を取得中…</p>}
 
         {/* 「その銘柄を知らない」と「データ源が落ちている」は原因も対処も違うので分けて出す。
             listed は /api/stocks/:symbol が返す «公式リスト由来の一覧にあるか»。 */}
         {!loading && quoteError && (
           <div className="space-y-1">
-            <p className="text-sm text-rose-400 font-medium">
+            <p className="text-base text-rose-700 font-medium">
               {listed === false ? `${symbol} は一覧にありません` : '価格を取得できませんでした'}
             </p>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
               {listed === false ? (
                 <>
                   米国の主要取引所に上場する普通株の一覧に、このティッカーが見当たりません。
@@ -301,13 +301,13 @@ function TradePageBody() {
 
         {!loading && quote && (
           <div className="flex items-baseline gap-3 flex-wrap">
-            <span className="text-lg font-bold text-white">{quote.symbol}</span>
-            <span className="text-xs text-slate-500 truncate">{quote.name}</span>
-            <span className="text-2xl font-bold text-white tabular-nums">{usd(quote.price)}</span>
-            <span className={`text-sm font-semibold tabular-nums ${quote.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className="text-lg font-bold text-ink">{quote.symbol}</span>
+            <span className="text-sm text-muted truncate">{quote.name}</span>
+            <span className="text-2xl font-bold text-ink tabular-nums">{usd(quote.price)}</span>
+            <span className={`text-sm font-semibold tabular-nums ${quote.change >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
               {quote.change >= 0 ? '+' : ''}{quote.changePercent.toFixed(2)}%
             </span>
-            <span className="text-[11px] text-slate-600 ml-auto">
+            <span className="text-sm text-muted ml-auto tabular-nums">
               {quote.isMarketOpen ? '取引時間中' : '時間外'}・保有 {held}株
             </span>
           </div>
@@ -316,7 +316,7 @@ function TradePageBody() {
 
       {/* ── 判断を記録する ─────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
-        <h2 className="text-xs font-semibold text-slate-300">あなたの判断</h2>
+        <h2 className="text-xl font-semibold text-ink">あなたの判断</h2>
 
         {/* 買いと売りで «問うこと» が違うので、先にどちらかを選ぶ */}
         <div className="flex gap-2">
@@ -328,8 +328,8 @@ function TradePageBody() {
               onClick={() => { setAction(a); setResult(null) }}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 action === a
-                  ? (a === 'buy' ? 'bg-emerald-500 text-gray-950' : 'bg-rose-500 text-white')
-                  : 'bg-panel text-slate-400 hover:text-white'
+                  ? (a === 'buy' ? 'bg-success text-ink' : 'bg-danger text-ink')
+                  : 'bg-panel text-ink-2 hover:text-ink'
               }`}
             >
               {a === 'buy' ? '買う' : '売る'}
@@ -338,20 +338,20 @@ function TradePageBody() {
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="shares" className="block text-xs text-slate-400">株数</label>
+          <label htmlFor="shares" className="block text-sm text-ink-2">株数</label>
           <input
             id="shares"
             type="number"
             min={1}
             value={shares}
             onChange={e => setShares(e.target.value)}
-            className="w-32 px-3 py-2 rounded-lg bg-panel border border-border text-sm text-white tabular-nums focus:border-emerald-600 focus:outline-none"
+            className="w-32 px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums focus:border-emerald-200 focus:outline-none"
           />
           {quote && validShares && (
-            <p className="text-[11px] text-slate-500 tabular-nums">概算 {usd(sharesNum * quote.price)}</p>
+            <p className="text-sm text-muted tabular-nums">概算 {usd(sharesNum * quote.price)}</p>
           )}
           {action === 'sell' && validShares && !enoughShares && (
-            <p className="text-[11px] text-amber-500">保有は{held}株です</p>
+            <p className="text-sm text-amber-700 tabular-nums">保有は{held}株です</p>
           )}
         </div>
 
@@ -369,36 +369,36 @@ function TradePageBody() {
           type="button"
           disabled={!canTrade}
           onClick={submit}
-          className={`w-full py-2.5 rounded-lg text-sm font-bold transition-colors disabled:bg-gray-800 disabled:text-gray-600 disabled:border-transparent ${
+          className={`w-full py-2.5 rounded-lg text-sm font-bold transition-colors disabled:bg-surface disabled:text-muted disabled:border-transparent ${
             action === 'buy'
-              ? 'bg-emerald-500 hover:bg-emerald-400 text-gray-950'
-              : 'bg-rose-500 hover:bg-rose-400 text-white'
+              ? 'bg-success hover:bg-emerald-100 text-ink'
+              : 'bg-danger hover:bg-red-100 text-ink'
           }`}
         >
           {action === 'buy' ? '買いを記録する' : '売りを記録する'}
         </button>
 
         {!errors.ok && (
-          <p className="text-[11px] text-muted text-center">
+          <p className="text-sm text-muted text-center leading-relaxed">
             必須の問いを埋めると記録できます。理由のない取引は記録しません。
           </p>
         )}
 
         {result && (
-          <p role="status" className={`text-xs ${result.ok ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <p role="status" className={`text-sm leading-relaxed ${result.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
             {result.msg}
           </p>
         )}
 
         {portfolio && (
-          <p className="text-[11px] text-slate-500 tabular-nums pt-1 border-t border-border">
+          <p className="text-sm text-muted tabular-nums pt-2 border-t border-border">
             仮想の残高 {usd(portfolio.cash)}・保有 {portfolio.positions.length}銘柄
-            <Link href="/review" className="text-emerald-400 hover:text-emerald-300 ml-2">振り返る →</Link>
+            <Link href="/review" className="text-emerald-700 hover:text-emerald-800 ml-2">振り返る →</Link>
           </p>
         )}
       </section>
 
-      <p className="text-[11px] text-slate-500 leading-relaxed">
+      <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
         仮想資金による練習です。実際の証券口座・決済とは一切連携しません。
         このページは特定の銘柄の売買を推奨するものではありません。
       </p>

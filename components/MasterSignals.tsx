@@ -23,9 +23,9 @@ const ACTION_LABEL: Record<Signal['action'], string> = {
   buy: '買い', sell: '売り', hold: '様子見',
 }
 const ACTION_STYLE: Record<Signal['action'], string> = {
-  buy:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-  sell: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-  hold: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+  buy:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+  sell: 'bg-rose-50 text-rose-700 border-rose-200',
+  hold: 'bg-[var(--muted)] text-ink-2 border-border',
 }
 
 export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: string }) {
@@ -48,8 +48,8 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
   return (
     <section className="space-y-3">
       <div className="flex items-baseline gap-3 flex-wrap">
-        <h2 className="text-sm font-semibold text-white">名人はいまどう見ているか</h2>
-        <span className="text-xs text-gray-500">同じ銘柄を、5人の考え方で判定した結果です</span>
+        <h2 className="text-sm font-semibold text-ink">名人はいまどう見ているか</h2>
+        <span className="text-xs text-muted">同じ銘柄を、5人の考え方で判定した結果です</span>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -60,7 +60,7 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
             onClick={() => setSymbol(s)}
             aria-pressed={symbol === s}
             className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-              symbol === s ? 'bg-emerald-500 text-gray-950' : 'bg-gray-800 text-gray-400 hover:text-white'
+              symbol === s ? 'bg-accent text-on-accent' : 'bg-surface text-muted hover:text-ink'
             }`}
           >
             {s}
@@ -68,28 +68,28 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
         ))}
         <Link
           href={`/stocks/${symbol}`}
-          className="px-2.5 py-1 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          className="px-2.5 py-1 rounded-lg text-xs text-muted hover:text-ink transition-colors"
         >
           {symbol} の詳細
         </Link>
         <Link
           href={`/trade?symbol=${encodeURIComponent(symbol)}`}
-          className="px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+          className="px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
         >
           この銘柄で自分も判断してみる →
         </Link>
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-gray-800 bg-gray-900 px-5 py-8 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-border bg-panel px-5 py-8 text-center text-sm text-muted">
           判定中…
         </div>
       )}
 
       {!loading && error && (
-        <div className="rounded-xl border border-gray-800 bg-gray-900 px-5 py-6 space-y-1">
-          <p className="text-sm text-rose-400">シグナルを取得できませんでした</p>
-          <p className="text-xs text-gray-500">{error} — 実データが取れないときは、代わりの数字を作らずここで止めます。</p>
+        <div className="rounded-xl border border-border bg-panel px-5 py-6 space-y-1">
+          <p className="text-base text-rose-700">シグナルを取得できませんでした</p>
+          <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">{error} — 実データが取れないときは、代わりの数字を作らずここで止めます。</p>
         </div>
       )}
 
@@ -98,33 +98,33 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
           {INVESTOR_META.map(m => {
             const sig = signals[m.id]
             return (
-              <article key={m.id} className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-2">
+              <article key={m.id} className="rounded-xl border border-border bg-panel p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <span
                     aria-hidden
-                    className="w-6 h-6 rounded-lg grid place-items-center text-[11px] font-bold text-gray-950"
+                    className="w-6 h-6 rounded-lg grid place-items-center text-xs font-bold text-ink"
                     style={{ backgroundColor: m.color }}
                   >
                     {m.initial}
                   </span>
-                  <span className="text-sm font-semibold text-white">{m.label}</span>
+                  <span className="text-base font-semibold text-ink">{m.label}</span>
                   {sig ? (
-                    <span className={`ml-auto text-[11px] font-semibold px-2 py-0.5 rounded border ${ACTION_STYLE[sig.action]}`}>
+                    <span className={`ml-auto text-xs font-semibold px-2 py-0.5 rounded border ${ACTION_STYLE[sig.action]}`}>
                       {ACTION_LABEL[sig.action]}
                     </span>
                   ) : (
-                    <span className="ml-auto text-[11px] text-gray-600">判定なし</span>
+                    <span className="ml-auto text-sm text-muted">判定なし</span>
                   )}
                 </div>
 
                 {sig && sig.reasons.length > 0 ? (
                   <ul className="space-y-1">
                     {sig.reasons.slice(0, 3).map((r, i) => (
-                      <li key={i} className="text-xs text-gray-400 leading-relaxed">・{r}</li>
+                      <li key={i} className="text-sm text-ink-2 leading-relaxed">・{r}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-gray-600 leading-relaxed">{m.philosophy}</p>
+                  <p className="text-sm text-muted leading-relaxed">{m.philosophy}</p>
                 )}
               </article>
             )
@@ -132,7 +132,7 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
         </div>
       )}
 
-      <p className="text-[11px] text-gray-600 leading-relaxed">
+      <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
         これは各投資家の公開された考え方をルール化して現在の数値に当てた計算結果であり、本人の見解でも、売買の推奨でもありません。
       </p>
     </section>

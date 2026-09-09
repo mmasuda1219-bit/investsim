@@ -78,14 +78,14 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     .map((part, i) => {
       const key = `${keyPrefix}-${i}`
       if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={key} className="text-white font-semibold">{part.slice(2, -2)}</strong>
+        return <strong key={key} className="text-ink font-semibold">{part.slice(2, -2)}</strong>
       }
       const md = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/)
       if (md) {
-        return <a key={key} href={md[2]} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all">{md[1]}</a>
+        return <a key={key} href={md[2]} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline hover:text-blue-800 break-all">{md[1]}</a>
       }
       if (/^https?:\/\//.test(part)) {
-        return <a key={key} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all">{part}</a>
+        return <a key={key} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline hover:text-blue-800 break-all">{part}</a>
       }
       return <span key={key}>{part}</span>
     })
@@ -94,22 +94,22 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 function MarkdownView({ text }: { text: string }) {
   const lines = text.split('\n')
   return (
-    <div className="space-y-1.5 text-sm leading-relaxed text-slate-300">
+    <div className="space-y-1.5 text-sm leading-relaxed text-ink-2">
       {lines.map((line, i) => {
         if (line.startsWith('## ')) {
           return (
-            <h2 key={i} className="text-white text-base font-bold mt-5 mb-1 pb-1 border-b border-border">
+            <h2 key={i} className="text-ink text-base font-bold mt-5 mb-1 pb-1 border-b border-border">
               {line.slice(3)}
             </h2>
           )
         }
         if (line.startsWith('### ')) {
-          return <h3 key={i} className="text-white text-sm font-semibold mt-3">{line.slice(4)}</h3>
+          return <h3 key={i} className="text-ink text-sm font-semibold mt-3">{line.slice(4)}</h3>
         }
         if (/^\s*[-•*]\s+/.test(line)) {
           return (
             <div key={i} className="flex gap-2 pl-2">
-              <span className="text-slate-500 shrink-0">•</span>
+              <span className="text-muted shrink-0">•</span>
               <span>{renderInline(line.replace(/^\s*[-•*]\s+/, ''), `l${i}`)}</span>
             </div>
           )
@@ -357,7 +357,7 @@ export default function ReportPage() {
 
       {/* Header */}
       <div className="no-print">
-        <h1 className="text-2xl font-bold text-white">AIレポート</h1>
+        <h1 className="text-2xl font-bold text-ink">AIレポート</h1>
         <p className="text-muted text-sm mt-1">
           テクニカル条件＋ファンダメンタル条件を指定して過去5年の実データでバックテストし、
           現状分析・AIトレーダー実績・根拠つき未来予想をAI（Opus）がレポートにまとめます。
@@ -374,7 +374,7 @@ export default function ReportPage() {
               onChange={e => setSymbol(e.target.value.toUpperCase())}
               placeholder="AAPL / MSFT / NVDA …"
               list="us-universe"
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
             />
             <datalist id="us-universe">
               {US_UNIVERSE.map(s => (
@@ -388,7 +388,7 @@ export default function ReportPage() {
               type="number" min="1000" step="1000"
               value={capital}
               onChange={e => setCapital(e.target.value)}
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
             />
           </div>
         </div>
@@ -402,8 +402,8 @@ export default function ReportPage() {
                 key={rule.id}
                 className={`flex items-center gap-2 text-sm rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                   indicator === rule.id
-                    ? 'border-blue-500 bg-blue-950/30 text-white'
-                    : 'border-border bg-surface text-slate-300 hover:border-slate-600'
+                    ? 'border-blue-200 bg-blue-50 text-ink'
+                    : 'border-border bg-surface text-ink-2 hover:border-accent'
                 }`}
               >
                 <input
@@ -427,7 +427,7 @@ export default function ReportPage() {
                   type="number" min="2" max="200" step="1"
                   value={periods[indicator]}
                   onChange={e => setPeriods(prev => ({ ...prev, [indicator]: e.target.value }))}
-                  className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                  className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                 />
               </div>
             )}
@@ -439,7 +439,7 @@ export default function ReportPage() {
                     type="number" min="2" max="199" step="1"
                     value={shortPeriod}
                     onChange={e => setShortPeriod(e.target.value)}
-                    className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                    className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                   />
                 </div>
                 <div>
@@ -448,7 +448,7 @@ export default function ReportPage() {
                     type="number" min="3" max="200" step="1"
                     value={longPeriod}
                     onChange={e => setLongPeriod(e.target.value)}
-                    className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                    className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                   />
                 </div>
               </>
@@ -468,7 +468,7 @@ export default function ReportPage() {
             <button
               onClick={addFilter}
               disabled={filters.length >= 10}
-              className="text-xs px-3 py-1 rounded-lg border border-border text-slate-300 hover:border-blue-500 hover:text-white transition-colors disabled:opacity-40"
+              className="text-xs px-3 py-1 rounded-lg border border-border text-ink-2 hover:border-blue-400 hover:text-ink transition-colors disabled:opacity-40"
             >
               ＋ 条件を追加
             </button>
@@ -482,7 +482,7 @@ export default function ReportPage() {
                 <select
                   value={row.metric}
                   onChange={e => updateFilter(row.key, { metric: e.target.value as FundamentalMetric })}
-                  className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm focus:outline-none focus:border-blue-200"
                 >
                   {FUNDAMENTAL_METRICS.map(mId => (
                     <option key={mId} value={mId}>{METRIC_INFO[mId].label}</option>
@@ -491,7 +491,7 @@ export default function ReportPage() {
                 <select
                   value={row.operator}
                   onChange={e => updateFilter(row.key, { operator: e.target.value as FundamentalFilter['operator'] })}
-                  className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                  className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                 >
                   {OPERATORS.map(op => (
                     <option key={op} value={op}>{OPERATOR_LABEL[op]}</option>
@@ -502,19 +502,19 @@ export default function ReportPage() {
                   value={row.value}
                   onChange={e => updateFilter(row.key, { value: e.target.value })}
                   placeholder={METRIC_INFO[row.metric].hint}
-                  className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                  className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                 />
                 <span className="text-xs text-muted/70">{METRIC_INFO[row.metric].hint}</span>
                 <button
                   onClick={() => removeFilter(row.key)}
-                  className="text-xs px-2 py-1.5 rounded-lg border border-border text-red-400 hover:border-red-500 transition-colors"
+                  className="text-xs px-2 py-1.5 rounded-lg border border-border text-red-700 hover:border-red-400 transition-colors"
                 >
                   削除
                 </button>
               </div>
             ))}
           </div>
-          <p className="text-xs text-amber-400/80 mt-2">
+          <p className="text-xs text-amber-700/80 mt-2">
             ※ ファンダ条件は現在値による静的フィルタで、過去5年には遡及しません（過去の各時点のファンダメンタルは取得できないため）。
           </p>
         </div>
@@ -528,7 +528,7 @@ export default function ReportPage() {
             <button
               onClick={addDFilter}
               disabled={dFilters.length >= 10}
-              className="text-xs px-3 py-1 rounded-lg border border-border text-slate-300 hover:border-blue-500 hover:text-white transition-colors disabled:opacity-40"
+              className="text-xs px-3 py-1 rounded-lg border border-border text-ink-2 hover:border-blue-400 hover:text-ink transition-colors disabled:opacity-40"
             >
               ＋ 決算条件を追加
             </button>
@@ -542,7 +542,7 @@ export default function ReportPage() {
                 <select
                   value={row.metric}
                   onChange={e => updateDFilter(row.key, { metric: e.target.value as DerivedMetric })}
-                  className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm focus:outline-none focus:border-blue-200"
                 >
                   {DERIVED_METRICS.map(mId => (
                     <option key={mId} value={mId}>{DERIVED_METRIC_INFO[mId].label}</option>
@@ -551,7 +551,7 @@ export default function ReportPage() {
                 <select
                   value={row.operator}
                   onChange={e => updateDFilter(row.key, { operator: e.target.value as DerivedFilter['operator'] })}
-                  className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                  className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                 >
                   {OPERATORS.map(op => (
                     <option key={op} value={op}>{OPERATOR_LABEL[op]}</option>
@@ -562,19 +562,19 @@ export default function ReportPage() {
                   value={row.value}
                   onChange={e => updateDFilter(row.key, { value: e.target.value })}
                   placeholder={DERIVED_METRIC_INFO[row.metric].hint}
-                  className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                  className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                 />
                 <span className="text-xs text-muted/70">{DERIVED_METRIC_INFO[row.metric].hint}</span>
                 <button
                   onClick={() => removeDFilter(row.key)}
-                  className="text-xs px-2 py-1.5 rounded-lg border border-border text-red-400 hover:border-red-500 transition-colors"
+                  className="text-xs px-2 py-1.5 rounded-lg border border-border text-red-700 hover:border-red-400 transition-colors"
                 >
                   削除
                 </button>
               </div>
             ))}
           </div>
-          <p className="text-xs text-amber-400/80 mt-2">
+          <p className="text-xs text-amber-700/80 mt-2">
             ※ 決算データは年次の実績（最新約5期）。トレンド指標は直近数期から計算し、データ不足の場合は「判定不能（不成立扱い）」になります。
           </p>
         </div>
@@ -582,8 +582,8 @@ export default function ReportPage() {
         <button
           onClick={run}
           disabled={busy}
-          className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-            busy ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+          className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+            busy ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
           }`}
         >
           {phase === 'preparing' ? '実データを準備中...'
@@ -594,7 +594,7 @@ export default function ReportPage() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-red-300 text-sm">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
           {error}
         </div>
       )}
@@ -603,8 +603,8 @@ export default function ReportPage() {
       {busy && (
         <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
-            <div className="text-sm text-slate-300">
+            <div className="w-5 h-5 border-2 border-border border-t-blue-500 rounded-full animate-spin" />
+            <div className="text-sm text-ink-2">
               {phase === 'preparing'
                 ? 'ステップ1/2: 条件を検証し、Yahoo Financeの過去5年実データでバックテスト中...'
                 : 'ステップ2/2: Opusがレポートを執筆中（少しずつ表示されます）...'}
@@ -616,12 +616,12 @@ export default function ReportPage() {
       {/* Prepared bundle summary */}
       {bundle && (
         <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
-          <h2 className="text-white font-semibold text-sm">
+          <h2 className="text-ink font-semibold text-sm">
             実行結果（実データ・過去5年日足{chartData ? `・${chartData.bars.length}本` : ''}）
           </h2>
-          <div className="bg-surface/50 border border-blue-900/50 rounded-lg p-3 space-y-1">
-            <p className="text-xs text-blue-300 font-medium">実行した条件</p>
-            <p className="text-sm text-white font-medium">
+          <div className="bg-surface/50 border border-blue-200 rounded-lg p-3 space-y-1">
+            <p className="text-xs text-blue-700 font-medium">実行した条件</p>
+            <p className="text-sm text-ink font-medium">
               {describeCompositeCondition(bundle.request.condition)}
             </p>
           </div>
@@ -629,14 +629,14 @@ export default function ReportPage() {
           {/* Fundamental gate result */}
           {gate && gate.evaluations.length > 0 && (
             <div className={`rounded-lg p-3 space-y-1 border ${
-              gate.passed ? 'bg-surface/50 border-green-900/50' : 'bg-surface/50 border-amber-800/60'
+              gate.passed ? 'bg-surface/50 border-green-200' : 'bg-surface/50 border-amber-200'
             }`}>
-              <p className={`text-xs font-medium ${gate.passed ? 'text-green-400' : 'text-amber-400'}`}>
+              <p className={`text-xs font-medium ${gate.passed ? 'text-green-700' : 'text-amber-700'}`}>
                 ファンダメンタル・ゲート判定（現在値）: {gate.passed ? '成立' : '不成立'}
               </p>
               <ul className="space-y-0.5">
                 {gate.evaluations.map((ev, i) => (
-                  <li key={i} className="text-xs text-slate-300 font-mono">
+                  <li key={i} className="text-xs text-ink-2 font-mono">
                     {ev.result === 'pass' ? '✓' : '✗'} {describeFundamentalFilter(ev.filter)}
                     {' → '}
                     {ev.result === 'no_data'
@@ -646,7 +646,7 @@ export default function ReportPage() {
                 ))}
               </ul>
               {!gate.passed && (
-                <p className="text-xs text-amber-400/90">
+                <p className="text-xs text-amber-700/90">
                   条件不成立のためバックテストはスキップされました。レポートは「不成立の理由と成立に必要な変化」を分析します。
                 </p>
               )}
@@ -656,14 +656,14 @@ export default function ReportPage() {
           {/* Derived (earnings-trend) gate result */}
           {dgate && dgate.evaluations.length > 0 && (
             <div className={`rounded-lg p-3 space-y-1 border ${
-              dgate.passed ? 'bg-surface/50 border-green-900/50' : 'bg-surface/50 border-amber-800/60'
+              dgate.passed ? 'bg-surface/50 border-green-200' : 'bg-surface/50 border-amber-200'
             }`}>
-              <p className={`text-xs font-medium ${dgate.passed ? 'text-green-400' : 'text-amber-400'}`}>
+              <p className={`text-xs font-medium ${dgate.passed ? 'text-green-700' : 'text-amber-700'}`}>
                 決算トレンド・ゲート判定（年次実績）: {dgate.passed ? '成立' : '不成立'}
               </p>
               <ul className="space-y-0.5">
                 {dgate.evaluations.map((ev, i) => (
-                  <li key={i} className="text-xs text-slate-300 font-mono">
+                  <li key={i} className="text-xs text-ink-2 font-mono">
                     {ev.result === 'pass' ? '✓' : '✗'} {describeDerivedFilter(ev.filter)}
                     {' → '}
                     {ev.result === 'no_data'
@@ -680,27 +680,27 @@ export default function ReportPage() {
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
               <div className="bg-surface/50 rounded-lg p-3">
                 <p className="text-muted text-xs mb-1">総リターン（5年）</p>
-                <p className={`font-mono font-bold ${m.totalReturnPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <p className={`font-mono font-bold ${m.totalReturnPct >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                   {m.totalReturnPct >= 0 ? '+' : ''}{m.totalReturnPct.toFixed(2)}%
                 </p>
               </div>
               <div className="bg-surface/50 rounded-lg p-3">
                 <p className="text-muted text-xs mb-1">バイ&ホールド</p>
-                <p className={`font-mono font-bold ${bundle.backtest.buyHoldReturnPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <p className={`font-mono font-bold ${bundle.backtest.buyHoldReturnPct >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                   {bundle.backtest.buyHoldReturnPct >= 0 ? '+' : ''}{bundle.backtest.buyHoldReturnPct.toFixed(2)}%
                 </p>
               </div>
               <div className="bg-surface/50 rounded-lg p-3">
                 <p className="text-muted text-xs mb-1">勝率</p>
-                <p className="text-white font-mono font-bold">{m.winRate.toFixed(0)}%</p>
+                <p className="text-ink font-mono font-bold">{m.winRate.toFixed(0)}%</p>
               </div>
               <div className="bg-surface/50 rounded-lg p-3">
                 <p className="text-muted text-xs mb-1">最大DD</p>
-                <p className="text-red-400 font-mono font-bold">-{m.maxDrawdownPct.toFixed(2)}%</p>
+                <p className="text-red-700 font-mono font-bold">-{m.maxDrawdownPct.toFixed(2)}%</p>
               </div>
               <div className="bg-surface/50 rounded-lg p-3">
                 <p className="text-muted text-xs mb-1">取引数</p>
-                <p className="text-white font-mono font-bold">{m.tradeCount}件</p>
+                <p className="text-ink font-mono font-bold">{m.tradeCount}件</p>
               </div>
             </div>
           )}
@@ -725,7 +725,7 @@ export default function ReportPage() {
             return (
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs text-muted mb-1">価格チャート（過去5年・<span className="text-green-400">●</span>買い/<span className="text-red-400">●</span>売り）</p>
+                  <p className="text-xs text-muted mb-1">価格チャート（過去5年・<span className="text-green-700">●</span>買い/<span className="text-red-700">●</span>売り）</p>
                   <LineChart points={pricePts} markers={markers} stroke="#60a5fa" label="価格チャート" />
                 </div>
                 {eqPts.length > 1 && (
@@ -744,7 +744,7 @@ export default function ReportPage() {
           見せない）。PDFにも残す価値があるため no-print にはしない。 */}
       {bundle && (
         <div className="bg-panel border border-border rounded-xl p-5 space-y-2">
-          <h2 className="text-white font-semibold text-sm">教訓の使用状況（AI学習メモリ）</h2>
+          <h2 className="text-ink font-semibold text-sm">教訓の使用状況（AI学習メモリ）</h2>
           {bundle.learningUsage?.hasData ? (
             <>
               <p className="text-xs text-muted">
@@ -752,8 +752,8 @@ export default function ReportPage() {
               </p>
               <ul className="space-y-1">
                 {bundle.learningUsage.usedLessons.map((lesson, i) => (
-                  <li key={i} className="flex gap-2 text-xs text-slate-300">
-                    <span className="text-blue-400 shrink-0">•</span>
+                  <li key={i} className="flex gap-2 text-xs text-ink-2">
+                    <span className="text-blue-700 shrink-0">•</span>
                     <span>{lesson}</span>
                   </li>
                 ))}
@@ -762,7 +762,7 @@ export default function ReportPage() {
             </>
           ) : (
             <>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-ink-2">
                 蓄積された教訓はまだ無く、本レポートでは未使用です。
               </p>
               <p className="text-xs text-muted/70">
@@ -779,7 +779,7 @@ export default function ReportPage() {
         <div className="no-print flex justify-end">
           <button
             onClick={() => window.print()}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-border text-slate-200 hover:border-blue-500 hover:text-white transition-colors"
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-border text-ink hover:border-blue-400 hover:text-ink transition-colors"
           >
             📄 PDFで保存（印刷 → 送信先を「PDFに保存」）
           </button>
@@ -802,12 +802,12 @@ export default function ReportPage() {
           {bundle.macro && bundle.macro.items.some(mi => mi.current != null) && (
             <div>
               <p className="text-xs text-muted font-medium mb-1.5">マクロ・市場環境（現在／5年前→現在）</p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-300 font-mono">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2 font-mono">
                 {bundle.macro.items.filter(mi => mi.current != null).map(mi => (
                   <span key={mi.symbol}>
-                    {mi.label}: <span className="text-white">{mi.current!.toFixed(2)}{mi.unit}</span>
+                    {mi.label}: <span className="text-ink">{mi.current!.toFixed(2)}{mi.unit}</span>
                     {mi.periodStartValue != null && mi.periodStartValue > 0 && (
-                      <span className={mi.current! >= mi.periodStartValue ? 'text-green-400' : 'text-red-400'}>
+                      <span className={mi.current! >= mi.periodStartValue ? 'text-green-700' : 'text-red-700'}>
                         {' '}({((mi.current! - mi.periodStartValue) / mi.periodStartValue * 100 >= 0 ? '+' : '')}
                         {((mi.current! - mi.periodStartValue) / mi.periodStartValue * 100).toFixed(0)}%/5y)
                       </span>
@@ -824,7 +824,7 @@ export default function ReportPage() {
               <ul className="space-y-1">
                 {bundle.news.map((nw, i) => (
                   <li key={i} className="text-xs">
-                    <a href={nw.link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">
+                    <a href={nw.link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800 underline">
                       {nw.title}
                     </a>
                     <span className="text-muted/70"> — {nw.publisher || '出所不明'}
@@ -839,10 +839,10 @@ export default function ReportPage() {
             <p className="text-xs text-muted font-medium mb-1.5">引用元・参照リンク</p>
             <ol className="space-y-1">
               {bundle.sources.map(s => (
-                <li key={s.id} className="text-xs text-slate-300">
+                <li key={s.id} className="text-xs text-ink-2">
                   <span className="text-muted/70 font-mono">[{s.id}]</span>{' '}
                   {s.url
-                    ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline break-all">{s.label}</a>
+                    ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800 underline break-all">{s.label}</a>
                     : <span>{s.label}</span>}
                   <span className="text-muted/60"> — {s.usedFor}</span>
                 </li>

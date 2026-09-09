@@ -151,12 +151,12 @@ export default function TradingChart({
     const chart = createChart(chartEl, {
       width: chartEl.clientWidth,
       height: 500,
-      layout: { background: { color: '#0f1117' }, textColor: '#d1d5db' },
-      grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
+      layout: { background: { color: '#FFFFFF' }, textColor: '#6B6862' },
+      grid: { vertLines: { color: '#EFECE3' }, horzLines: { color: '#EFECE3' } },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#374151' },
+      rightPriceScale: { borderColor: '#D6D0C3' },
       timeScale: {
-        borderColor: '#374151',
+        borderColor: '#D6D0C3',
         timeVisible: true,
         rightOffset: 5,
         barSpacing: 6,
@@ -237,11 +237,11 @@ export default function TradingChart({
     const pnlChart = createChart(pnlEl, {
       width: pnlEl.clientWidth,
       height: 160,
-      layout: { background: { color: '#0f1117' }, textColor: '#d1d5db' },
-      grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
+      layout: { background: { color: '#FFFFFF' }, textColor: '#6B6862' },
+      grid: { vertLines: { color: '#EFECE3' }, horzLines: { color: '#EFECE3' } },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#374151' },
-      timeScale: { borderColor: '#374151', visible: false, barSpacing: 6, minBarSpacing: 0.1 },
+      rightPriceScale: { borderColor: '#D6D0C3' },
+      timeScale: { borderColor: '#D6D0C3', visible: false, barSpacing: 6, minBarSpacing: 0.1 },
     })
 
     const pnlSeries = pnlChart.addSeries(LineSeries, {
@@ -300,14 +300,14 @@ export default function TradingChart({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-72 bg-[#0f1117] rounded-xl text-gray-400 animate-pulse">
+      <div className="flex items-center justify-center h-72 bg-[#0f1117] rounded-xl text-ink-2 animate-pulse">
         チャートデータ読み込み中…
       </div>
     )
   }
   if (error) {
     return (
-      <div className="flex items-center justify-center h-72 bg-[#0f1117] rounded-xl text-red-400">
+      <div className="flex items-center justify-center h-72 bg-[#0f1117] rounded-xl text-red-700">
         {error}
       </div>
     )
@@ -319,24 +319,24 @@ export default function TradingChart({
   const dayChangeP = prevBar ? (dayChange / prevBar.close) * 100 : 0
 
   return (
-    <div className="bg-[#0f1117] rounded-xl border border-gray-800 overflow-hidden">
+    <div className="bg-[#0f1117] rounded-xl border border-border overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-800 flex flex-wrap items-center gap-6">
+      <div className="px-5 py-4 border-b border-border flex flex-wrap items-center gap-6">
         <div className="flex items-baseline gap-3">
-          <span className="text-2xl font-bold text-white">{symbol}</span>
+          <span className="text-2xl font-bold text-ink">{symbol}</span>
           {latestBar && (
-            <span className="text-2xl font-semibold text-white">${latestBar.close.toFixed(2)}</span>
+            <span className="text-2xl font-semibold text-ink">${latestBar.close.toFixed(2)}</span>
           )}
         </div>
         {latestBar && (
-          <div className={dayChange >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+          <div className={dayChange >= 0 ? 'text-emerald-700' : 'text-red-700'}>
             {dayChange >= 0 ? '+' : ''}{dayChange.toFixed(2)} ({dayChange >= 0 ? '+' : ''}{dayChangeP.toFixed(2)}%)
           </div>
         )}
         {trades.length > 0 && (
           <div className="ml-auto flex items-center gap-3">
-            <span className="text-sm text-gray-400">累積損益</span>
-            <span className={`text-xl font-bold ${totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span className="text-sm text-ink-2">累積損益</span>
+            <span className={`text-xl font-bold ${totalPnl >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
               {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
             </span>
           </div>
@@ -345,7 +345,7 @@ export default function TradingChart({
 
       {/* Trade badges with reference button */}
       {trades.length > 0 && (
-        <div className="px-5 py-3 border-b border-gray-800 flex flex-wrap gap-2">
+        <div className="px-5 py-3 border-b border-border flex flex-wrap gap-2">
           {trades.map((t) => {
             let pnl: number | null = null
             if (t.action === 'SELL' && t.pairedTradeId) {
@@ -358,28 +358,28 @@ export default function TradingChart({
                 onClick={() => onTradeClick?.(t)}
                 className={`text-xs px-2.5 py-1 rounded-full border font-mono flex items-center gap-1.5 transition-all hover:brightness-125 cursor-pointer
                   ${t.action === 'BUY'
-                    ? 'bg-emerald-900/40 border-emerald-700 text-emerald-300'
-                    : 'bg-red-900/40 border-red-700 text-red-300'}`}
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'bg-red-50 border-red-200 text-red-700'}`}
               >
                 <span>{t.action === 'BUY' ? '▲' : '▼'}</span>
                 <span>{t.action}</span>
-                <span className="text-gray-500">{t.date}</span>
+                <span className="text-muted">{t.date}</span>
                 <span>${t.price.toFixed(2)}</span>
-                <span className="text-gray-600">×{t.shares}</span>
+                <span className="text-muted">×{t.shares}</span>
                 {pnl !== null && (
-                  <span className={`font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <span className={`font-bold ${pnl >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                     {pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}
                   </span>
                 )}
                 {t.reference && (
-                  <span className="ml-0.5 text-gray-600 border border-gray-700 rounded px-1 text-[10px]">
+                  <span className="ml-0.5 text-muted border border-border rounded px-1 text-xs">
                     分析
                   </span>
                 )}
               </button>
             )
           })}
-          <div className="text-xs text-gray-700 self-center ml-1">← クリックで分析を表示</div>
+          <div className="text-sm text-muted self-center ml-1">← クリックで分析を表示</div>
         </div>
       )}
 
@@ -387,10 +387,10 @@ export default function TradingChart({
       <div ref={chartContainerRef} className="w-full" style={{ minHeight: 500 }} />
 
       {/* P&L panel label */}
-      <div className="px-5 py-1.5 border-t border-gray-800 flex items-center gap-2 bg-gray-900/30">
-        <span className="text-xs text-gray-600 font-medium tracking-widest uppercase">累積損益 P&L</span>
+      <div className="px-5 py-1.5 border-t border-border flex items-center gap-2 bg-panel">
+        <span className="text-sm text-muted font-medium tracking-widest uppercase">累積損益 P&L</span>
         {totalPnl !== 0 && (
-          <span className={`text-xs font-bold ${totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className={`text-sm font-bold tabular-nums ${totalPnl >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
             {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
           </span>
         )}
@@ -400,9 +400,9 @@ export default function TradingChart({
       <div ref={pnlContainerRef} className="w-full" style={{ minHeight: 160 }} />
 
       {/* Legend */}
-      <div className="px-5 py-3 border-t border-gray-800 flex flex-wrap gap-5 text-xs text-gray-600">
-        <span className="flex items-center gap-1.5"><span className="text-emerald-400">▲</span> BUY（バー下）</span>
-        <span className="flex items-center gap-1.5"><span className="text-red-400">▼</span> SELL（バー上）損益表示</span>
+      <div className="px-5 py-3 border-t border-border flex flex-wrap gap-5 text-sm text-muted">
+        <span className="flex items-center gap-1.5"><span className="text-emerald-700">▲</span> BUY（バー下）</span>
+        <span className="flex items-center gap-1.5"><span className="text-red-700">▼</span> SELL（バー上）損益表示</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-emerald-400 inline-block" /> 累積損益ライン</span>
         <span className="ml-auto">ドラッグで移動 │ スクロールでズーム │ 左に遡れます</span>
       </div>
@@ -410,21 +410,21 @@ export default function TradingChart({
       {/* Floating tooltip */}
       {tooltip && (
         <div
-          className="fixed z-50 pointer-events-none bg-gray-900/95 border border-gray-700 rounded-lg px-3 py-2 text-xs font-mono shadow-xl backdrop-blur"
+          className="fixed z-50 pointer-events-none bg-panel border border-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl backdrop-blur"
           style={{ left: tooltip.x + 16, top: tooltip.y - 60 }}
         >
-          <div className="text-gray-400 mb-1.5 font-sans">{tooltip.date}</div>
+          <div className="text-ink-2 mb-1.5 font-sans">{tooltip.date}</div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-            <span className="text-gray-600">始値</span><span className="text-gray-200">${tooltip.open.toFixed(2)}</span>
-            <span className="text-gray-600">高値</span><span className="text-emerald-400">${tooltip.high.toFixed(2)}</span>
-            <span className="text-gray-600">安値</span><span className="text-red-400">${tooltip.low.toFixed(2)}</span>
-            <span className="text-gray-600">終値</span><span className="text-white font-semibold">${tooltip.close.toFixed(2)}</span>
-            <span className="text-gray-600">前日比</span>
-            <span className={tooltip.change >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+            <span className="text-muted">始値</span><span className="text-ink">${tooltip.open.toFixed(2)}</span>
+            <span className="text-muted">高値</span><span className="text-emerald-700">${tooltip.high.toFixed(2)}</span>
+            <span className="text-muted">安値</span><span className="text-red-700">${tooltip.low.toFixed(2)}</span>
+            <span className="text-muted">終値</span><span className="text-ink font-semibold">${tooltip.close.toFixed(2)}</span>
+            <span className="text-muted">前日比</span>
+            <span className={tooltip.change >= 0 ? 'text-emerald-700' : 'text-red-700'}>
               {tooltip.change >= 0 ? '+' : ''}{tooltip.change.toFixed(2)} ({tooltip.changeP.toFixed(2)}%)
             </span>
-            <span className="text-gray-600">出来高</span>
-            <span className="text-gray-400">{(tooltip.volume / 1_000_000).toFixed(2)}M</span>
+            <span className="text-muted">出来高</span>
+            <span className="text-ink-2">{(tooltip.volume / 1_000_000).toFixed(2)}M</span>
           </div>
         </div>
       )}

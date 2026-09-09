@@ -14,8 +14,8 @@ export default function AnalyzeBanner() {
           をそのまま使う。/trade・/review と同じ書式に揃えていないと、4段階の
           どこにいるのかが画面から読み取れない。 */}
       <div>
-        <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">02 まねる</p>
-        <h1 className="text-2xl font-bold text-white mt-1">名人の条件を過去に当てる</h1>
+        <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">02 まねる</p>
+        <h1 className="text-2xl font-bold text-ink mt-1">名人の条件を過去に当てる</h1>
         <p className="text-muted text-sm mt-1">
           クイックモードはニーズ軸プリセットで実データの数字プレビュー（無料・純計算）を確認し、
           同じ条件でAIレポート（現状分析・根拠つき未来予想）を生成します。
@@ -24,7 +24,7 @@ export default function AnalyzeBanner() {
       </div>
 
       {/* 恒久ディスクレーマ（免責）— 設定中・プレビュー中・ストリーミング中も常に表示 */}
-      <p className="text-xs text-amber-300/90 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-2 leading-relaxed">
+      <p className="text-sm text-amber-700/90 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
         本ページのAIレポートは投資助言ではありません。プロの投資アナリストが実データをもとにどう分析プロセスを
         組み立てるかを、実データに基づき再現したものです。投資判断はご自身の責任で行ってください。
       </p>

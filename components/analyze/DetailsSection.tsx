@@ -31,8 +31,8 @@ export default function DetailsSection({ title, children, defaultOpen = false }:
         aria-controls={contentId}
         className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-surface/40 transition-colors"
       >
-        <span className="text-white font-semibold text-sm">{title}</span>
-        <span className="text-xs text-muted shrink-0">{open ? '閉じる ▾' : '詳細を見る ▸'}</span>
+        <span className="text-ink font-semibold text-sm">{title}</span>
+        <span className="text-sm text-muted shrink-0">{open ? '閉じる ▾' : '詳細を見る ▸'}</span>
       </button>
 
       {open && <div id={contentId} className="px-5 pb-5 pt-1 border-t border-border space-y-3">{children}</div>}

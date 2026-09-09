@@ -58,7 +58,7 @@ export function MarketOverview() {
   // 取れないときは黙って空にせず、取れなかったと出す（原則9）。
   if (state === 'error') {
     return (
-      <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 text-xs text-gray-500">
+      <div className="rounded-xl border border-border bg-panel px-4 py-3 text-sm text-muted">
         相場概況を取得できませんでした。
       </div>
     )
@@ -66,7 +66,7 @@ export function MarketOverview() {
 
   if (state === 'loading' || !data) {
     return (
-      <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 text-xs text-gray-600">
+      <div className="rounded-xl border border-border bg-panel px-4 py-3 text-sm text-muted">
         相場概況を読み込み中…
       </div>
     )
@@ -75,19 +75,19 @@ export function MarketOverview() {
   const b = data.buffettIndicator
 
   return (
-    <section className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-3">
+    <section className="rounded-xl border border-border bg-panel px-4 py-3">
       <div className="flex items-center gap-x-5 gap-y-2 flex-wrap">
-        <span className="text-xs font-semibold text-gray-400 shrink-0">いまの相場</span>
+        <span className="text-sm font-semibold text-ink-2 shrink-0">いまの相場</span>
 
         {data.indices.slice(0, 5).map(ix => {
           const up = ix.changePercent >= 0
           return (
-            <span key={ix.symbol} className="flex items-baseline gap-1.5 text-xs">
-              <span className="text-gray-500">{ix.name}</span>
-              <span className="text-gray-200 tabular-nums font-medium">
+            <span key={ix.symbol} className="flex items-baseline gap-1.5 text-sm tabular-nums">
+              <span className="text-muted">{ix.name}</span>
+              <span className="text-ink tabular-nums font-medium">
                 {ix.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
               </span>
-              <span className={`tabular-nums font-semibold ${up ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <span className={`tabular-nums font-semibold ${up ? 'text-emerald-700' : 'text-rose-700'}`}>
                 {up ? '+' : ''}{ix.changePercent.toFixed(2)}%
               </span>
             </span>
@@ -96,14 +96,14 @@ export function MarketOverview() {
 
         {b && typeof b.value === 'number' && (
           <span
-            className="ml-auto flex items-baseline gap-1.5 text-xs shrink-0"
+            className="ml-auto flex items-baseline gap-1.5 text-sm tabular-nums shrink-0"
             title="株式市場の時価総額をGDPで割った値。市場全体の割高感の目安として使われる"
           >
-            <span className="text-gray-500">市場全体</span>
+            <span className="text-muted">市場全体</span>
             <span className="tabular-nums font-semibold" style={{ color: BUFFETT_COLOR[b.color] }}>
               {b.value.toFixed(0)}%
             </span>
-            <span className="text-gray-500">{b.label}</span>
+            <span className="text-muted">{b.label}</span>
           </span>
         )}
       </div>

@@ -36,10 +36,10 @@ const ACTION_LABEL: Record<Decision['action'], string> = {
   buy: '買い', sell: '売り', hold: '保有継続', watch: '様子見',
 }
 const ACTION_STYLE: Record<Decision['action'], string> = {
-  buy:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-  sell:  'bg-rose-500/10 text-rose-400 border-rose-500/30',
-  hold:  'bg-slate-500/10 text-slate-300 border-slate-500/30',
-  watch: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  buy:   'bg-emerald-50 text-emerald-700 border-emerald-200',
+  sell:  'bg-rose-50 text-rose-700 border-rose-200',
+  hold:  'bg-[var(--muted)] text-ink-2 border-border',
+  watch: 'bg-amber-50 text-amber-700 border-amber-200',
 }
 
 function formatWhen(iso: string): string {
@@ -82,27 +82,27 @@ export default function Home() {
 
       {/* ── 何のサイトか ─────────────────────────────────────────── */}
       <section className="pt-6 space-y-5">
-        <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">
+        <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">
           投資判断の練習場
         </p>
         <h1 className="text-3xl sm:text-[2.6rem] font-bold leading-[1.4] text-balance">
           AIと名人と自分。<br className="hidden sm:block" />
-          どの判断が正しかったかを、<span className="text-emerald-400">リスクゼロ</span>で確かめる。
+          どの判断が正しかったかを、<span className="text-emerald-700">リスクゼロ</span>で確かめる。
         </h1>
-        <p className="text-slate-400 leading-relaxed max-w-2xl">
+        <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           実際の株価データを使い、仮想の資金で投資の判断だけを練習します。
           うまくなるのはAIではなく、あなたです。実際のお金は1円も動きません。
         </p>
         <div className="flex flex-wrap gap-3 pt-1">
           <Link
             href="/watch"
-            className="px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-gray-950 text-sm font-bold transition-colors"
+            className="px-5 py-2.5 rounded-lg bg-accent text-on-accent text-sm font-bold transition-colors"
           >
             まずAIの判断を見てみる
           </Link>
           <Link
             href="/learn"
-            className="px-5 py-2.5 rounded-lg border border-gray-700 hover:border-gray-500 text-slate-300 hover:text-white text-sm font-semibold transition-colors"
+            className="px-5 py-2.5 rounded-lg border border-border hover:border-accent text-ink-2 hover:text-ink text-sm font-semibold transition-colors"
           >
             名人の条件を過去に当ててみる
           </Link>
@@ -111,19 +111,19 @@ export default function Home() {
 
       {/* ── 4段階の学習 ──────────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-slate-300">上から順に降りてくるだけです</h2>
+        <h2 className="text-xl font-semibold text-ink">上から順に降りてくるだけです</h2>
         <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {NAV.map(({ href, label, hint }, i) => (
             <li key={href}>
               <Link
                 href={href}
-                className="h-full flex flex-col gap-2 p-4 rounded-xl bg-surface border border-border hover:border-emerald-600/60 transition-colors"
+                className="h-full flex flex-col gap-2 p-4 rounded-xl bg-surface border border-border hover:border-accent transition-colors"
               >
-                <span className="text-[11px] font-mono tabular-nums text-slate-500">
+                <span className="text-xs font-mono tabular-nums text-muted">
                   {String(i + 1).padStart(2, '0')}
                 </span>
-                <span className="text-base font-bold text-white">{label}</span>
-                <span className="text-xs text-slate-400 leading-relaxed">{hint}</span>
+                <span className="text-base font-bold text-ink">{label}</span>
+                <span className="text-sm text-ink-2 leading-relaxed">{hint}</span>
               </Link>
             </li>
           ))}
@@ -133,27 +133,27 @@ export default function Home() {
       {/* ── AIの直近の判断（保存済みデータの読み出しのみ） ───────────── */}
       <section className="space-y-4">
         <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <h2 className="text-sm font-semibold text-slate-300">AIは、いまこう考えています</h2>
+          <h2 className="text-xl font-semibold text-ink">AIは、いまこう考えています</h2>
           {state === 'ready' && session && (
-            <span className="text-xs text-slate-500 tabular-nums">
+            <span className="text-sm text-muted tabular-nums">
               {formatWhen(session.lastTickAt)}・{session.tickCount}回目の判断
             </span>
           )}
         </div>
 
         {state === 'loading' && (
-          <div className="p-6 rounded-xl bg-surface border border-border text-sm text-slate-500">
+          <div className="p-6 rounded-xl bg-surface border border-border text-base text-muted">
             読み込み中…
           </div>
         )}
 
         {state === 'empty' && (
           <div className="p-6 rounded-xl bg-surface border border-border space-y-2">
-            <p className="text-sm text-slate-300 font-medium">まだAIの判断記録がありません</p>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-base text-ink font-medium">まだAIの判断記録がありません</p>
+            <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
               AIの運用を始めると、ここに直近の判断とその理由が並びます。
             </p>
-            <Link href="/watch" className="inline-block text-xs text-emerald-400 hover:text-emerald-300 pt-1">
+            <Link href="/watch" className="inline-block text-sm text-emerald-700 hover:text-emerald-800 pt-1">
               「見る」を開く →
             </Link>
           </div>
@@ -165,19 +165,19 @@ export default function Home() {
               {session.decisions.slice(0, 3).map((d, i) => (
                 <li key={`${d.symbol}-${i}`} className="p-4 rounded-xl bg-surface border border-border space-y-2">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="font-bold text-white text-sm">{d.symbol}</span>
-                    <span className="text-xs text-slate-500 truncate">{d.name}</span>
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${ACTION_STYLE[d.action]}`}>
+                    <span className="font-bold text-ink text-sm">{d.symbol}</span>
+                    <span className="text-sm text-muted truncate">{d.name}</span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${ACTION_STYLE[d.action]}`}>
                       {ACTION_LABEL[d.action]}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">{d.reasoning}</p>
+                  <p className="text-base text-ink-2 leading-relaxed line-clamp-3 max-w-[42rem]">{d.reasoning}</p>
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
               これはAIの仮想運用の記録であり、売買の推奨ではありません。
-              <Link href="/watch" className="text-emerald-400 hover:text-emerald-300 ml-1">
+              <Link href="/watch" className="text-emerald-700 hover:text-emerald-800 ml-1">
                 全部の判断と根拠を見る →
               </Link>
             </p>
@@ -187,7 +187,9 @@ export default function Home() {
 
       {/* ── 恒久免責 ─────────────────────────────────────────────── */}
       <section className="pt-2 border-t border-border">
-        <p className="text-[11px] text-slate-500 leading-relaxed pt-4">
+        {/* 信頼を作る文章が、ページ内で最も読めない書式（11px・低コントラスト）
+            になっていた。本文サイズ＋--ink-2 相当まで上げる。 */}
+        <p className="text-sm text-ink-2 leading-relaxed pt-4 max-w-[42rem]">
           InvestSim は投資判断を練習するためのシミュレーターです。表示される売買はすべて仮想資金による
           ものであり、実際の証券口座・決済とは一切連携しません。特定の銘柄の売買を推奨するものではなく、
           投資助言・代理業には該当しません。掲載する情報の正確性・完全性を保証するものではなく、

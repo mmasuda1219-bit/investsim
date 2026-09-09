@@ -141,14 +141,14 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#334155]">
           <div>
-            <h2 className="text-white font-bold text-lg">
+            <h2 className="text-ink font-bold text-lg">
               {symbol} を{action === 'buy' ? '購入' : '売却'}
             </h2>
-            <p className="text-sm text-slate-400">現在値: {formatCurrency(price)}</p>
+            <p className="text-sm text-ink-2">現在値: {formatCurrency(price)}</p>
           </div>
           <button
             onClick={handleClose}
-            className="text-slate-400 hover:text-white transition-colors text-xl leading-none"
+            className="text-ink-2 hover:text-ink transition-colors text-xl leading-none"
             aria-label="閉じる"
           >
             ✕
@@ -159,9 +159,9 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
         <div className="px-5 py-4 space-y-4">
           {/* 未ログインの案内。判定中（null）は出さない＝ログイン済みの人にちらつかせない。 */}
           {signedIn === false && (
-            <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2.5 text-xs text-amber-200 flex items-center justify-between gap-2 flex-wrap">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-relaxed text-amber-700 flex items-center justify-between gap-2 flex-wrap">
               <span>記録を残すにはログインが必要です</span>
-              <LoginLink className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-white text-gray-900 font-medium hover:bg-gray-100 transition-colors" />
+              <LoginLink className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-accent text-on-accent font-medium transition-colors" />
             </div>
           )}
 
@@ -171,8 +171,8 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
               onClick={() => { setAction('buy'); setError('') }}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 action === 'buy'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-[#0f172a] text-slate-400 hover:text-white'
+                  ? 'bg-success text-ink'
+                  : 'bg-[#0f172a] text-ink-2 hover:text-ink'
               }`}
             >
               購入
@@ -181,8 +181,8 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
               onClick={() => { setAction('sell'); setError('') }}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 action === 'sell'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-[#0f172a] text-slate-400 hover:text-white'
+                  ? 'bg-danger text-ink'
+                  : 'bg-[#0f172a] text-ink-2 hover:text-ink'
               }`}
             >
               売却
@@ -191,7 +191,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
 
           {/* Shares input */}
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">株数</label>
+            <label className="text-sm text-ink-2 mb-1 block">株数</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -203,9 +203,9 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
                   setShares(v > 0 ? v : 1)
                   setError('')
                 }}
-                className="flex-1 bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                className="flex-1 bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-ink text-sm focus:outline-none focus:border-blue-200"
               />
-              <span className="text-slate-400 text-sm">株</span>
+              <span className="text-ink-2 text-sm">株</span>
             </div>
           </div>
 
@@ -221,7 +221,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
               compact
               idPrefix={`modal-${action}`}
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-sm text-muted leading-relaxed">
               あとで「振り返る」で、この判断と結果を見比べられます。
             </p>
           </div>
@@ -229,45 +229,45 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
           {/* Summary */}
           <div className="bg-[#0f172a] rounded-lg px-4 py-3 space-y-1.5 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-400">合計</span>
-              <span className="text-white font-medium">{formatCurrency(total)}</span>
+              <span className="text-ink-2">合計</span>
+              <span className="text-ink font-medium">{formatCurrency(total)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">手数料</span>
-              <span className="text-emerald-400">無料</span>
+              <span className="text-ink-2">手数料</span>
+              <span className="text-emerald-700">無料</span>
             </div>
             {action === 'sell' && (
               <div className="flex justify-between">
-                <span className="text-slate-400">保有株数</span>
-                <span className="text-white">{heldShares}株</span>
+                <span className="text-ink-2">保有株数</span>
+                <span className="text-ink">{heldShares}株</span>
               </div>
             )}
             {/* 残高は «自分の記録» なので、ログインして取得できたときだけ出す。
                 未ログインで 0 と表示すると、残高ゼロだと誤解させる。 */}
             <div className="flex justify-between pt-1 border-t border-[#334155]">
-              <span className="text-slate-400">残高</span>
+              <span className="text-ink-2">残高</span>
               {portfolio ? (
-                <span className="text-white">
+                <span className="text-ink">
                   {formatCurrency(portfolio.cash)}
-                  <span className="text-slate-500 mx-1">→</span>
-                  <span className={cashAfter >= 0 ? 'text-white' : 'text-red-400'}>
+                  <span className="text-muted mx-1">→</span>
+                  <span className={cashAfter >= 0 ? 'text-ink' : 'text-red-700'}>
                     {formatCurrency(cashAfter)}
                   </span>
                 </span>
               ) : (
-                <span className="text-slate-500">{signedIn === false ? '—（未ログイン）' : '…'}</span>
+                <span className="text-muted">{signedIn === false ? '—（未ログイン）' : '…'}</span>
               )}
             </div>
           </div>
 
           {/* Error */}
           {error && (
-            <p className="text-red-400 text-sm text-center">{error}</p>
+            <p className="text-red-700 text-sm text-center">{error}</p>
           )}
 
           {/* Success */}
           {success && (
-            <p className="text-emerald-400 text-sm text-center font-medium">
+            <p className="text-emerald-700 text-sm text-center font-medium">
               ✓ 取引完了しました
             </p>
           )}
@@ -278,8 +278,8 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
               onClick={handleExecute}
               className={`w-full py-3 rounded-lg font-semibold text-sm transition-colors ${
                 action === 'buy'
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  : 'bg-red-600 hover:bg-red-500 text-white'
+                  ? 'bg-success hover:bg-emerald-100 text-ink'
+                  : 'bg-danger hover:bg-red-100 text-ink'
               }`}
             >
               実行

@@ -316,7 +316,7 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
     <div className="space-y-5">
       {/* 分析タイプ軸 */}
       <div>
-        <p className="text-xs text-muted mb-2">分析タイプ</p>
+        <p className="text-sm text-muted mb-2">分析タイプ</p>
         <div className="inline-flex rounded-lg border border-border overflow-hidden">
           {ANALYSIS_TYPE_TABS.map(tab => (
             <button
@@ -326,14 +326,14 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
               className={`px-4 py-2 text-sm font-medium transition-colors ${
                 analysisType === tab.id
                   ? 'bg-blue-600 text-white'
-                  : 'bg-surface text-slate-400 hover:text-slate-200'
+                  : 'bg-surface text-ink-2 hover:text-ink'
               }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted mt-1.5 leading-relaxed">
+        <p className="text-sm text-muted mt-1.5 leading-relaxed">
           {ANALYSIS_TYPE_TABS.find(t => t.id === analysisType)!.hint}
         </p>
       </div>
@@ -346,15 +346,15 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
           {/* テクニカル条件（technical / hybrid） */}
           {showTechnicalPicker && (
             <div>
-              <label className="block text-xs text-muted mb-2">テクニカル条件（1つ選択・売買タイミングの判定）</label>
+              <label className="block text-sm text-muted mb-2">テクニカル条件（1つ選択・売買タイミングの判定）</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {RULES.map(rule => (
                   <label
                     key={rule.id}
                     className={`flex items-center gap-2 text-sm rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                       indicator === rule.id
-                        ? 'border-blue-500 bg-blue-950/30 text-white'
-                        : 'border-border bg-surface text-slate-300 hover:border-slate-600'
+                        ? 'border-blue-200 bg-blue-50 text-ink'
+                        : 'border-border bg-surface text-ink-2 hover:border-accent'
                     }`}
                   >
                     <input
@@ -372,39 +372,39 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
               <div className="mt-3 flex flex-wrap items-end gap-4">
                 {selectedRule.params === 'period' && (
                   <div>
-                    <label className="block text-xs text-muted mb-1">期間（日）</label>
+                    <label className="block text-sm text-muted mb-1">期間（日）</label>
                     <input
                       type="number" min="2" max="200" step="1"
                       value={periods[indicator]}
                       onChange={e => setPeriods(prev => ({ ...prev, [indicator]: e.target.value }))}
-                      className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                      className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                     />
                   </div>
                 )}
                 {selectedRule.params === 'dual' && (
                   <>
                     <div>
-                      <label className="block text-xs text-muted mb-1">短期MA（日）</label>
+                      <label className="block text-sm text-muted mb-1">短期MA（日）</label>
                       <input
                         type="number" min="2" max="199" step="1"
                         value={shortPeriod}
                         onChange={e => setShortPeriod(e.target.value)}
-                        className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                        className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-muted mb-1">長期MA（日）</label>
+                      <label className="block text-sm text-muted mb-1">長期MA（日）</label>
                       <input
                         type="number" min="3" max="200" step="1"
                         value={longPeriod}
                         onChange={e => setLongPeriod(e.target.value)}
-                        className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                        className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                       />
                     </div>
                   </>
                 )}
                 {selectedRule.params === 'none' && (
-                  <p className="text-xs text-muted">このルールにパラメータはありません（12,26,9固定）</p>
+                  <p className="text-sm text-muted">このルールにパラメータはありません（12,26,9固定）</p>
                 )}
               </div>
             </div>
@@ -413,7 +413,7 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
           {/* ベースライントリガー（fundamental のみ） */}
           {analysisType === 'fundamental' && (
             <div>
-              <label className="block text-xs text-muted mb-2">
+              <label className="block text-sm text-muted mb-2">
                 評価用の売買基準（ベースライントリガー）— 下のファンダ条件は参加可否の判定のみに使われるため、
                 バックテストの売買タイミングにはこの基準を使います
               </label>
@@ -423,8 +423,8 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                     key={t.id}
                     className={`flex items-center gap-2 text-sm rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                       baselineTrigger === t.id
-                        ? 'border-blue-500 bg-blue-950/30 text-white'
-                        : 'border-border bg-surface text-slate-300 hover:border-slate-600'
+                        ? 'border-blue-200 bg-blue-50 text-ink'
+                        : 'border-border bg-surface text-ink-2 hover:border-accent'
                     }`}
                   >
                     <input
@@ -438,10 +438,10 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                   </label>
                 ))}
               </div>
-              <p className="text-xs text-muted/70 mt-1.5">
+              <p className="text-sm text-muted mt-1.5">
                 {BASELINE_TRIGGERS.find(t => t.id === baselineTrigger)!.note}
               </p>
-              <p className="text-xs text-amber-400/80 mt-1 leading-relaxed">
+              <p className="text-sm text-amber-700/90 mt-1 leading-relaxed">
                 ※ ファンダメンタル条件だけでは売買日を決められないため、上記の基準トリガーで過去5年をバックテストします。
                 ファンダ条件そのものは「参加できるか（現在値の静的判定）」にのみ使われ、売買判定には使われません。
               </p>
@@ -454,18 +454,18 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
           {showFundamentalPickers && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs text-muted">ファンダメンタル条件（任意・AND結合）</label>
+                <label className="text-sm text-muted">ファンダメンタル条件（任意・AND結合）</label>
                 <button
                   type="button"
                   onClick={addFilter}
                   disabled={filters.length >= 10}
-                  className="text-xs px-3 py-1 rounded-lg border border-border text-slate-300 hover:border-blue-500 hover:text-white transition-colors disabled:opacity-40"
+                  className="text-sm px-3 py-1 rounded-lg border border-border text-ink-2 hover:border-blue-400 hover:text-ink transition-colors disabled:opacity-40"
                 >
                   ＋ 条件を追加
                 </button>
               </div>
               {filters.length === 0 && (
-                <p className="text-xs text-muted/70">
+                <p className="text-sm text-muted">
                   条件なし（
                   {analysisType === 'fundamental'
                     ? '評価用の売買基準のみでバックテストします'
@@ -479,7 +479,7 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                     <select
                       value={row.metric}
                       onChange={e => updateFilter(row.key, { metric: e.target.value as FundamentalMetric })}
-                      className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                      className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm focus:outline-none focus:border-blue-200"
                     >
                       {FUNDAMENTAL_METRICS.map(mId => (
                         <option key={mId} value={mId}>{METRIC_INFO[mId].label}</option>
@@ -488,7 +488,7 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                     <select
                       value={row.operator}
                       onChange={e => updateFilter(row.key, { operator: e.target.value as FundamentalFilter['operator'] })}
-                      className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                      className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                     >
                       {OPERATORS.map(op => (
                         <option key={op} value={op}>{OPERATOR_LABEL[op]}</option>
@@ -499,40 +499,40 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                       value={row.value}
                       onChange={e => updateFilter(row.key, { value: e.target.value })}
                       placeholder={METRIC_INFO[row.metric].hint}
-                      className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                      className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                     />
-                    <span className="text-xs text-muted/70">{METRIC_INFO[row.metric].hint}</span>
+                    <span className="text-sm text-muted">{METRIC_INFO[row.metric].hint}</span>
                     <button
                       type="button"
                       onClick={() => removeFilter(row.key)}
-                      className="text-xs px-2 py-1.5 rounded-lg border border-border text-red-400 hover:border-red-500 transition-colors"
+                      className="text-sm px-2 py-1.5 rounded-lg border border-border text-red-700 hover:border-red-400 transition-colors"
                     >
                       削除
                     </button>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-amber-400/80 mt-2">
+              <p className="text-sm text-amber-700/90 mt-2">
                 ※ ファンダ条件は現在値による静的フィルタで、過去5年には遡及しません（過去の各時点のファンダメンタルは取得できないため）。
               </p>
 
               {/* 決算トレンド条件（fundamental / hybrid） */}
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-muted">
+                  <label className="text-sm text-muted">
                     決算トレンド条件（任意・AND結合／損益計算書など年次決算の複数期推移から算出）
                   </label>
                   <button
                     type="button"
                     onClick={addDFilter}
                     disabled={dFilters.length >= 10}
-                    className="text-xs px-3 py-1 rounded-lg border border-border text-slate-300 hover:border-blue-500 hover:text-white transition-colors disabled:opacity-40"
+                    className="text-sm px-3 py-1 rounded-lg border border-border text-ink-2 hover:border-blue-400 hover:text-ink transition-colors disabled:opacity-40"
                   >
                     ＋ 決算条件を追加
                   </button>
                 </div>
                 {dFilters.length === 0 && (
-                  <p className="text-xs text-muted/70">条件なし（例: 売上高CAGR(3年) ≥ 10%、営業利益率の連続上昇期数 ≥ 2）</p>
+                  <p className="text-sm text-muted">条件なし（例: 売上高CAGR(3年) ≥ 10%、営業利益率の連続上昇期数 ≥ 2）</p>
                 )}
                 <div className="space-y-2">
                   {dFilters.map(row => (
@@ -540,7 +540,7 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                       <select
                         value={row.metric}
                         onChange={e => updateDFilter(row.key, { metric: e.target.value as DerivedMetric })}
-                        className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                        className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm focus:outline-none focus:border-blue-200"
                       >
                         {DERIVED_METRICS.map(mId => (
                           <option key={mId} value={mId}>{DERIVED_METRIC_INFO[mId].label}</option>
@@ -549,7 +549,7 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                       <select
                         value={row.operator}
                         onChange={e => updateDFilter(row.key, { operator: e.target.value as DerivedFilter['operator'] })}
-                        className="bg-surface border border-border rounded-lg px-2 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                        className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                       >
                         {OPERATORS.map(op => (
                           <option key={op} value={op}>{OPERATOR_LABEL[op]}</option>
@@ -560,20 +560,20 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                         value={row.value}
                         onChange={e => updateDFilter(row.key, { value: e.target.value })}
                         placeholder={DERIVED_METRIC_INFO[row.metric].hint}
-                        className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                        className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
                       />
-                      <span className="text-xs text-muted/70">{DERIVED_METRIC_INFO[row.metric].hint}</span>
+                      <span className="text-sm text-muted">{DERIVED_METRIC_INFO[row.metric].hint}</span>
                       <button
                         type="button"
                         onClick={() => removeDFilter(row.key)}
-                        className="text-xs px-2 py-1.5 rounded-lg border border-border text-red-400 hover:border-red-500 transition-colors"
+                        className="text-sm px-2 py-1.5 rounded-lg border border-border text-red-700 hover:border-red-400 transition-colors"
                       >
                         削除
                       </button>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-amber-400/80 mt-2">
+                <p className="text-sm text-amber-700/90 mt-2">
                   ※ 決算データは年次の実績（最新約5期）。トレンド指標は直近数期から計算し、データ不足の場合は「判定不能（不成立扱い）」になります。
                 </p>
               </div>

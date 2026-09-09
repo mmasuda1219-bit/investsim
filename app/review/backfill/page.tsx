@@ -162,12 +162,12 @@ export default function BackfillPage() {
     return (
       <div className="max-w-xl mx-auto space-y-4">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">04 振り返る</p>
-          <h1 className="text-2xl font-bold text-white mt-1">過去の取引を記録する</h1>
+          <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">04 振り返る</p>
+          <h1 className="text-2xl font-bold text-ink mt-1">過去の取引を記録する</h1>
         </div>
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-4">
-          <p className="text-slate-300 text-sm">記録はアカウントに保存されるので、ログインが必要です。</p>
-          <LoginLink className="inline-block px-4 py-2 bg-white text-gray-900 text-xs font-medium rounded-lg hover:bg-gray-100 transition-colors" />
+          <p className="text-base text-ink-2 leading-relaxed">記録はアカウントに保存されるので、ログインが必要です。</p>
+          <LoginLink className="inline-block px-4 py-2 bg-accent text-on-accent text-sm font-medium rounded-lg transition-colors" />
         </div>
       </div>
     )
@@ -177,35 +177,35 @@ export default function BackfillPage() {
     <div className="max-w-3xl mx-auto space-y-6">
 
       <header className="space-y-2">
-        <p className="text-xs font-semibold tracking-[0.18em] text-emerald-400 uppercase">04 振り返る</p>
-        <h1 className="text-2xl font-bold text-white">過去の取引を記録する</h1>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          すでに実際にやった売買を入れると、<strong className="text-slate-200">今日から振り返りを始められます。</strong>
+        <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">04 振り返る</p>
+        <h1 className="text-2xl font-bold text-ink">過去の取引を記録する</h1>
+        <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
+          すでに実際にやった売買を入れると、<strong className="text-ink">今日から振り返りを始められます。</strong>
           結果が出るまで数週間待つ必要がありません。
         </p>
-        <p className="text-[11px] text-muted leading-relaxed">
-          ここで入れた記録は<strong className="text-slate-300">練習場の仮想残高を動かしません</strong>。
+        <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+          ここで入れた記録は<strong className="text-ink-2">練習場の仮想残高を動かしません</strong>。
           「やる」で使う $100,000 とは別に、記録としてだけ残ります。
         </p>
       </header>
 
       {/* ── 取引の中身 ─────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
-        <h2 className="text-xs font-semibold text-slate-300">何を、いくらで</h2>
+        <h2 className="text-xl font-semibold text-ink">何を、いくらで</h2>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label htmlFor="bf-symbol" className="block text-xs text-slate-400">銘柄</label>
+            <label htmlFor="bf-symbol" className="block text-sm text-ink-2">銘柄</label>
             <input
               id="bf-symbol"
               value={symbol}
               onChange={e => setSymbol(e.target.value)}
               placeholder="AAPL"
-              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-white placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink placeholder:text-muted focus:border-emerald-200 focus:outline-none"
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="bf-shares" className="block text-xs text-slate-400">株数</label>
+            <label htmlFor="bf-shares" className="block text-sm text-ink-2">株数</label>
             <input
               id="bf-shares"
               type="number"
@@ -213,22 +213,22 @@ export default function BackfillPage() {
               step="any"
               value={shares}
               onChange={e => setShares(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-white tabular-nums focus:border-emerald-600 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-ink tabular-nums focus:border-emerald-200 focus:outline-none"
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="bf-buyday" className="block text-xs text-slate-400">買った日</label>
+            <label htmlFor="bf-buyday" className="block text-sm text-ink-2">買った日</label>
             <input
               id="bf-buyday"
               type="date"
               max={todayISO()}
               value={buyDay}
               onChange={e => setBuyDay(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-white tabular-nums focus:border-emerald-600 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-ink tabular-nums focus:border-emerald-200 focus:outline-none"
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="bf-buyprice" className="block text-xs text-slate-400">買値（1株あたり）</label>
+            <label htmlFor="bf-buyprice" className="block text-sm text-ink-2">買値（1株あたり）</label>
             <input
               id="bf-buyprice"
               type="number"
@@ -237,7 +237,7 @@ export default function BackfillPage() {
               value={buyPrice}
               onChange={e => setBuyPrice(e.target.value)}
               placeholder="180.50"
-              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-white tabular-nums placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums placeholder:text-muted focus:border-emerald-200 focus:outline-none"
             />
           </div>
         </div>
@@ -245,7 +245,7 @@ export default function BackfillPage() {
 
       {/* ── 買ったときの理由 ───────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
-        <h2 className="text-xs font-semibold text-slate-300">買ったときのこと</h2>
+        <h2 className="text-xl font-semibold text-ink">買ったときのこと</h2>
         <ReasonFields
           fields={entryFields}
           parts={entryParts}
@@ -259,7 +259,7 @@ export default function BackfillPage() {
 
       {/* ── 売ったか ───────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
-        <h2 className="text-xs font-semibold text-slate-300">その後</h2>
+        <h2 className="text-xl font-semibold text-ink">その後</h2>
 
         <div className="flex gap-2">
           {([false, true] as const).map(v => (
@@ -269,7 +269,7 @@ export default function BackfillPage() {
               aria-pressed={sold === v}
               onClick={() => { setSold(v); setResult(null) }}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                sold === v ? 'bg-emerald-500 text-gray-950' : 'bg-panel text-slate-400 hover:text-white'
+                sold === v ? 'bg-accent text-on-accent' : 'bg-panel text-muted hover:text-ink'
               }`}
             >
               {v ? 'もう売った' : 'まだ持っている'}
@@ -278,7 +278,7 @@ export default function BackfillPage() {
         </div>
 
         {!sold && (
-          <p className="text-[11px] text-muted leading-relaxed">
+          <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
             まだ持っている取引も記録できます。結果はまだ出ていないものとして「振り返る」に並びます。
             売ったあとに、また戻ってきて売りを足してください。
           </p>
@@ -288,7 +288,7 @@ export default function BackfillPage() {
           <>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label htmlFor="bf-sellday" className="block text-xs text-slate-400">売った日</label>
+                <label htmlFor="bf-sellday" className="block text-sm text-ink-2">売った日</label>
                 <input
                   id="bf-sellday"
                   type="date"
@@ -296,14 +296,14 @@ export default function BackfillPage() {
                   min={buyDay || undefined}
                   value={sellDay}
                   onChange={e => setSellDay(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-white tabular-nums focus:border-emerald-600 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums focus:border-emerald-200 focus:outline-none"
                 />
                 {!dateOrder && (
-                  <p className="text-[11px] text-amber-500">売った日は買った日より後にしてください</p>
+                  <p className="text-sm text-amber-700">売った日は買った日より後にしてください</p>
                 )}
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="bf-sellprice" className="block text-xs text-slate-400">売値（1株あたり）</label>
+                <label htmlFor="bf-sellprice" className="block text-sm text-ink-2">売値（1株あたり）</label>
                 <input
                   id="bf-sellprice"
                   type="number"
@@ -312,13 +312,13 @@ export default function BackfillPage() {
                   value={sellPrice}
                   onChange={e => setSellPrice(e.target.value)}
                   placeholder="162.00"
-                  className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-white tabular-nums placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums placeholder:text-muted focus:border-emerald-200 focus:outline-none"
                 />
               </div>
             </div>
 
             <div className="pt-1">
-              <h3 className="text-xs font-semibold text-slate-300 mb-3">売ったときのこと</h3>
+              <h3 className="text-base font-semibold text-ink mb-3">売ったときのこと</h3>
               <ReasonFields
                 fields={exitFields}
                 parts={exitParts}
@@ -338,17 +338,17 @@ export default function BackfillPage() {
           type="button"
           disabled={!canSubmit}
           onClick={submit}
-          className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-800 disabled:text-gray-600 text-gray-950 text-sm font-bold transition-colors"
+          className="w-full py-2.5 rounded-lg bg-accent disabled:bg-surface disabled:text-muted text-on-accent text-sm font-bold transition-colors"
         >
           {submitting ? '記録しています…' : 'この取引を記録する'}
         </button>
         {!canSubmit && !submitting && (
-          <p className="text-[11px] text-muted text-center">
+          <p className="text-sm text-muted text-center leading-relaxed">
             銘柄・株数・買った日・買値と、買ったときに考えていたことを埋めてください。
           </p>
         )}
         {result && (
-          <p role="status" className={`text-xs text-center ${result.ok ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <p role="status" className={`text-sm text-center leading-relaxed ${result.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
             {result.msg}
           </p>
         )}
@@ -357,26 +357,26 @@ export default function BackfillPage() {
       {/* ── 記録済み ───────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-xs font-semibold text-slate-300">記録した過去の取引（{recorded.length}件）</h2>
-          <Link href="/review" className="text-xs text-emerald-400 hover:text-emerald-300">振り返る →</Link>
+          <h2 className="text-xl font-semibold text-ink">記録した過去の取引（<span className="tabular-nums">{recorded.length}</span>件）</h2>
+          <Link href="/review" className="text-sm text-emerald-700 hover:text-emerald-800">振り返る →</Link>
         </div>
 
         {recorded.length === 0 ? (
-          <p className="text-xs text-muted">まだありません。</p>
+          <p className="text-base text-muted">まだありません。</p>
         ) : (
           <ul className="space-y-1.5">
             {recorded.map(t => (
-              <li key={t.id} className="flex items-center gap-3 text-xs bg-panel border border-border rounded-lg px-3 py-2">
-                <span className="font-mono font-bold text-white">{t.symbol}</span>
-                <span className={t.action === 'buy' ? 'text-emerald-400' : 'text-rose-400'}>
+              <li key={t.id} className="flex items-center gap-3 text-sm bg-panel border border-border rounded-lg px-3 py-2">
+                <span className="font-mono font-bold text-ink">{t.symbol}</span>
+                <span className={t.action === 'buy' ? 'text-emerald-700' : 'text-rose-700'}>
                   {t.action === 'buy' ? '買' : '売'}
                 </span>
-                <span className="text-slate-400 tabular-nums">{t.shares}株 @ {usd(t.price)}</span>
+                <span className="text-ink-2 tabular-nums">{t.shares}株 @ {usd(t.price)}</span>
                 <span className="text-muted tabular-nums ml-auto">{fmtDay(t.timestamp)}</span>
                 <button
                   type="button"
                   onClick={() => remove(t.id)}
-                  className="shrink-0 text-muted hover:text-rose-400 transition-colors"
+                  className="shrink-0 text-muted hover:text-rose-800 transition-colors"
                   aria-label={`${t.symbol} の記録を消す`}
                 >
                   消す
@@ -387,7 +387,7 @@ export default function BackfillPage() {
         )}
       </section>
 
-      <p className="text-[11px] text-slate-500 leading-relaxed">
+      <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
         入力された価格・日付は本人の申告をそのまま保存します（こちらで実勢価格に書き換えません）。
         実際の証券口座・決済とは一切連携しません。このページは特定の銘柄の売買を推奨するものではありません。
       </p>

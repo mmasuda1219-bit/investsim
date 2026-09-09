@@ -28,12 +28,12 @@ export default async function StockPage({ params, searchParams }: Props) {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold text-white">{symbol}</h1>
-              <span className={`text-xs px-2 py-0.5 rounded ${quote.market === 'JP' ? 'bg-red-900 text-red-300' : 'bg-blue-900 text-blue-300'}`}>
+              <h1 className="text-2xl font-bold text-ink">{symbol}</h1>
+              <span className={`text-xs px-2 py-0.5 rounded ${quote.market === 'JP' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
                 {quote.market === 'JP' ? '東証' : 'NYSE/NASDAQ'}
               </span>
               {!quote.isMarketOpen && (
-                <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-muted">市場休場中</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-surface text-muted">市場休場中</span>
               )}
             </div>
             <div className="text-muted text-sm">{quote.name}</div>
@@ -62,9 +62,9 @@ export default async function StockPage({ params, searchParams }: Props) {
     const msg = err instanceof Error ? err.message : 'データを取得できませんでした'
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 text-center">
-        <h1 className="text-2xl font-bold text-white">{symbol}</h1>
+        <h1 className="text-2xl font-bold text-ink">{symbol}</h1>
         <p className="text-muted text-sm">{msg}</p>
-        <a href="/" className="text-blue-400 hover:text-blue-300 text-sm underline">トップに戻る</a>
+        <a href="/" className="text-blue-700 hover:text-blue-800 text-sm underline">トップに戻る</a>
       </div>
     )
   }

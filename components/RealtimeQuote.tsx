@@ -43,13 +43,13 @@ export function RealtimeQuote({ symbol, initialQuote }: Props) {
 
   return (
     <div className="text-right">
-      <div className="text-3xl font-bold text-white font-mono">
+      <div className="text-3xl font-bold text-ink font-mono">
         {currency}{quote.price.toLocaleString('ja-JP', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </div>
       <div className={`text-sm font-medium ${isPositive ? 'text-bull' : 'text-bear'}`}>
         {isPositive ? '▲' : '▼'} {Math.abs(quote.change).toFixed(2)} ({Math.abs(quote.changePercent).toFixed(2)}%)
       </div>
-      <div className="text-muted text-xs mt-1">更新: {timeLabel} • 60秒ごとに自動更新</div>
+      <div className="text-muted text-sm mt-1 tabular-nums">更新: {timeLabel} • 60秒ごとに自動更新</div>
     </div>
   )
 }

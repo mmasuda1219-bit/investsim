@@ -1,27 +1,134 @@
 @import "tailwindcss";
 
-/* ── Design tokens ─────────────────────────────────────────────── */
-:root {
-  --bg:       #030712;   /* page background — near-black */
-  --surface:  #0f1117;   /* card/panel surface */
-  --panel:    #111827;   /* slightly lighter panel */
-  --border:   #1f2937;   /* border color */
-  --muted:    #6b7280;   /* muted text */
+/* ── Design tokens — ライト基調 ────────────────────────────────────────
+   2026-09-07 に暗色基調から転換した。動機は「入門者向けサイトなのに
+   トレーディング端末（＝玄人の世界）に見える」というオーナー指摘。
+   ベースはオーナーのLPデザインの暖色オフホワイト。
 
-  color-scheme: dark;    /* iOSのフォーム部品を暗色で描画させる */
+   ■ 明るい背景では暗色時代の常識が逆転する
+     暗色UIでは「明るい色ほど読める」が、明るい背景では「濃い色ほど読める」。
+     そのためLPのオレンジ #E8734A とミント #6FCF9B は、そのままでは
+     文字色として使えない（実測でAA未満）。下記の通り役割を分けた。
+
+   ■ 面（surface）の意味を定義し直す
+     暗色時代は bg < panel < surface の順に「明るいほど手前」だった。
+     ライトでは「白いほど手前（紙）」になるので、意味ごと再定義する。
+       --bg      ページの地。わずかに暖色に振ったオフホワイト
+       --card    手前に浮いた紙。カード/セクションの面（＝白）
+       --panel   カード/セクションの面。--card と同じ紙（別名として維持）
+       --surface --card より一段くぼんだ面。入力欄・カード内の行/入れ子ブロック
+     暗色時代は surface が panel より明るかったが、ライトでは逆に
+     surface のほうが暗い。これは「明度の反転」ではなく
+     「くぼみ＝影が落ちる＝暗い」という物理に合わせた再定義である。
+
+   ■ コントラスト比（WCAG 2.1 相対輝度式で全数実測。目分量で決めていない）
+     文字は AA本文 4.5:1 以上、枠線は 1.3:1 以上を要件とする。
+     3つの面すべてで満たすことを確認した（最悪値は常に --surface 上）。
+
+       token          hex       on --card  on --bg   on --surface
+       --ink          #1A1A18     17.43      16.54      15.70   ✅
+       --ink-2        #44413B     10.17       9.65       9.16   ✅
+       --muted        #6B6862      5.55       5.27       5.00   ✅
+       --accent-ink   #B8491B      5.24       4.97       4.72   ✅
+       --success      #177A4F      5.34       5.07       4.81   ✅
+       --danger       #C03535      5.52       5.24       4.97   ✅
+       --border       #D6D0C3      1.54       1.46       1.38   ✅ (>=1.3)
+
+     枠線の採用根拠: 当初案 #E5E1D8 は --bg 上で 1.24、--surface 上で 1.18 と
+     要件 1.3 に届かず不採用。#D9D4C8 は最悪値 1.33 で通るが余裕が 2% しかない。
+     #D6D0C3 は最悪値 1.38（要件比 +6%）で、かつ暖色オフホワイトの中で
+     まだ「硬い線」に見えない最小の濃さだったため採用。
+
+   ■ アクセントは「塗り」と「文字」で色を分ける（重要）
+       --accent      #E8734A  塗り専用。文字色に使うと --card 上で 2.85 ❌
+       --accent-ink  #B8491B  オレンジを文字として使うときはこちら ✅
+
+     --accent を背景に敷いた場合、その上に載せる文字の実測値:
+       白      #FFFFFF on #E8734A = 3.01  ❌ AA未満。使わない
+       --ink   #1A1A18 on #E8734A = 5.80  ✅ 採用（.bg-accent には濃色を載せる）
+     --accent-strong (#DC6238) はホバー時の濃い塗り。
+       --ink #1A1A18 on #DC6238 = 4.85 ✅（ホバーで文字が読めなくならない）
+
+   ■ 塗りボタンの上の文字（実測）
+       白 on --success #177A4F = 5.34 ✅
+       白 on --danger  #C03535 = 5.52 ✅
+       白 on blue-600  #155DFC = 5.25 ✅
+     （参考: 白 on emerald-600 #009966 = 3.65 ❌ なので緑の塗りは --success に寄せた）
+
+   ■ 差し替え前（暗色）からの対応
+       --ink    #FFFFFF → #1A1A18
+       --success #6FCF9B → #177A4F  （旧値は --card 上で 1.80 ❌）
+       --accent は値を据え置き、役割を「塗り専用」に限定して --accent-ink を新設
+   ──────────────────────────────────────────────────────────────────── */
+:root {
+  --bg:            #FAF9F5;   /* ページの地。暖色オフホワイト */
+  --card:          #FFFFFF;   /* 手前に浮いた紙＝カードの面 */
+  --panel:         #FFFFFF;   /* カード/セクションの面（--card と同じ紙） */
+  --surface:       #F5F3EC;   /* 一段くぼんだ面。入力欄・カード内の行 */
+  --border:        #D6D0C3;   /* 全ての面に対して 1.38〜1.54:1 */
+
+  --ink:           #1A1A18;   /* 本文の主色・見出し */
+  --ink-2:         #44413B;   /* 説明文（ink と muted の中間） */
+  --muted:         #6B6862;   /* 補足・メタ */
+
+  --accent:        #E8734A;   /* 塗り専用（ボタン背景・バッジ背景） */
+  --accent-strong: #DC6238;   /* 塗りのホバー。濃色文字を載せる前提 */
+  --accent-ink:    #B8491B;   /* オレンジを「文字色」に使うとき */
+  --on-accent:     #1A1A18;   /* --accent / --accent-strong の上に載せる文字 */
+  --success:       #177A4F;   /* 成功・プラス */
+  --danger:        #C03535;   /* 失敗・マイナス */
+
+  /* モーダルの下敷き。明るいUIでも「後ろを暗くして手前を立てる」のは正しいので
+     暗幕自体は残す。ただし bg-black/50 は明るい地に対して重すぎたため、
+     地の色（--ink）を薄く敷く形に変え、濃さも 32% まで下げた。 */
+  --scrim:         rgb(26 26 24 / 0.32);
+
+  /* 日本語フォント。実体は @fontsource-variable/noto-sans-jp（セルフホスト）。
+     読み込みは app/layout.tsx の import 側で行う。 */
+  --font-jp: 'Noto Sans JP Variable';
+
+  color-scheme: light;   /* iOSのフォーム部品をライトで描画させる */
 }
 
 body {
   background: var(--bg);
-  color: #f9fafb;
-  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  /* Geist にはグリフが無いので日本語は Noto Sans JP に落ちる。
+     ラテン=Geist / 日本語=Noto Sans JP の使い分けをこの順序で実現する。 */
+  font-family: var(--font-geist-sans), var(--font-jp), system-ui, -apple-system, sans-serif;
+  /* 日本語は英字より行間を広く取る（LP本文は 16px/1.9）。
+     バッジやボタンが縦に伸びすぎないよう1.7に留め、
+     文章側は各ページで leading-relaxed 以上を明示する。 */
+  line-height: 1.7;
 }
 
 /* ── Utility aliases (Tailwind v4 custom utilities) ────────────── */
 @layer utilities {
-  .bg-background { background-color: var(--bg); }
-  .bg-surface    { background-color: var(--surface); }
-  .bg-panel      { background-color: var(--panel); }
-  .border-border { border-color: var(--border); }
-  .text-muted    { color: var(--muted); }
+  .bg-background   { background-color: var(--bg); }
+  .bg-card         { background-color: var(--card); }
+  .bg-surface      { background-color: var(--surface); }
+  .bg-panel        { background-color: var(--panel); }
+  .border-border   { border-color: var(--border); }
+  .text-muted      { color: var(--muted); }
+
+  .text-ink        { color: var(--ink); }
+  .text-ink-2      { color: var(--ink-2); }
+
+  /* オレンジは文字なら --accent-ink、塗りなら --accent。混ぜない。 */
+  .text-accent     { color: var(--accent-ink); }
+  .bg-accent       { background-color: var(--accent); }
+  .bg-accent:hover { background-color: var(--accent-strong); }
+  .border-accent   { border-color: var(--accent); }
+  /* .bg-accent の上に載せる文字色。白は 3.01 で不可なので濃色を使う。 */
+  .text-on-accent  { color: var(--on-accent); }
+
+  .text-success    { color: var(--success); }
+  .bg-success      { background-color: var(--success); }
+  .border-success  { border-color: var(--success); }
+
+  .text-danger     { color: var(--danger); }
+  .bg-danger       { background-color: var(--danger); }
+  .border-danger   { border-color: var(--danger); }
+
+  .bg-scrim        { background-color: var(--scrim); }
 }

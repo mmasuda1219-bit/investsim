@@ -46,16 +46,16 @@ export function ReasonFields({
 
         return (
           <div key={f.key} className="space-y-1">
-            <label htmlFor={id} className="block text-xs text-slate-400">
+            <label htmlFor={id} className="block text-base text-ink leading-relaxed">
               {f.question}{' '}
               {f.required
-                ? <span className="text-emerald-400">（必須）</span>
-                : <span className="text-slate-600">（任意）</span>}
+                ? <span className="text-emerald-700">（必須）</span>
+                : <span className="text-muted">（任意）</span>}
             </label>
 
             {/* «なぜ書くのか» を毎回出す。書き方が分からないことが離脱の原因なので、
                 ヘルプを畳まずに常時見せる。 */}
-            <p className="text-[11px] text-muted leading-relaxed">{f.help}</p>
+            <p className="text-sm text-muted leading-relaxed max-w-[42rem]">{f.help}</p>
 
             <textarea
               id={id}
@@ -66,13 +66,13 @@ export function ReasonFields({
               placeholder={f.placeholder}
               aria-invalid={showErr || undefined}
               aria-describedby={showErr ? `${id}-err` : undefined}
-              className={`w-full px-3 py-2 rounded-lg bg-panel border text-sm text-white leading-relaxed placeholder:text-slate-600 focus:outline-none ${
-                showErr ? 'border-amber-600 focus:border-amber-500' : 'border-border focus:border-emerald-600'
+              className={`w-full px-3 py-2 rounded-lg bg-panel border text-base text-ink leading-relaxed placeholder:text-muted focus:outline-none ${
+                showErr ? 'border-amber-200 focus:border-amber-200' : 'border-border focus:border-emerald-200'
               }`}
             />
 
             {showErr && (
-              <p id={`${id}-err`} className="text-[11px] text-amber-500">{err}</p>
+              <p id={`${id}-err`} className="text-sm text-amber-700 leading-relaxed">{err}</p>
             )}
           </div>
         )

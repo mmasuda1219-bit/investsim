@@ -59,7 +59,7 @@ export function StockSearch() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
-          className="w-full min-w-0 flex-1 bg-transparent text-white placeholder-muted outline-none text-sm"
+          className="w-full min-w-0 flex-1 bg-transparent text-ink placeholder-muted outline-none text-sm"
           placeholder="銘柄を検索... (例: Apple, NVIDIA, AAPL)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -79,10 +79,10 @@ export function StockSearch() {
                 onClick={() => select(r.symbol)}
               >
                 <div>
-                  <span className="text-white font-medium text-sm">{r.symbol}</span>
-                  <span className="text-muted text-xs ml-2">{r.name}</span>
+                  <span className="text-ink font-medium text-sm">{r.symbol}</span>
+                  <span className="text-ink-2 text-sm ml-2">{r.name}</span>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded ${r.market === 'JP' ? 'bg-red-900 text-red-300' : 'bg-blue-900 text-blue-300'}`}>
+                <span className={`text-xs px-2 py-0.5 rounded ${r.market === 'JP' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
                   {r.market === 'JP' ? '東証' : 'US'}
                 </span>
               </button>

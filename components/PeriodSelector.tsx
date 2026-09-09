@@ -28,7 +28,7 @@ export function PeriodSelector({ current, symbol }: Props) {
     `px-3 py-1.5 rounded-lg text-xs transition-colors ${
       current === v
         ? 'bg-blue-600 text-white'
-        : 'bg-panel border border-border text-muted hover:text-white'
+        : 'bg-panel border border-border text-muted hover:text-ink'
     }`
 
   return (

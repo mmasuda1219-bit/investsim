@@ -56,7 +56,7 @@ export function AuthMenu() {
   if (!user) {
     // shrink-0 で自分の幅を守る。ヘッダの幅が足りないときは、隣の検索ボックスが縮む。
     return (
-      <LoginLink className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap bg-white text-gray-800 hover:bg-gray-100 transition-colors" />
+      <LoginLink className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap bg-accent text-on-accent transition-colors" />
     )
   }
 
@@ -70,20 +70,20 @@ export function AuthMenu() {
         <img
           src={avatar}
           alt={name}
-          className="w-7 h-7 rounded-full border border-gray-700"
+          className="w-7 h-7 rounded-full border border-border"
           referrerPolicy="no-referrer"
         />
       ) : (
-        <div className="w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">
+        <div className="w-7 h-7 rounded-full bg-accent text-on-accent text-xs font-bold flex items-center justify-center">
           {name.charAt(0).toUpperCase()}
         </div>
       )}
-      <span className="text-xs text-gray-300 max-w-[10rem] truncate hidden sm:block">{name}</span>
+      <span className="text-sm text-ink-2 max-w-[10rem] truncate hidden sm:block">{name}</span>
       <button
         onClick={signOut}
         title="ログアウト"
         aria-label="ログアウト"
-        className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800/50 transition-colors"
+        className="p-1.5 rounded-lg text-muted hover:text-ink hover:bg-surface transition-colors"
       >
         <LogOut className="w-4 h-4" />
       </button>

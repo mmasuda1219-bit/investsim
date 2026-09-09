@@ -22,7 +22,7 @@ export interface ConditionSummaryBarProps {
 export default function ConditionSummaryBar({ items, onEdit }: ConditionSummaryBarProps) {
   return (
     <div className="bg-panel border border-border rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-slate-300 leading-relaxed min-w-0">
+      <p className="text-sm text-ink-2 leading-relaxed min-w-0">
         {items.map((item, i) => (
           <span key={i}>
             {i > 0 && <span className="text-muted mx-1.5">・</span>}
@@ -33,7 +33,7 @@ export default function ConditionSummaryBar({ items, onEdit }: ConditionSummaryB
       <button
         type="button"
         onClick={onEdit}
-        className="shrink-0 text-xs px-3 py-1.5 rounded-lg border border-border text-slate-300 hover:border-blue-500 hover:text-white transition-colors"
+        className="shrink-0 text-sm px-3 py-1.5 rounded-lg border border-border text-ink-2 hover:border-blue-400 hover:text-ink transition-colors"
       >
         条件を編集 ▸
       </button>

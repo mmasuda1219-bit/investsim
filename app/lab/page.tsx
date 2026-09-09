@@ -163,7 +163,7 @@ export default function LabPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">バックテスト・ラボ</h1>
+        <h1 className="text-2xl font-bold text-ink">バックテスト・ラボ</h1>
         <p className="text-muted text-sm mt-1">
           条件を1つ選んで、実データ日足で売買ルールを検証します（テクニカル=1年、ニーズ軸=5年）。AIは使わない純計算です。
         </p>
@@ -182,12 +182,12 @@ export default function LabPage() {
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   mode === tab.id
                     ? 'bg-blue-600 text-white'
-                    : 'bg-surface text-slate-400 hover:text-slate-200'
+                    : 'bg-surface text-ink-2 hover:text-ink'
                 }`}
               >
                 {tab.label}
                 {tab.id === 'investor' && (
-                  <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 align-middle">近日対応</span>
+                  <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-surface text-ink-2 align-middle">近日対応</span>
                 )}
               </button>
             ))}
@@ -204,7 +204,7 @@ export default function LabPage() {
               onKeyDown={e => { if (e.key === 'Enter') run() }}
               placeholder={needsActive ? 'AAPL / MSFT' : 'AAPL / 7203.T'}
               list="us-universe"
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
             />
             <datalist id="us-universe">
               {US_UNIVERSE.map(s => (
@@ -218,14 +218,14 @@ export default function LabPage() {
               type="number" min="1000" step="1000"
               value={capital}
               onChange={e => setCapital(e.target.value)}
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
             />
           </div>
         </div>
 
         {/* ── Technical panel ── */}
         <div className={`border border-border rounded-lg p-4 space-y-3 transition-opacity ${technicalActive ? '' : 'opacity-50'}`}>
-          <p className="text-sm text-white font-medium">テクニカル条件（MA上抜け/下抜け・1年）</p>
+          <p className="text-sm text-ink font-medium">テクニカル条件（MA上抜け/下抜け・1年）</p>
           <div className="max-w-xs">
             <label className="block text-xs text-muted mb-2">MA期間（日）</label>
             <input
@@ -233,7 +233,7 @@ export default function LabPage() {
               value={maPeriod}
               disabled={!technicalActive}
               onChange={e => setMaPeriod(e.target.value)}
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500 disabled:cursor-not-allowed"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200 disabled:cursor-not-allowed"
             />
           </div>
           <p className="text-xs text-muted">
@@ -243,7 +243,7 @@ export default function LabPage() {
 
         {/* ── Needs panel ── */}
         <div className={`border border-border rounded-lg p-4 space-y-3 transition-opacity ${needsActive ? '' : 'opacity-50'}`}>
-          <p className="text-sm text-white font-medium">ニーズ軸で選ぶ（5年・銘柄の参加条件つき）</p>
+          <p className="text-sm text-ink font-medium">ニーズ軸で選ぶ（5年・銘柄の参加条件つき）</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {NEEDS_PRESET_IDS.map(id => {
               const p = NEEDS_PRESETS[id]
@@ -252,8 +252,8 @@ export default function LabPage() {
                 <label
                   key={id}
                   className={`block rounded-lg border p-3 transition-colors ${
-                    selected ? 'border-blue-500 bg-blue-950/30' : 'border-border bg-surface/50'
-                  } ${needsActive ? 'cursor-pointer hover:border-blue-600' : 'cursor-not-allowed'}`}
+                    selected ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50'
+                  } ${needsActive ? 'cursor-pointer hover:border-blue-400' : 'cursor-not-allowed'}`}
                 >
                   <span className="flex items-start gap-2">
                     <input
@@ -266,7 +266,7 @@ export default function LabPage() {
                       className="mt-1 accent-blue-500"
                     />
                     <span>
-                      <span className="block text-sm text-white font-medium">{p.label}</span>
+                      <span className="block text-sm text-ink font-medium">{p.label}</span>
                       <span className="block text-xs text-muted mt-1 leading-relaxed">「{p.description}」</span>
                     </span>
                   </span>
@@ -275,13 +275,13 @@ export default function LabPage() {
             })}
           </div>
           <ul className="text-xs text-muted space-y-1 leading-relaxed list-disc list-inside">
-            <li>ニーズ軸プリセットは<span className="text-slate-300">米国株（USD建て）を想定</span>しています。時価総額の閾値はUSD建て・米国株を想定した目安です。</li>
-            <li>ファンダ条件（時価総額・配当利回り）は<span className="text-slate-300">現在値での参加可否判定</span>です（過去5年に遡及しません）。</li>
+            <li>ニーズ軸プリセットは<span className="text-ink-2">米国株（USD建て）を想定</span>しています。時価総額の閾値はUSD建て・米国株を想定した目安です。</li>
+            <li>ファンダ条件（時価総額・配当利回り）は<span className="text-ink-2">現在値での参加可否判定</span>です（過去5年に遡及しません）。</li>
             <li>今回は選んだ銘柄への適用です。条件に合う銘柄の自動絞り込みは今後対応。</li>
             <li>短期売買（デイトレード）は今後対応（日中足のデータ源が未整備のため）。</li>
           </ul>
           {nonUsWarning && (
-            <p className="text-xs text-amber-400 bg-amber-950/30 border border-amber-700 rounded-lg px-3 py-2 leading-relaxed">
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
               ニーズ軸プリセットは米国株（USD建て）想定です。日本株（.T）では時価総額閾値の目安が実態とずれる可能性があります（実行は可能）。
             </p>
           )}
@@ -289,13 +289,13 @@ export default function LabPage() {
 
         {/* ── Investor panel（disabled placeholder — S2） ── */}
         <div className="border border-border rounded-lg p-4 space-y-3 opacity-50">
-          <p className="text-sm text-white font-medium">
+          <p className="text-sm text-ink font-medium">
             投資家モデル
-            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 align-middle">近日対応</span>
+            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-surface text-ink-2 align-middle">近日対応</span>
           </p>
           <div className="flex flex-wrap gap-x-5 gap-y-2">
             {INVESTOR_MODELS.map(name => (
-              <label key={name} className="flex items-center gap-1.5 text-sm text-slate-400 cursor-not-allowed">
+              <label key={name} className="flex items-center gap-1.5 text-sm text-ink-2 cursor-not-allowed">
                 <input type="radio" name="investor-model" disabled className="accent-blue-500" />
                 {name}
               </label>
@@ -307,8 +307,8 @@ export default function LabPage() {
         <button
           onClick={run}
           disabled={loading || mode === 'investor'}
-          className={`px-6 py-2.5 text-white text-sm font-medium rounded-lg transition-colors ${
-            loading || mode === 'investor' ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+          className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
+            loading || mode === 'investor' ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
           }`}
         >
           {mode === 'investor' ? '投資家モデルは近日対応' : loading ? 'バックテスト実行中...' : 'バックテスト実行'}
@@ -317,7 +317,7 @@ export default function LabPage() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-red-300 text-sm">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
           {error}
         </div>
       )}
@@ -325,7 +325,7 @@ export default function LabPage() {
       {/* Loading */}
       {loading && (
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin mx-auto" />
+          <div className="w-8 h-8 border-2 border-border border-t-blue-500 rounded-full animate-spin mx-auto" />
           <p className="text-muted text-sm">実データを取得して計算中...</p>
         </div>
       )}
@@ -333,24 +333,24 @@ export default function LabPage() {
       {/* Needs: gate result（pass/fail・実測値）＋内部条件の説明 */}
       {needsRes && !loading && (
         <div className={`border rounded-xl p-5 space-y-3 ${
-          needsRes.gatePassed ? 'bg-panel border-border' : 'bg-amber-950/30 border-amber-700'
+          needsRes.gatePassed ? 'bg-panel border-border' : 'bg-amber-50 border-amber-200'
         }`}>
           <div className="flex items-center gap-2">
             <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-              needsRes.gatePassed ? 'bg-green-900/50 text-green-400' : 'bg-amber-900/50 text-amber-400'
+              needsRes.gatePassed ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
             }`}>
               {needsRes.gatePassed ? '参加条件 成立' : '参加条件 不成立'}
             </span>
-            <h2 className="text-white font-semibold text-sm">
+            <h2 className="text-ink font-semibold text-sm">
               プリセット「{needsRes.presetLabel}」の判定（現在値）
             </h2>
           </div>
 
           {!needsRes.gatePassed && needsRes.gateFailReason && (
-            <p className="text-amber-300 text-sm leading-relaxed">
+            <p className="text-amber-700 text-sm leading-relaxed">
               {needsRes.gateFailReason}
               <br />
-              <span className="text-amber-400/80 text-xs">条件不成立のためバックテストは実行していません。</span>
+              <span className="text-amber-700/80 text-xs">条件不成立のためバックテストは実行していません。</span>
             </p>
           )}
 
@@ -359,13 +359,13 @@ export default function LabPage() {
             {needsRes.gate.evaluations.map((ev, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-2 bg-surface/50 rounded-lg text-xs">
                 <span className={`shrink-0 font-bold px-2 py-0.5 rounded ${
-                  ev.result === 'pass' ? 'bg-green-900/50 text-green-400'
-                    : ev.result === 'fail' ? 'bg-red-900/50 text-red-400'
-                    : 'bg-slate-700 text-slate-300'
+                  ev.result === 'pass' ? 'bg-green-50 text-green-700'
+                    : ev.result === 'fail' ? 'bg-red-50 text-red-700'
+                    : 'bg-surface text-ink-2'
                 }`}>
                   {ev.result === 'pass' ? '成立' : ev.result === 'fail' ? '不成立' : '判定不能'}
                 </span>
-                <span className="text-slate-300">{describeFundamentalFilter(ev.filter)}</span>
+                <span className="text-ink-2">{describeFundamentalFilter(ev.filter)}</span>
                 <span className="text-muted font-mono ml-auto">
                   実測: {ev.actual != null ? formatMetricValue(ev.filter.metric, ev.actual) : 'データなし'}
                 </span>
@@ -376,7 +376,7 @@ export default function LabPage() {
           {/* 内部条件の説明 */}
           <div className="pt-1">
             <p className="text-xs text-muted mb-1.5">このプリセットの実際の条件:</p>
-            <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside leading-relaxed">
+            <ul className="text-xs text-ink-2 space-y-1 list-disc list-inside leading-relaxed">
               {needsRes.conditionNotes.map((note, i) => <li key={i}>{note}</li>)}
             </ul>
           </div>
@@ -395,28 +395,28 @@ export default function LabPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">総リターン</p>
-              <p className={`text-xl font-bold font-mono ${returnPositive ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`text-xl font-bold font-mono ${returnPositive ? 'text-green-700' : 'text-red-700'}`}>
                 {returnPositive ? '+' : ''}{m.totalReturnPct.toFixed(2)}%
               </p>
               <p className="text-xs text-muted mt-0.5">{formatMoney(result.finalValue, result.currency)}</p>
             </div>
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">勝率</p>
-              <p className="text-white text-xl font-bold font-mono">{m.winRate.toFixed(0)}%</p>
+              <p className="text-ink text-xl font-bold font-mono">{m.winRate.toFixed(0)}%</p>
               <p className="text-xs text-muted mt-0.5">往復トレード基準</p>
             </div>
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">最大ドローダウン</p>
-              <p className="text-red-400 text-xl font-bold font-mono">-{m.maxDrawdownPct.toFixed(2)}%</p>
+              <p className="text-red-700 text-xl font-bold font-mono">-{m.maxDrawdownPct.toFixed(2)}%</p>
             </div>
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">シャープレシオ</p>
-              <p className="text-white text-xl font-bold font-mono">{m.sharpeRatio.toFixed(2)}</p>
+              <p className="text-ink text-xl font-bold font-mono">{m.sharpeRatio.toFixed(2)}</p>
               <p className="text-xs text-muted mt-0.5">年率換算・rf=0</p>
             </div>
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">取引件数</p>
-              <p className="text-white text-xl font-bold font-mono">{m.tradeCount}件</p>
+              <p className="text-ink text-xl font-bold font-mono">{m.tradeCount}件</p>
               <p className="text-xs text-muted mt-0.5">
                 買: {result.trades.filter(t => t.action === 'buy').length} / 売: {result.trades.filter(t => t.action === 'sell').length}
               </p>
@@ -425,13 +425,13 @@ export default function LabPage() {
 
           {/* Equity curve */}
           <div className="bg-panel border border-border rounded-xl p-5">
-            <h2 className="text-white font-semibold text-sm mb-3">資産曲線</h2>
+            <h2 className="text-ink font-semibold text-sm mb-3">資産曲線</h2>
             <EquityChart result={result} />
           </div>
 
           {/* Trade log */}
           <div className="bg-panel border border-border rounded-xl p-5">
-            <h2 className="text-white font-semibold text-sm mb-3">トレード一覧</h2>
+            <h2 className="text-ink font-semibold text-sm mb-3">トレード一覧</h2>
             {result.trades.length === 0 ? (
               <p className="text-muted text-sm">この期間・条件では売買シグナルが発生しませんでした。</p>
             ) : (
@@ -439,15 +439,15 @@ export default function LabPage() {
                 {result.trades.map((t, i) => (
                   <div key={i} className="flex items-center gap-3 px-3 py-2 bg-surface/50 rounded-lg">
                     <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded ${
-                      t.action === 'buy' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'
+                      t.action === 'buy' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
                     }`}>
                       {t.action === 'buy' ? 'BUY' : 'SELL'}
                     </span>
                     <span className="text-xs text-muted font-mono w-24">{formatDate(t.time)}</span>
-                    <span className="text-xs text-slate-300 font-mono flex-1">
+                    <span className="text-xs text-ink-2 font-mono flex-1">
                       {t.shares.toFixed(4)}株 × {t.price.toFixed(2)}
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">
+                    <span className="text-xs text-ink-2 font-mono">
                       {formatMoney(t.value, result.currency)}
                     </span>
                   </div>

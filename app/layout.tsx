@@ -1,6 +1,14 @@
 import type { Metadata, Viewport } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
+// 日本語フォント（Noto Sans JP・可変ウェイト）。
+// `next/font/google` はビルド時にGoogleのCDNへ取りに行くため、過去に ETIMEDOUT で
+// ビルドが不安定になった実績がある（DECISIONS.md 2026-07-08。そのため Geist は
+// セルフホストの `geist` パッケージに置換済み）。同じ轍を踏まないよう、日本語も
+// 同じ方針＝npmで配られるセルフホストのフォントパッケージを使い、ビルド時の外部
+// フェッチをゼロにする。unicode-range で124サブセットに分割されているので、
+// ブラウザは実際に描画する文字分のwoff2だけを取りに行く。
+import '@fontsource-variable/noto-sans-jp'
 import './globals.css'
 import { SiteNav } from '@/components/SiteNav'
 
@@ -35,21 +43,32 @@ export const metadata: Metadata = {
   },
 }
 
-// colorScheme を宣言しないと iOS Safari が select / input[type=number] を
-// ライトで描画し、暗色UI上で白背景・白文字になって読めなくなる。
+// colorScheme はライト転換後も宣言し続ける必要がある。暗色時代の理由
+// （iOS Safari が select / input[type=number] をライトで描画し、暗色UI上で
+// 白背景・白文字になって読めなくなる）は解消した。だが今度は逆向きの事故が起きる:
+// 端末がダークモードだと OS/ブラウザが select などのフォーム部品を勝手に暗色化し、
+// 白いカード面に黒い入力欄だけが乗る。'light' を明示して端末設定に追随させない。
+// themeColor はモバイルのアドレスバー色。ページの地（--bg）と揃える。
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#030712',
-  colorScheme: 'dark',
+  themeColor: '#FAF9F5',
+  colorScheme: 'light',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja" className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-gray-950 text-white">
+      {/* ハードコードの色（bg-background / text-ink 等）は globals.css のトークンを
+          上書きしてしまい、トークンを差し替えても画面に反映されなかった。
+          トークン側のユーティリティに寄せてあるので、暗色→ライト基調の転換も
+          globals.css の :root を差し替えるだけで追随する。 */}
+      <body className="min-h-full flex flex-col bg-background text-ink">
         <SiteNav />
-        <main className="flex-1 px-4 sm:px-6 py-5 pb-20 md:pb-5">{children}</main>
+        {/* max-w が無いと大画面で本文が1行90文字まで伸びて読めない */}
+        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-5 pb-20 md:pb-5">
+          {children}
+        </main>
       </body>
     </html>
   )
