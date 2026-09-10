@@ -12,6 +12,7 @@
 
 import type { AIDecision } from '@/lib/ai-trader/engine'
 import DetailsSection from '@/components/analyze/DetailsSection'
+import EvidenceMap from '@/components/watch/EvidenceMap'
 
 export interface DecisionCardProps {
   decision: AIDecision
@@ -65,7 +66,6 @@ function Field({ title, children, empty = '記録がありません' }: {
 
 export default function DecisionCard({ decision, held }: DecisionCardProps) {
   const action = ACTION[decision.action] ?? ACTION.watch
-  const news = decision.news ?? []
   const sources = decision.sources ?? []
   const refs = decision.knowledgeRefs ?? []
 
@@ -110,28 +110,16 @@ export default function DecisionCard({ decision, held }: DecisionCardProps) {
       </div>
 
       {/* ── 第3層: 根拠（折りたたみ） ──────────────────────────────── */}
+      {/* S1: 「文章→文章→文章」ではなく、テクニカル／ファンダ／ニュースが1つの結論に
+          収束する根拠マップ（EvidenceMap）を最初に出す。参照原則・出所はその下に残す。 */}
       <div className="px-5 pb-4">
         <DetailsSection title="この判断の根拠">
-          <div className="space-y-4 pt-2">
-            <Field title="テクニカル（値動きの形）">{decision.technicals}</Field>
-            <Field title="ファンダメンタル（会社の中身）">{decision.fundamentals}</Field>
-            <Field title="ニュースの影響" empty="この銘柄のニュースは判断に使われていません">
-              {decision.newsInfluence}
-            </Field>
-
-            {news.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-ink mb-1">読んだ見出し</h4>
-                <ul className="space-y-1 max-w-[42rem]">
-                  {news.map((headline, i) => (
-                    <li key={i} className="text-base text-ink-2 leading-relaxed flex gap-2">
-                      <span aria-hidden className="text-muted font-mono tabular-nums shrink-0">{i + 1}</span>
-                      <span>{headline}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="space-y-5 pt-2">
+            <EvidenceMap
+              decision={decision}
+              action={action}
+              confidenceLabel={CONFIDENCE[decision.confidence] ?? '不明'}
+            />
 
             <Field title="参照した投資の原則" empty="この判断では原則の引用がありませんでした">
               {refs.length > 0 ? (

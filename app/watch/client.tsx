@@ -2,29 +2,26 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import type { Trade, TradeReference } from '@/components/TradingChart'
-import ReferencePanel from '@/components/ReferencePanel'
 import type { AISession, AIDecision, AITrade, Holding, EquityPoint } from '@/lib/ai-trader/engine'
 import type { ClosedTrade } from '@/lib/ai-trader/memory'
 import { normalizeLearningMemory } from '@/lib/ai-trader/memory'
-import type { InvestorId } from '@/types'
+import type { InvestorId, HistoricalBar } from '@/types'
+import type { TradeMarker } from '@/components/AITradeChart'
+import TradeLog, { pairRoundTrips } from '@/components/watch/TradeLog'
 import { MasterSignals } from '@/components/MasterSignals'
 import { MarketOverview } from '@/components/MarketOverview'
 import TickSummary from '@/components/watch/TickSummary'
 import DecisionCard from '@/components/watch/DecisionCard'
 
-const TradingChart = dynamic(() => import('@/components/TradingChart'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-[500px] bg-[#0f1117] rounded-xl text-ink-2 animate-pulse text-sm">
-      チャートデータ読み込み中…
-    </div>
-  ),
-})
+// 銘柄ごとの取引チャート（終値＋MA20/50＋買▲/売▼）。lightweight-charts は SSR 不可。
+const AITradeChart = dynamic(
+  () => import('@/components/AITradeChart').then(m => m.AITradeChart),
+  { ssr: false, loading: () => <div className="h-[380px] flex items-center justify-center text-muted text-sm bg-panel rounded-lg">チャート読込中...</div> }
+)
 
 const EquityChart = dynamic(
   () => import('@/components/EquityChart').then(m => m.EquityChart),
-  { ssr: false, loading: () => <div className="h-56 flex items-center justify-center text-muted text-sm bg-[#0f1117] rounded-lg">グラフ読込中...</div> }
+  { ssr: false, loading: () => <div className="h-56 flex items-center justify-center text-muted text-sm bg-panel rounded-lg">グラフ読込中...</div> }
 )
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -51,53 +48,8 @@ function autoCountToday(session: AISession): number {
   return a.date === nyDate() ? a.count : 0
 }
 
-// Convert AI trades to TradingChart Trade format (with pairing for PnL display)
-function toChartTrades(aiTrades: AITrade[], symbol: string): Trade[] {
-  const filtered = [...aiTrades]
-    .filter(t => t.symbol === symbol)
-    .reverse() // oldest first
-
-  const result: Trade[] = []
-  const pendingBuyIds: string[] = []
-
-  filtered.forEach((t, i) => {
-    const id = `ai_${symbol}_${i}_${t.action}`
-    const ref: TradeReference = {
-      summary: t.reason,
-      analysis: `【テクニカル分析】\n${t.technicals}\n\n【ファンダメンタル分析】\n${t.fundamentals}`,
-      indicators: [],
-      sources: t.sources.map(s => ({
-        title: s,
-        type: s.includes('Claude') ? 'model' as const
-          : s.includes('News') ? 'news' as const
-          : 'model' as const,
-      })),
-    }
-
-    if (t.action === 'buy') {
-      result.push({
-        id, symbol: t.symbol, investor: 'AI TRADER',
-        action: 'BUY',
-        date: t.timestamp.slice(0, 10),
-        price: t.price, shares: t.shares,
-        reference: ref,
-      })
-      pendingBuyIds.push(id)
-    } else {
-      const pairedTradeId = pendingBuyIds.shift()
-      result.push({
-        id, symbol: t.symbol, investor: 'AI TRADER',
-        action: 'SELL',
-        date: t.timestamp.slice(0, 10),
-        price: t.price, shares: t.shares,
-        pairedTradeId,
-        reference: ref,
-      })
-    }
-  })
-
-  return result
-}
+// 買い→売りの往復ペアリング（旧 toChartTrades の FIFO）は
+// components/watch/TradeLog.tsx の pairRoundTrips に移した。
 
 // session.decisions は複数tickぶんが新しい順に最大50件積まれた1本の配列で、tickの境界は
 // 記録されていない（AIDecisionに時刻が無い）。ただし1回のtickでは1銘柄につき1判断しか
@@ -262,10 +214,12 @@ export function AISessionClient() {
   // AIを動かせるのは運営者だけ。読むのは誰でも自由なので、既定はfalse（操作UIを出さない）。
   const [isAdmin, setIsAdmin]     = useState(false)
 
-  // Chart state
-  const [chartSymbol, setChartSymbol] = useState('AAPL')
-  const [viewPeriod, setViewPeriod]   = useState<'1y' | '5y' | '10y'>('1y')
-  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
+  // 銘柄ごとの取引チャート／往復表の状態。
+  // chartSymbol の既定は「保有中の先頭、無ければ取引のあった先頭」（下の effect で決める）。
+  const [chartSymbol, setChartSymbol] = useState('')
+  const [chartData, setChartData] = useState<{ symbol: string; history: HistoricalBar[]; trades: TradeMarker[] } | null>(null)
+  const [chartLoading, setChartLoading] = useState(false)
+  const [chartError, setChartError] = useState<string | null>(null)
 
   const autoRef    = useRef(false)
   const sessionRef = useRef<AISession | null>(null)
@@ -408,22 +362,43 @@ export function AISessionClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, autoTick, interval, session?.id])
 
-  // Auto-switch chart to most recently traded symbol
-  useEffect(() => {
-    if (!session) return
-    const holdings = Object.keys(session.holdings)
-    if (holdings.length > 0 && !holdings.includes(chartSymbol)) {
-      setChartSymbol(holdings[0])
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.tickCount])
+  // 取引記録のある銘柄（保有中を先頭に、続けて売買のあった銘柄を新しい順）。
+  // フックは早期 return より前に置く（Rules of Hooks）。
+  const logSymbols = useMemo(() => {
+    if (!session) return [] as string[]
+    const held   = Object.keys(session.holdings ?? {})
+    const traded = (session.trades ?? []).map(t => t.symbol)
+    return Array.from(new Set([...held, ...traded]))
+  }, [session])
 
-  // useMemo must be called unconditionally before any early returns (Rules of Hooks)
-  const sessionTrades = session?.trades ?? []
-  const chartTrades = useMemo(
-    () => toChartTrades(sessionTrades, chartSymbol),
-    [sessionTrades, chartSymbol]
-  )
+  // 既定は保有中の先頭、無ければ取引のあった先頭。利用者が選んだ銘柄が
+  // まだ一覧にある間は tick が進んでも勝手に切り替えない。
+  useEffect(() => {
+    if (logSymbols.length === 0) return
+    if (!chartSymbol || !logSymbols.includes(chartSymbol)) setChartSymbol(logSymbols[0])
+  }, [logSymbols, chartSymbol])
+
+  // 銘柄ごとの価格履歴＋売買マーカーを既存API（/chart/[symbol]）から取る。
+  // 同時にマウントするチャートは1つ。再取得中は前の描画を薄く残す（スケルトンで
+  // ちらつかせない）。取引が増えたとき（trades.length の変化）だけ取り直す。
+  const sessionId  = session?.id
+  const tradeCount = session?.trades?.length ?? 0
+  useEffect(() => {
+    if (!sessionId || !chartSymbol) return
+    let cancelled = false
+    setChartLoading(true)
+    setChartError(null)
+    fetch(`/api/ai-session/${sessionId}/chart/${encodeURIComponent(chartSymbol)}`, { cache: 'no-store' })
+      .then(async r => {
+        const d = await r.json()
+        if (!r.ok || d.error) throw new Error(d.error ?? `HTTP ${r.status}`)
+        return d as { history: HistoricalBar[]; trades: TradeMarker[] }
+      })
+      .then(d => { if (!cancelled) setChartData({ symbol: chartSymbol, history: d.history ?? [], trades: d.trades ?? [] }) })
+      .catch(e => { if (!cancelled) setChartError(e instanceof Error ? e.message : '価格データの取得に失敗しました') })
+      .finally(() => { if (!cancelled) setChartLoading(false) })
+    return () => { cancelled = true }
+  }, [sessionId, chartSymbol, tradeCount])
 
   // Loading
   if (restoring) return (
@@ -493,13 +468,17 @@ export function AISessionClient() {
   if (decisionsFromLatestTick || watchlist.length === 0) {
     for (const d of latestDecisions) changeBySymbol[d.symbol] = d.change
   }
-  const allSymbols = Array.from(new Set([...holdingSymbols, ...(session.watchlist ?? [])].slice(0, 8)))
-
-  const PERIODS: { label: string; value: '1y' | '5y' | '10y' }[] = [
-    { label: '1年', value: '1y' },
-    { label: '5年', value: '5y' },
-    { label: '10年', value: '10y' },
-  ]
+  // 表示中の銘柄の名前・現在値（チャートの最終終値＝実データ）・往復件数
+  const chartHolding = holdings[chartSymbol] as Holding | undefined
+  const chartName =
+    chartHolding?.name ?? trades.find(t => t.symbol === chartSymbol)?.name ?? ''
+  const chartReady = chartData != null && chartData.symbol === chartSymbol
+  const lastClose  = chartReady && chartData.history.length > 0
+    ? chartData.history[chartData.history.length - 1].close
+    : undefined
+  const roundTripCount = chartSymbol
+    ? pairRoundTrips(trades, chartSymbol, chartHolding, lastClose).length
+    : 0
 
   return (
     <div className="min-h-screen bg-background text-ink">
@@ -590,7 +569,7 @@ export function AISessionClient() {
       <div className="max-w-screen-lg mx-auto px-4 sm:px-6 pt-8">
         <h2 className="text-ink font-semibold border-t border-border pt-6">運用の記録</h2>
         <p className="text-sm text-muted leading-relaxed mt-1 max-w-[42rem]">
-          判断の積み重ねが、仮想資金の増減としてどう出たか。チャート・成績・売買履歴・学んだ教訓。
+          判断の積み重ねが、仮想資金の増減としてどう出たか。銘柄ごとの取引チャートと往復・成績・売買履歴・学んだ教訓。
         </p>
       </div>
 
@@ -800,64 +779,90 @@ export function AISessionClient() {
         {/* ── Right Main Content ───────────────────────────────────────── */}
         <div className="space-y-5 min-w-0">
 
-          {/* Symbol + Period controls — same style as investsim */}
-          <div className="bg-panel rounded-xl border border-border px-5 py-4 flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-muted">銘柄</span>
-              <div className="flex flex-wrap gap-1.5">
-                {allSymbols.map(sym => (
-                  <button
-                    key={sym}
-                    onClick={() => setChartSymbol(sym)}
-                    className={`text-sm px-2.5 py-1 rounded border font-mono transition-colors ${
-                      chartSymbol === sym
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                        : holdingSymbols.includes(sym)
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:border-emerald-400'
-                          : 'bg-surface border-border text-ink-2 hover:border-accent'
-                    }`}
-                  >
-                    {sym}
-                    {holdingSymbols.includes(sym) && <span className="ml-1 text-emerald-700">●</span>}
-                  </button>
-                ))}
-              </div>
+          {/* 銘柄ごとの取引を追う面。銘柄タブ（図の外・上）→ 取引チャート → 往復表。
+              買い/売りの方向は色で運ばない（AITradeChart / TradeLog のコメント参照）。
+              タブの選択も色相ではなく、枠線の濃さと文字の太さで示す。 */}
+          {logSymbols.length === 0 ? (
+            <div className="bg-panel rounded-xl border border-border px-5 py-8">
+              <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
+                まだ売買の記録がありません。AIが最初の売買を行うと、銘柄ごとの取引チャートと往復の記録がここに並びます。
+              </p>
             </div>
-
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-sm text-muted">表示期間</span>
-              <div className="flex gap-1">
-                {PERIODS.map(p => (
-                  <button
-                    key={p.value}
-                    onClick={() => setViewPeriod(p.value)}
-                    className={`text-sm px-3 py-1 rounded border transition-colors font-medium ${
-                      viewPeriod === p.value
-                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                        : 'bg-surface border-border text-ink-2 hover:border-accent'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
+          ) : (
+            <>
+              <div className="bg-panel rounded-xl border border-border px-5 py-3 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted">銘柄</span>
+                <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="取引記録の銘柄">
+                  {logSymbols.map(sym => {
+                    const held = holdingSymbols.includes(sym)
+                    const selected = chartSymbol === sym
+                    return (
+                      <button
+                        key={sym}
+                        role="tab"
+                        aria-selected={selected}
+                        onClick={() => setChartSymbol(sym)}
+                        className={`text-sm px-2.5 py-1 rounded border font-mono transition-colors ${
+                          selected
+                            ? 'bg-surface border-[var(--ink)] text-ink font-semibold'
+                            : 'bg-panel border-border text-ink-2 hover:border-[var(--muted)]'
+                        }`}
+                      >
+                        {sym}
+                        {held && <span className="ml-1.5 text-xs font-sans font-normal text-ink-2">●保有中</span>}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-              <span className="text-sm text-muted ml-1 hidden sm:inline">← ドラッグで遡れます</span>
-            </div>
-          </div>
 
-          {/* TradingChart with AI trade markers */}
-          <TradingChart
-            symbol={chartSymbol}
-            viewPeriod={viewPeriod}
-            trades={chartTrades}
-            onTradeClick={t => setSelectedTrade(t)}
-          />
+              <div className="bg-panel rounded-xl border border-border p-5">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-3">
+                  <span className="font-mono font-semibold text-ink">{chartSymbol}</span>
+                  {chartName && <span className="text-sm text-ink-2">{chartName}</span>}
+                  <span className="text-xs text-muted ml-auto">直近3か月・日足</span>
+                </div>
+                {chartError && !chartReady ? (
+                  <div className="h-[380px] flex items-center justify-center text-sm text-muted border border-border rounded-lg px-4 text-center">
+                    価格データを取得できませんでした（{chartError}）
+                  </div>
+                ) : chartData ? (
+                  <div className={chartLoading ? 'opacity-50 transition-opacity' : 'transition-opacity'}>
+                    <AITradeChart
+                      data={chartData.history}
+                      trades={chartData.trades}
+                      symbol={chartData.symbol}
+                      height={380}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-[380px] flex items-center justify-center text-sm text-muted bg-panel rounded-lg">
+                    チャート読込中...
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-panel rounded-xl border border-border p-5">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
+                  <h3 className="text-ink font-semibold">この銘柄の往復</h3>
+                  <span className="text-sm text-muted tabular-nums">{roundTripCount}件</span>
+                  <span className="text-xs text-muted ml-auto">買い→売りの1対＝1行。未決済も1行として出す</span>
+                </div>
+                <TradeLog
+                  symbol={chartSymbol}
+                  trades={trades}
+                  holding={chartHolding}
+                  currentPrice={lastClose}
+                />
+              </div>
+            </>
+          )}
 
           {/* Tabs */}
           <div className="bg-panel rounded-xl border border-border overflow-hidden">
             <div className="flex border-b border-border overflow-x-auto">
               {([
-                { key: 'performance', label: '📈 運用成績' },
+                { key: 'performance', label: '運用成績' },
                 { key: 'trades',      label: '売買履歴',    count: trades.length },
                 { key: 'learning',    label: '学習・教訓',  count: learning.lessons.length },
               ] as const).map(t => (
@@ -1066,11 +1071,8 @@ export function AISessionClient() {
 
       {/* 名人のシグナル。「見る」＝AIと名人の判断を読む面なので、AIの下に並べる */}
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-10">
-        <MasterSignals initialSymbol={chartSymbol} />
+        <MasterSignals initialSymbol={chartSymbol || undefined} />
       </div>
-
-      {/* Reference panel (slide-over) for AI trade details */}
-      <ReferencePanel trade={selectedTrade} onClose={() => setSelectedTrade(null)} />
     </div>
   )
 }
