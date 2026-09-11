@@ -9,7 +9,7 @@
 //   折りたたみ「この文に出てきた用語」。ホバーだけにするとスマホの利用者に届かない。
 
 import { highlightReading } from '@/lib/ai-trader/reading-highlight'
-import { GLOSSARY, termKeyOf, type TermKey } from '@/lib/ai-trader/glossary'
+import { GLOSSARY, termKeyOf, termsInReading } from '@/lib/ai-trader/glossary'
 
 export interface ReadingTextProps {
   /** AIの文。そのまま描く（trim もしない）。 */
@@ -32,13 +32,9 @@ export default function ReadingText({ text, label, emptyNote = '記録があり�
   const hasText = text.trim().length > 0
   const segments = highlightReading(text)
 
-  // この文に出てきた用語（出てきた順・重複なし）
-  const terms: TermKey[] = []
-  for (const s of segments) {
-    if (s.kind === 'plain') continue
-    const k = termKeyOf(s.text)
-    if (k && !terms.includes(k)) terms.push(k)
-  }
+  // この文に出てきた用語（出てきた順・重複なし）。札の語に加えて、札にならない地の文の語
+  // （「PER計算不能」の PER、「高レバレッジ」、「反発」など）も拾う
+  const terms = termsInReading(segments)
 
   return (
     <div className="max-w-[42rem]">

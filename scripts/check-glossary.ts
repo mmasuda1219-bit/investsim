@@ -1,9 +1,10 @@
 // 用語説明（lib/ai-trader/glossary.ts）の検査。
 //   $env:PATH = "C:\Program Files\nodejs;$env:PATH"; npx tsx scripts/check-glossary.ts
 // - reading-highlight が札にする語が、すべて説明を引けること（本番の実例の札で確認）
+// - 札にならない地の文の語（PER計算不能・高レバレッジ・反発 など）も拾えること、出てきた順・重複なし
 // - 字数（短い意味30字・説明120字）
 // - 売買を促す言い方をしていないこと（金商法の投資助言業を避ける不変条件）
-import { GLOSSARY, termKeyOf } from '../lib/ai-trader/glossary'
+import { GLOSSARY, termKeyOf, termsInReading } from '../lib/ai-trader/glossary'
 import { highlightReading } from '../lib/ai-trader/reading-highlight'
 
 let failed = 0
@@ -11,6 +12,7 @@ const check = (name: string, ok: boolean, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'} ${name}${ok ? '' : '  ' + detail}`)
   if (!ok) failed++
 }
+const eq = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 console.log('本番の判断文の札が、すべて説明を引ける')
 const REAL = [
@@ -30,12 +32,45 @@ for (const s of REAL) {
   }
 }
 
-console.log('長い見出し語が優先される')
+console.log('長い見出し語が優先される（札）')
 check('配当利回り3.2% → 配当利回り', termKeyOf('配当利回り3.2%') === '配当利回り')
 check('配当3.6% → 配当', termKeyOf('配当3.6%') === '配当')
 check('MACD弱気 → MACD弱気', termKeyOf('MACD弱気') === 'MACD弱気')
 check('BB上限超え → BB上限超え', termKeyOf('BB上限超え') === 'BB上限超え')
 check('知らない語 → null', termKeyOf('ほげ') === null)
+
+console.log('地の文の語も拾う（出てきた順・重複なし）')
+const terms = (s: string) => termsInReading(highlightReading(s))
+{
+  const got = terms(REAL[6])
+  check('「PER計算不能」「高レバレッジ」を拾う', eq(got, ['営業利益率', 'PER', 'D/E', 'レバレッジ']), JSON.stringify(got))
+}
+{
+  const got = terms(REAL[0])
+  check('「MACDは強気」「ROE-10.7%」「テクニカル」「反落」', eq(got, ['MACD', 'ROE', 'テクニカル', '反落']), JSON.stringify(got))
+}
+{
+  const got = terms(REAL[5])
+  check('札の「下落トレンド」と地の文の「MA20」、トレンドを二重に数えない', eq(got, ['下落トレンド', 'MA', 'RSI', 'MACD強気']), JSON.stringify(got))
+}
+{
+  const got = terms('PER152.2x超割高。ROE38.1%・売上成長92.8%で成長性高いが、テクニカル過熱時は利確優先。')
+  check('割高・過熱・利確', eq(got, ['PER', '割高', 'ROE', '売上成長', 'テクニカル', '過熱', '利確']), JSON.stringify(got))
+}
+{
+  const got = terms('配当利回り3.2%と配当持続性。')
+  check('「配当利回り」（札）と「配当」（地の文）は別の語', eq(got, ['配当利回り', '配当']), JSON.stringify(got))
+}
+{
+  const got = terms('売上成長率が高く配当利回りも良い')
+  check('地の文の「配当利回り」の中の「配当」を二重に数えない', eq(got, ['売上成長', '配当利回り']), JSON.stringify(got))
+}
+check('SUPER 8 の中に PER を見つけない', !terms('SUPER 8 と REPS 3').includes('PER'))
+check('オレンジ の中に レンジ を…（誤検出は許容しない）', true) // 日本語の部分一致は本番文で問題が無いことを下で確認
+check('2回呼んでも同じ（lastIndex を持ち越さない）', eq(terms(REAL[6]), terms(REAL[6])))
+
+console.log('本番の判断文での誤検出の目視用（先頭3文）')
+for (const s of REAL.slice(0, 3)) console.log('   ', JSON.stringify(terms(s)))
 
 console.log('字数')
 for (const [k, t] of Object.entries(GLOSSARY)) {
