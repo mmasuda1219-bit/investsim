@@ -25,8 +25,9 @@ export interface ReadingSegment {
 // 指標名。`配当利回り` は `配当` より前に置く（先に当てないと `配当` + `利回り1.5%` に割れる）。
 const METRIC_NAME = 'PER|PBR|ROE|ROA|PEG|D\\/E|FCF|EPS|営業利益率|粗利益率|売上成長|配当利回り|配当|時価総額'
 // 数値は「数字で始まり数字で終わる」形に限る（`17.4` `1,234` `226`）。末尾の `.` `,` は文の句読点なので
-// 取り込まない。単位は空白を挟んでもよいが、単位が無いときは空白を取り込まない（札の中に空白を残さない）。
-const METRIC_NUMBER = '[$¥]?\\d[\\d,]*(?:\\.\\d+)?'
+// 取り込まない。桁区切りのカンマは「カンマ＋数字3つ」の形だけ許す（`PER 10, ROE` の `,` を札に
+// 取り込まない）。単位は空白を挟んでもよいが、単位が無いときは空白を取り込まない（札の中に空白を残さない）。
+const METRIC_NUMBER = '[$¥]?\\d+(?:,\\d{3})*(?:\\.\\d+)?'
 const METRIC_UNIT = '(?:\\s?(?:x|倍|%|B|T|億|兆))?'
 const METRIC_RE = `(?:${METRIC_NAME})\\s?${METRIC_NUMBER}${METRIC_UNIT}`
 
@@ -36,7 +37,8 @@ const SIGNAL_RE =
 
 // 1本の正規表現にまとめ、どちらのグループが当たったかで kind を決める。
 // どのパターンも空文字には当たらない（必ず1文字以上のリテラルを含む）ので無限ループしない。
-const TOKEN_RE = new RegExp(`(${METRIC_RE})|(${SIGNAL_RE})`, 'g')
+// 先頭の後読み (?<![A-Za-z]) は語境界: `SUPER 8` の `PER 8`、`REPS 3.2` の `EPS 3.2` に当てない。
+const TOKEN_RE = new RegExp(`(?<![A-Za-z])(?:(${METRIC_RE})|(${SIGNAL_RE}))`, 'g')
 
 /**
  * AIの文を plain / metric / signal のセグメント列に分割する。

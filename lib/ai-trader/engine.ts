@@ -14,6 +14,7 @@ import {
 } from './memory'
 import type { StockQuote, FundamentalsData, InvestorId } from '@/types'
 import { getPersonaText } from './personas'
+import { extractDecisionArray } from './decision-parse'
 import { listKnowledge, recordKnowledgeUsage } from '@/lib/knowledge/store'
 import { selectKnowledgeForDecision, formatKnowledgeBlock, filterKnowledgeRefs } from '@/lib/knowledge/select'
 import type { KnowledgeItem, KnowledgeKind } from '@/lib/knowledge/types'
@@ -76,10 +77,18 @@ async function callClaudeApi(prompt: string, opts: CallClaudeOpts = {}): Promise
     // ここで粘るより関数上限内に確実に収める方を採る（過少実行側に倒す・auto.tsと同方針）。
     { timeout: opts.timeoutMs ?? CLAUDE_TIMEOUT_MS, maxRetries: 0 },
   )
-  return res.content
+  const text = res.content
     .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
     .map((b) => b.text)
     .join('')
+  // 計測(S4-0): 出力上限で打ち切られたかを常に1行残す。これが無いと「判断が半分しか無い」原因が
+  // 誰にも分からない。DECISION_MAX_TOKENS の見直しはこのログの実測が貯まってから。
+  const maxTokens = opts.maxTokens ?? DECISION_MAX_TOKENS
+  console.warn(`[ai-trader] usage in=${res.usage?.input_tokens ?? '?'} out=${res.usage?.output_tokens ?? '?'} stop=${res.stop_reason ?? '?'} max=${maxTokens}`)
+  if (res.stop_reason === 'max_tokens') {
+    console.warn(`[ai-trader] 出力上限(max_tokens=${maxTokens})で打ち切られた。判断が欠けている可能性`)
+  }
+  return text
 }
 
 function callClaudeCli(prompt: string): Promise<string> {
@@ -92,7 +101,11 @@ function callClaudeCli(prompt: string): Promise<string> {
     proc.stdout.on('data', (d: Buffer) => { out += d.toString() })
     proc.stderr.on('data', (d: Buffer) => { err += d.toString() })
     proc.on('close', (code: number) => {
-      if (code === 0) resolve(out)
+      if (code === 0) {
+        // CLI 経路は usage も stop_reason も返さないので、打ち切り判定不能であることを明示する
+        console.warn(`[ai-trader] usage in=? out=? stop=cli chars=${out.length}`)
+        resolve(out)
+      }
       else reject(new Error(`claude CLI exited ${code}: ${err.slice(0, 200)}`))
     })
     proc.stdin.write(prompt)
@@ -449,11 +462,19 @@ actionは "buy" | "sell" | "hold" | "watch"。buyは現金十分な場合のみ�
 knowledgeRefsは実際に依拠した【投資の原則（知識ベース）】のIDのみ。最大2件。無ければ []（体裁のために埋めない）。`
 
   const text = await callClaude(prompt)
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-  if (!jsonMatch) return []
+  // S4-0: 返事が max_tokens で打ち切られ閉じフェンスが無いと、旧実装（正規表現で ```json…``` を
+  // 切り出し）は無マッチになり、12銘柄ぶん書けていても全部捨てて 0 件を返していた。
+  // 完成している要素だけ救出し、欠落は必ず警告する（無音にしない）。
+  const raw = extractDecisionArray(text) as any[]
+  if (raw.length === 0) {
+    console.warn('[ai-trader] 判断のJSONを1件も救出できなかった（出力の打ち切りか書式崩れ）')
+    return []
+  }
+  if (raw.length < stockData.length) {
+    console.warn(`[ai-trader] ${stockData.length}銘柄中 ${raw.length} 件のみ救出。残りは出力の打ち切りで欠落した可能性`)
+  }
 
   try {
-    const raw: any[] = JSON.parse(jsonMatch[1])
     return raw.map(r => {
       const sd = stockData.find(s => s.symbol === r.symbol)
       const f = sd?.fundamentals

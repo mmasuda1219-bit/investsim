@@ -29,11 +29,15 @@ const fmtPrice = (symbol: string, n: number) =>
     ? `¥${n.toLocaleString('ja-JP', { maximumFractionDigits: 0 })}`
     : `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+// 判断バッジは無彩色（枠 --ink・文字 --ink）で、方向は記号の形で運ぶ。
+// 買い＝緑／売り＝赤にすると、同じページの「利益＝緑」と混ざって「AIが買った＝良いこと」と
+// 誤読させる（原則11。AITradeChart / TradeLog と同じ規則）。
+// EvidenceMap の結論行もこのオブジェクトを props で受けるので、ここを変えれば追従する。
 const ACTION: Record<AIDecision['action'], { label: string; cls: string }> = {
-  buy:   { label: '買い',     cls: 'border-success text-success' },
-  sell:  { label: '売り',     cls: 'border-danger text-danger' },
-  hold:  { label: '保有継続', cls: 'border-border text-ink-2' },
-  watch: { label: '様子見',   cls: 'border-border text-muted' },
+  buy:   { label: '▲ 買い',     cls: 'border-[var(--ink)] text-ink' },
+  sell:  { label: '▼ 売り',     cls: 'border-[var(--ink)] text-ink' },
+  hold:  { label: '＝ 保有継続', cls: 'border-[var(--ink)] text-ink' },
+  watch: { label: '◇ 様子見',   cls: 'border-[var(--ink)] text-ink' },
 }
 
 const CONFIDENCE: Record<AIDecision['confidence'], string> = {

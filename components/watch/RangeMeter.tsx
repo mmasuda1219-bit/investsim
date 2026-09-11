@@ -21,11 +21,25 @@ export const fmtAmount = (currency: '$' | '¥', n: number) =>
     ? `¥${n.toLocaleString('ja-JP', { maximumFractionDigits: 0 })}`
     : `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+// 52週高値/安値は engine が toFixed(0) で整数にして保存している（engine.ts fmtFundamentals）。
+// 小数2桁で出すと「$123.00」と、無い精度があるように見える。保存どおり整数で出す。
+const fmtRangeBound = (currency: '$' | '¥', n: number) =>
+  `${currency}${Math.round(n).toLocaleString('en-US')}`
+
 export default function RangeMeter({ low, high, current, currency }: RangeMeterProps) {
   if (low == null || high == null || !(high > low)) {
     return (
       <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
         52週の高値・安値が取得できていないため、この図は出せません。
+      </p>
+    )
+  }
+  // engine は quote が取れなかった判断に price = 0 を入れる（decideTrades の `?? 0`）。
+  // 0 を現在地として描くと「安値を大きく割った」偽の図になるので、描かずに理由を書く。
+  if (!Number.isFinite(current) || current <= 0) {
+    return (
+      <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+        現在値が記録されていません（52週レンジ: 安値 {fmtRangeBound(currency, low)}・高値 {fmtRangeBound(currency, high)}）。
       </p>
     )
   }
@@ -49,7 +63,7 @@ export default function RangeMeter({ low, high, current, currency }: RangeMeterP
       {/* 台。塗りは安値→現在地。現在地は点＋リング。 */}
       <div
         role="img"
-        aria-label={`52週安値 ${fmtAmount(currency, low)}、52週高値 ${fmtAmount(currency, high)}、現在 ${fmtAmount(currency, current)}（レンジの ${pct}% の位置）`}
+        aria-label={`52週安値 ${fmtRangeBound(currency, low)}、52週高値 ${fmtRangeBound(currency, high)}、現在 ${fmtAmount(currency, current)}（レンジの ${pct}% の位置）`}
         className="relative w-full h-2 rounded bg-panel border border-border"
       >
         {/* globals.css に bg-border / bg-ink のユーティリティは無いので CSS 変数を直接使う */}
@@ -67,10 +81,10 @@ export default function RangeMeter({ low, high, current, currency }: RangeMeterP
 
       <div className="mt-1.5 flex justify-between text-xs text-muted tabular-nums">
         <span>
-          <span className="font-mono">{fmtAmount(currency, low)}</span> 安値
+          <span className="font-mono">{fmtRangeBound(currency, low)}</span> 安値
         </span>
         <span>
-          高値 <span className="font-mono">{fmtAmount(currency, high)}</span>
+          高値 <span className="font-mono">{fmtRangeBound(currency, high)}</span>
         </span>
       </div>
     </figure>

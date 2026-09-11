@@ -24,7 +24,7 @@
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AIDecision } from '@/lib/ai-trader/engine'
-import { parseFundamentals, fundamentalsProse, PARSEABLE_FIELDS } from '@/lib/ai-trader/fundamentals-parse'
+import { parseFundamentalsWithMeta, fundamentalsProse, PARSEABLE_FIELDS } from '@/lib/ai-trader/fundamentals-parse'
 import FundamentalsFigure, { FundamentalsTable } from '@/components/watch/FundamentalsFigure'
 import NewsEvidence from '@/components/watch/NewsEvidence'
 import ReadingText from '@/components/watch/ReadingText'
@@ -40,6 +40,15 @@ export interface EvidenceMapProps {
 type NodeKind = 'record' | 'empty' | 'conclusion'
 
 const READ_LABEL = 'AIの読み（AIの言葉をそのまま）'
+// AI が techSignal を返さなかった回、engine はサイト計算の機械文
+// （例: `上昇トレンド(価格>MA20>MA50) | RSI47 中立 | MACD強気`）を technicals に入れる
+// （engine.ts の analyzeTechnicals / decideTrades）。それを「AIの言葉」と見出すのは事実と違う。
+const MACHINE_TECH_LABEL = 'サイトが計算した指標（この判断ではAIの要約が記録されていません）'
+const MACHINE_TECH_RE = /^(上昇トレンド|下落トレンド|横ばい・レンジ|データ不足)/
+function isMachineTechnicals(text: string): boolean {
+  const t = text.trim()
+  return MACHINE_TECH_RE.test(t) && t.includes(' | ')
+}
 const SUB_HEAD = 'text-[13px] font-semibold text-ink mb-1'
 
 function Node({ kind }: { kind: NodeKind }) {
@@ -170,7 +179,9 @@ export default function EvidenceMap({ decision, action, confidenceLabel }: Evide
   // AIの文は raw のまま ReadingText に渡す（trim も含めて1文字も変えない）。有無の判定だけ trim。
   const technicalsRaw = decision.technicals ?? ''
   const fundamentals = decision.fundamentals ?? ''
-  const fundData = parseFundamentals(fundamentals)
+  // 単位の注記（legacy）も受け取る: v1 記録の D/E は%か倍か判別できないので表示側で注記する（2026-09-11）
+  const fundParsed = parseFundamentalsWithMeta(fundamentals)
+  const fundData = fundParsed.data
   const fundProse = fundamentalsProse(fundamentals)
   const fundTotal = PARSEABLE_FIELDS.length
   const fundCount = PARSEABLE_FIELDS.filter(f => fundData[f] != null).length
@@ -179,6 +190,7 @@ export default function EvidenceMap({ decision, action, confidenceLabel }: Evide
   const influenceRaw = decision.newsInfluence ?? ''
 
   const hasTech = technicalsRaw.trim().length > 0
+  const techLabel = isMachineTechnicals(technicalsRaw) ? MACHINE_TECH_LABEL : READ_LABEL
   const hasFund = fundCount > 0 || fundProse.trim().length > 0
   const hasInfluence = influenceRaw.trim().length > 0
   const hasNews = news.length > 0 || hasInfluence
@@ -190,7 +202,7 @@ export default function EvidenceMap({ decision, action, confidenceLabel }: Evide
         position="first"
         node={hasTech ? 'record' : 'empty'}
         title="テクニカル（値動きの形）"
-        body={hasTech ? <ReadingText text={technicalsRaw} label={READ_LABEL} /> : undefined}
+        body={hasTech ? <ReadingText text={technicalsRaw} label={techLabel} /> : undefined}
         emptyNote="この判断では、テクニカルの記録がありません。"
       />
 
@@ -206,7 +218,7 @@ export default function EvidenceMap({ decision, action, confidenceLabel }: Evide
               <CountBar got={fundCount} total={fundTotal} />
               {fundMissing > 0 && (
                 <p className="mt-1 text-sm text-muted leading-relaxed max-w-[42rem]">
-                  残り {fundMissing} 項目は、判断時点でデータ元（Yahoo Finance）から値が返らなかったもの（表では「未取得」）。
+                  残り {fundMissing} 項目は、判断時点でデータ元から値が得られなかったもの（N/A。表では「未取得」）。
                 </p>
               )}
             </div>
@@ -216,6 +228,7 @@ export default function EvidenceMap({ decision, action, confidenceLabel }: Evide
                 data={fundData}
                 symbol={decision.symbol}
                 price={decision.price}
+                legacy={fundParsed.legacy}
               />
             ) : (
               <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
@@ -233,7 +246,7 @@ export default function EvidenceMap({ decision, action, confidenceLabel }: Evide
         openLabel="全項目を開く"
       >
         {fundCount > 0 ? (
-          <FundamentalsTable data={fundData} symbol={decision.symbol} />
+          <FundamentalsTable data={fundData} symbol={decision.symbol} legacy={fundParsed.legacy} />
         ) : undefined}
       </Row>
 

@@ -108,6 +108,39 @@ console.log('境界（許可リストの端）')
   check('クロス系・上昇トレンド・売られすぎ は signal', same(of(s8, 'signal'), ['上昇トレンド', 'ゴールデンクロス', 'デッドクロス', '売られすぎ']), JSON.stringify(of(s8, 'signal')))
 }
 
+console.log('S1: 整数直後のカンマ（桁区切りではない）を札に取り込まない')
+{
+  const s1 = caseOf('整数直後のカンマ', 'PER 10, ROE 5%')
+  check('PER 10, → 札は PER 10（カンマは plain）', same(of(s1, 'metric'), ['PER 10', 'ROE 5%']) && of(s1, 'plain').join('') === ', ', JSON.stringify(s1))
+
+  const s2 = caseOf('桁区切りは残す', '時価総額 1,234億、売上成長12,345%')
+  check('カンマ＋3桁の桁区切りは札に含める', same(of(s2, 'metric'), ['時価総額 1,234億', '売上成長12,345%']), JSON.stringify(of(s2, 'metric')))
+
+  const s3 = caseOf('桁区切り後の句読点', 'FCF 1,200, EPS 3.2')
+  check('1,200 の後ろの , は取り込まない', same(of(s3, 'metric'), ['FCF 1,200', 'EPS 3.2']), JSON.stringify(s3))
+
+  const s4 = caseOf('カンマ後に数字が3つ未満', 'PER 10,5倍で')
+  check('カンマの後ろが3桁でなければ整数 10 まで（10,5 を1つの数にしない）', same(of(s4, 'metric'), ['PER 10']), JSON.stringify(s4))
+}
+
+console.log('S2: 語境界（指標名の直前に英字があれば当てない）')
+{
+  const s1 = caseOf('SUPER', 'SUPER 8 は指標ではない')
+  check('SUPER 8 → PER 8 に当てない', of(s1, 'metric').length === 0 && s1.length === 1 && s1[0].kind === 'plain', JSON.stringify(s1))
+
+  const s2 = caseOf('REPS', 'REPS 3.2 も指標ではない')
+  check('REPS 3.2 → EPS 3.2 に当てない', of(s2, 'metric').length === 0, JSON.stringify(s2))
+
+  const s3 = caseOf('境界あり', 'SUPER 8、PER 8、REPS 3.2、EPS 3.2')
+  check('前に英字が無い PER 8 / EPS 3.2 だけ札', same(of(s3, 'metric'), ['PER 8', 'EPS 3.2']), JSON.stringify(of(s3, 'metric')))
+
+  const s4 = caseOf('信号語の境界', 'XRSI47 と RSI47 と MACD強気')
+  check('英字直後の RSI47 に当てず、独立した RSI47 / MACD強気 は signal', same(of(s4, 'signal'), ['RSI47', 'MACD強気']), JSON.stringify(s4))
+
+  const s5 = caseOf('日本語直後は境界扱い', '割安でPER17.4x、ROE48.7%')
+  check('日本語の直後の PER は札になる', same(of(s5, 'metric'), ['PER17.4x', 'ROE48.7%']), JSON.stringify(of(s5, 'metric')))
+}
+
 console.log('連結一致（全ケース・1文字も変えない）')
 {
   for (const c of CASES) {

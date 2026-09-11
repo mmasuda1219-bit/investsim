@@ -7,7 +7,7 @@ import type { ClosedTrade } from '@/lib/ai-trader/memory'
 import { normalizeLearningMemory } from '@/lib/ai-trader/memory'
 import type { InvestorId, HistoricalBar } from '@/types'
 import type { TradeMarker } from '@/components/AITradeChart'
-import TradeLog, { pairRoundTrips } from '@/components/watch/TradeLog'
+import TradeLog, { pairRoundTrips, fmtPrice, fmtMoneySigned, isJPSymbol } from '@/components/watch/TradeLog'
 import { MasterSignals } from '@/components/MasterSignals'
 import { MarketOverview } from '@/components/MarketOverview'
 import TickSummary from '@/components/watch/TickSummary'
@@ -29,6 +29,12 @@ const pnlCls = (v: number) => v > 0 ? 'text-emerald-700' : v < 0 ? 'text-red-700
 const fmtUSD = (n: number, dec = 2) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`
 const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
+// 売買の合計額。単価は TradeLog の fmtPrice と同じ規則（`.T` は円・整数）で、
+// 合計は整数で出す。同じページで通貨表記を揃えるため（COMPANY.md 原則10）。
+const fmtTradeTotal = (symbol: string, n: number) =>
+  isJPSymbol(symbol)
+    ? `¥${Math.round(n).toLocaleString('en-US')}`
+    : `${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 
 function ago(iso: string) {
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
@@ -221,7 +227,7 @@ export function AISessionClient() {
   // 銘柄ごとの取引チャート／往復表の状態。
   // chartSymbol の既定は「保有中の先頭、無ければ取引のあった先頭」（下の effect で決める）。
   const [chartSymbol, setChartSymbol] = useState('')
-  const [chartData, setChartData] = useState<{ symbol: string; history: HistoricalBar[]; trades: TradeMarker[] } | null>(null)
+  const [chartData, setChartData] = useState<{ symbol: string; history: HistoricalBar[]; trades: TradeMarker[]; outOfRangeTrades: number } | null>(null)
   const [chartLoading, setChartLoading] = useState(false)
   const [chartError, setChartError] = useState<string | null>(null)
 
@@ -384,9 +390,10 @@ export function AISessionClient() {
 
   // 銘柄ごとの価格履歴＋売買マーカーを既存API（/chart/[symbol]）から取る。
   // 同時にマウントするチャートは1つ。再取得中は前の描画を薄く残す（スケルトンで
-  // ちらつかせない）。取引が増えたとき（trades.length の変化）だけ取り直す。
+  // ちらつかせない）。tick が進んだとき（lastTickAt の変化）に取り直す。
+  // trades.length を鍵にすると、記録が200件で切られた後は変化しなくなる。
   const sessionId  = session?.id
-  const tradeCount = session?.trades?.length ?? 0
+  const lastTickKey = session?.lastTickAt ?? ''
   useEffect(() => {
     if (!sessionId || !chartSymbol) return
     let cancelled = false
@@ -396,13 +403,20 @@ export function AISessionClient() {
       .then(async r => {
         const d = await r.json()
         if (!r.ok || d.error) throw new Error(d.error ?? `HTTP ${r.status}`)
-        return d as { history: HistoricalBar[]; trades: TradeMarker[] }
+        return d as { history: HistoricalBar[]; trades: TradeMarker[]; outOfRangeTrades?: number }
       })
-      .then(d => { if (!cancelled) setChartData({ symbol: chartSymbol, history: d.history ?? [], trades: d.trades ?? [] }) })
+      .then(d => {
+        if (!cancelled) setChartData({
+          symbol: chartSymbol,
+          history: d.history ?? [],
+          trades: d.trades ?? [],
+          outOfRangeTrades: d.outOfRangeTrades ?? 0,
+        })
+      })
       .catch(e => { if (!cancelled) setChartError(e instanceof Error ? e.message : '価格データの取得に失敗しました') })
       .finally(() => { if (!cancelled) setChartLoading(false) })
     return () => { cancelled = true }
-  }, [sessionId, chartSymbol, tradeCount])
+  }, [sessionId, chartSymbol, lastTickKey])
 
   // Loading
   if (restoring) return (
@@ -480,9 +494,11 @@ export function AISessionClient() {
   const lastClose  = chartReady && chartData.history.length > 0
     ? chartData.history[chartData.history.length - 1].close
     : undefined
-  const roundTripCount = chartSymbol
-    ? pairRoundTrips(trades, chartSymbol, chartHolding, lastClose).length
-    : 0
+  // 往復は1回だけ計算し、件数と表の両方に使う。「今日」はここで1度だけ取る。
+  const roundTrips = chartSymbol
+    ? pairRoundTrips(trades, chartSymbol, chartHolding, lastClose, new Date())
+    : []
+  const roundTripCount = roundTrips.length
 
   return (
     <div className="min-h-screen bg-background text-ink">
@@ -639,8 +655,9 @@ export function AISessionClient() {
                         <span className="text-sm text-muted tabular-nums">{pos.shares.toFixed(2)}株</span>
                       </div>
                       <div className="flex justify-between text-sm mt-0.5 tabular-nums">
-                        <span className="text-muted">avg {fmtUSD(pos.avgCost)}</span>
-                        <span className="text-ink-2">{fmtUSD(pos.shares * pos.avgCost, 0)}</span>
+                        {/* W7: 銘柄ごとの金額は銘柄の通貨で（.T は円）。総資産・現金は engine が USD で持つのでそのまま */}
+                        <span className="text-muted">avg {fmtPrice(sym, pos.avgCost)}</span>
+                        <span className="text-ink-2">{fmtPrice(sym, pos.shares * pos.avgCost)}</span>
                       </div>
                     </button>
                   )
@@ -824,20 +841,33 @@ export function AISessionClient() {
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-3">
                   <span className="font-mono font-semibold text-ink">{chartSymbol}</span>
                   {chartName && <span className="text-sm text-ink-2">{chartName}</span>}
-                  <span className="text-xs text-muted ml-auto">直近3か月・日足</span>
+                  <span className="text-xs text-muted ml-auto">直近6か月・日足</span>
                 </div>
                 {chartError && !chartReady ? (
                   <div className="h-[380px] flex items-center justify-center text-sm text-muted border border-border rounded-lg px-4 text-center">
                     価格データを取得できませんでした（{chartError}）
                   </div>
                 ) : chartData ? (
-                  <div className={chartLoading ? 'opacity-50 transition-opacity' : 'transition-opacity'}>
-                    <AITradeChart
-                      data={chartData.history}
-                      trades={chartData.trades}
-                      symbol={chartData.symbol}
-                      height={380}
-                    />
+                  <div className="relative">
+                    {/* 再取得に失敗しても前回の描画は残す。ただし「最新」に見せない */}
+                    {chartError && chartReady && (
+                      <div className="absolute top-2 left-2 z-10 text-xs text-ink-2 bg-panel/90 border border-border rounded px-2 py-1">
+                        最新の取得に失敗しました。前回の表示です
+                      </div>
+                    )}
+                    <div className={chartLoading ? 'opacity-50 transition-opacity' : 'transition-opacity'}>
+                      <AITradeChart
+                        data={chartData.history}
+                        trades={chartData.trades}
+                        symbol={chartData.symbol}
+                        height={380}
+                      />
+                    </div>
+                    {chartReady && chartData.outOfRangeTrades > 0 && (
+                      <p className="mt-2 text-xs text-muted">
+                        表示期間より前の取引 {chartData.outOfRangeTrades} 件はチャートに描いていません（下の往復表には載っています）
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="h-[380px] flex items-center justify-center text-sm text-muted bg-panel rounded-lg">
@@ -852,12 +882,7 @@ export function AISessionClient() {
                   <span className="text-sm text-muted tabular-nums">{roundTripCount}件</span>
                   <span className="text-xs text-muted ml-auto">買い→売りの1対＝1行。未決済も1行として出す</span>
                 </div>
-                <TradeLog
-                  symbol={chartSymbol}
-                  trades={trades}
-                  holding={chartHolding}
-                  currentPrice={lastClose}
-                />
+                <TradeLog symbol={chartSymbol} rows={roundTrips} />
               </div>
             </>
           )}
@@ -973,8 +998,8 @@ export function AISessionClient() {
                               </span>
                             </td>
                             <td className="py-2.5 pr-4 text-right tabular-nums font-mono text-ink-2">{t.shares.toFixed(3)}</td>
-                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono">{fmtUSD(t.price)}</td>
-                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono font-semibold">{fmtUSD(t.total, 0)}</td>
+                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono">{fmtPrice(t.symbol, t.price)}</td>
+                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono font-semibold">{fmtTradeTotal(t.symbol, t.total)}</td>
                             <td className="py-2.5 text-ink-2 max-w-xs">
                               <div className="truncate">{t.reason}</div>
                               {t.technicals && <div className="text-muted truncate text-sm">{t.technicals}</div>}
@@ -1055,7 +1080,7 @@ export function AISessionClient() {
                                   {t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(2)}%
                                 </span>
                                 <span className={`tabular-nums ${pnlCls(t.pnl)}`}>
-                                  ({t.pnl >= 0 ? '+' : ''}{fmtUSD(t.pnl, 0)})
+                                  ({/* W7: 同じページの往復表と通貨を揃える（.T は円） */fmtMoneySigned(t.symbol, t.pnl)})
                                 </span>
                                 <span className="text-muted tabular-nums">保有{t.holdingHours}h</span>
                               </div>
