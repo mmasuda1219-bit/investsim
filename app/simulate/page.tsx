@@ -198,7 +198,7 @@ export default function SimulatePage() {
           disabled={loading}
           style={loading ? undefined : { backgroundColor: selectedInvestor.color }}
           className={`px-6 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-            loading ? 'bg-surface text-muted cursor-not-allowed' : 'text-on-accent hover:opacity-80'
+            loading ? 'bg-surface text-muted cursor-not-allowed' : 'text-ink hover:opacity-80'
           }`}
         >
           {loading ? `シミュレーション中... (${elapsed}秒)` : '1ヶ月シミュレーション実行'}

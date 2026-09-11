@@ -1,93 +1,160 @@
 @import "tailwindcss";
 
-/* ── Design tokens — ライト基調 ────────────────────────────────────────
-   2026-09-07 に暗色基調から転換した。動機は「入門者向けサイトなのに
-   トレーディング端末（＝玄人の世界）に見える」というオーナー指摘。
-   ベースはオーナーのLPデザインの暖色オフホワイト。
+/* ── Design tokens ─────────────────────────────────────────────────────
+   正は `DESIGN.md` §5（デザイントークン）。値・用途・コントラスト比の根拠は
+   そちらに書いてあり、このファイルはそれを Tailwind v4 に載せるだけ。
+   値を変えるときは DESIGN.md §5 を先に直し、ここを追随させる。
 
-   ■ 明るい背景では暗色時代の常識が逆転する
-     暗色UIでは「明るい色ほど読める」が、明るい背景では「濃い色ほど読める」。
-     そのためLPのオレンジ #E8734A とミント #6FCF9B は、そのままでは
-     文字色として使えない（実測でAA未満）。下記の通り役割を分けた。
+   ■ 2層構造（DESIGN.md §5「実装の置き場所」）
+     1. `:root`          … 生の値を1か所だけ置く（例 --brand: #1A4787）
+     2. `@theme inline`  … クラスにする登録（例 --color-brand: var(--brand)
+                            → bg-brand / text-brand / hover:bg-brand-strong）
+     以前は `@layer utilities` に .bg-surface 等を手書きしていたが、Tailwind v4 は
+     手書きクラスに hover: / disabled: などの状態付きを生成しない。
+     実測: 修正前のビルド CSS に状態付き自作クラスは 0 件（ソースには 28 ファイル
+     61 か所の hover:text-ink 等があり、すべて無効だった）。
+     `@theme inline` に登録すると Tailwind が状態付きも含めて生成する。
 
-   ■ 面（surface）の意味を定義し直す
-     暗色時代は bg < panel < surface の順に「明るいほど手前」だった。
-     ライトでは「白いほど手前（紙）」になるので、意味ごと再定義する。
-       --bg      ページの地。わずかに暖色に振ったオフホワイト
-       --card    手前に浮いた紙。カード/セクションの面（＝白）
-       --panel   カード/セクションの面。--card と同じ紙（別名として維持）
-       --surface --card より一段くぼんだ面。入力欄・カード内の行/入れ子ブロック
-     暗色時代は surface が panel より明るかったが、ライトでは逆に
-     surface のほうが暗い。これは「明度の反転」ではなく
-     「くぼみ＝影が落ちる＝暗い」という物理に合わせた再定義である。
+   ■ 旧名（--accent 系・--panel）について
+     2026-09-11 にブランド色をオレンジから紺青へ、グレーを暖色から青みへ転換した。
+     .tsx 側には bg-accent / text-on-accent / bg-panel / var(--panel) などの旧名が
+     多数残っているため、旧名は新トークンへの「別名」として当面残す。
+     新規コードは新名（brand / card）を使うこと。別名の撤去は別スライス。
+       --panel         → --card
+       --accent        → --brand
+       --accent-strong → --brand-strong
+       --accent-ink    → --brand   （旧: オレンジは文字色に使えず別色だった。
+                                     紺青は文字にも塗りにも使えるので同じ値）
+       --on-accent     → --on-brand（旧: 濃色文字 → 新: 白文字）
 
-   ■ コントラスト比（WCAG 2.1 相対輝度式で全数実測。目分量で決めていない）
-     文字は AA本文 4.5:1 以上、枠線は 1.3:1 以上を要件とする。
-     3つの面すべてで満たすことを確認した（最悪値は常に --surface 上）。
-
-       token          hex       on --card  on --bg   on --surface
-       --ink          #1A1A18     17.43      16.54      15.70   ✅
-       --ink-2        #44413B     10.17       9.65       9.16   ✅
-       --muted        #6B6862      5.55       5.27       5.00   ✅
-       --accent-ink   #B8491B      5.24       4.97       4.72   ✅
-       --success      #177A4F      5.34       5.07       4.81   ✅
-       --danger       #C03535      5.52       5.24       4.97   ✅
-       --border       #D6D0C3      1.54       1.46       1.38   ✅ (>=1.3)
-
-     枠線の採用根拠: 当初案 #E5E1D8 は --bg 上で 1.24、--surface 上で 1.18 と
-     要件 1.3 に届かず不採用。#D9D4C8 は最悪値 1.33 で通るが余裕が 2% しかない。
-     #D6D0C3 は最悪値 1.38（要件比 +6%）で、かつ暖色オフホワイトの中で
-     まだ「硬い線」に見えない最小の濃さだったため採用。
-
-   ■ アクセントは「塗り」と「文字」で色を分ける（重要）
-       --accent      #E8734A  塗り専用。文字色に使うと --card 上で 2.85 ❌
-       --accent-ink  #B8491B  オレンジを文字として使うときはこちら ✅
-
-     --accent を背景に敷いた場合、その上に載せる文字の実測値:
-       白      #FFFFFF on #E8734A = 3.01  ❌ AA未満。使わない
-       --ink   #1A1A18 on #E8734A = 5.80  ✅ 採用（.bg-accent には濃色を載せる）
-     --accent-strong (#DC6238) はホバー時の濃い塗り。
-       --ink #1A1A18 on #DC6238 = 4.85 ✅（ホバーで文字が読めなくならない）
-
-   ■ 塗りボタンの上の文字（実測）
-       白 on --success #177A4F = 5.34 ✅
-       白 on --danger  #C03535 = 5.52 ✅
-       白 on blue-600  #155DFC = 5.25 ✅
-     （参考: 白 on emerald-600 #009966 = 3.65 ❌ なので緑の塗りは --success に寄せた）
-
-   ■ 差し替え前（暗色）からの対応
-       --ink    #FFFFFF → #1A1A18
-       --success #6FCF9B → #177A4F  （旧値は --card 上で 1.80 ❌）
-       --accent は値を据え置き、役割を「塗り専用」に限定して --accent-ink を新設
+   ■ コントラスト比（WCAG 2.1 相対輝度式。2026-09-11 builder 実測）
+     要件: 文字 4.5:1 以上／部品の輪郭 3:1 以上／区切り線 1.3:1 以上
+       --ink        on card 18.00 / bg 16.92 / surface 15.87
+       --ink-2      on surface 8.43
+       --muted      on card 5.73 / surface 5.05 / brand-tint 4.91
+       white        on --brand 9.15 / --brand-strong 11.29
+       --brand      on card 9.15 / --brand-tint 7.84
+       --focus      on card 5.80
+       --success    on card 5.34 / --success-tint 4.77
+       --danger     on card 5.52 / --danger-tint 4.82
+       --warning-ink on --warning-tint 5.75
+       --border     on card 1.62 / surface 1.43 / brand-tint 1.39
+       --border-input on card 3.59 / surface 3.16
    ──────────────────────────────────────────────────────────────────── */
 :root {
-  --bg:            #FAF9F5;   /* ページの地。暖色オフホワイト */
-  --card:          #FFFFFF;   /* 手前に浮いた紙＝カードの面 */
-  --panel:         #FFFFFF;   /* カード/セクションの面（--card と同じ紙） */
-  --surface:       #F5F3EC;   /* 一段くぼんだ面。入力欄・カード内の行 */
-  --border:        #D6D0C3;   /* 全ての面に対して 1.38〜1.54:1 */
+  /* 面（背景） */
+  --bg:            #F6F8FB;   /* ページの地。わずかに青みのオフホワイト */
+  --card:          #FFFFFF;   /* 手前の紙。カード・入力画面の面 */
+  --surface:       #EDF1F6;   /* 一段くぼんだ面。カードの中の行・入れ子のブロック */
+  --brand-tint:    #E8EEF7;   /* 「いまいる場所」「選択中」の薄い下地 */
 
-  --ink:           #1A1A18;   /* 本文の主色・見出し */
-  --ink-2:         #44413B;   /* 説明文（ink と muted の中間） */
-  --muted:         #6B6862;   /* 補足・メタ */
+  /* 文字 */
+  --ink:           #0D1725;   /* 本文・見出し・金額（ロゴの文字と同じ色） */
+  --ink-2:         #3A4658;   /* 説明文 */
+  --muted:         #5B677A;   /* 補足・ラベル・注記 */
 
-  --accent:        #E8734A;   /* 塗り専用（ボタン背景・バッジ背景） */
-  --accent-strong: #DC6238;   /* 塗りのホバー。濃色文字を載せる前提 */
-  --accent-ink:    #B8491B;   /* オレンジを「文字色」に使うとき */
-  --on-accent:     #1A1A18;   /* --accent / --accent-strong の上に載せる文字 */
-  --success:       #177A4F;   /* 成功・プラス */
-  --danger:        #C03535;   /* 失敗・マイナス */
+  /* ブランド（紺青）。塗りは主ボタンだけ。文字・線は現在地・選択中・リンク */
+  --brand:         #1A4787;
+  --brand-strong:  #143A6E;   /* 主ボタンのホバー・押下 */
+  --on-brand:      #FFFFFF;   /* 紺青の塗りの上の文字 */
+  --focus:         #2566B2;   /* キーボード操作時の枠（ロゴの「i の点」の色） */
 
-  /* モーダルの下敷き。明るいUIでも「後ろを暗くして手前を立てる」のは正しいので
-     暗幕自体は残す。ただし bg-black/50 は明るい地に対して重すぎたため、
-     地の色（--ink）を薄く敷く形に変え、濃さも 32% まで下げた。 */
-  --scrim:         rgb(26 26 24 / 0.32);
+  /* 意味の色。緑/赤は損益・誤り・元に戻せない操作にだけ使う */
+  --success:       #177A4F;
+  --success-tint:  #E9F5EF;
+  --danger:        #C03535;
+  --danger-tint:   #FBECEC;
+  --warning-ink:   #8A5300;   /* 注意（データが古い・取得できなかった等） */
+  --warning-tint:  #FDF3E1;
+
+  /* 線 */
+  --border:        #C3CCD8;   /* カードの輪郭・行の区切り */
+  --border-input:  #7C889B;   /* 入力欄・副ボタンの輪郭 */
+
+  /* モーダルの下敷き。地の色（--ink）を 32% で敷く */
+  --scrim:         rgb(13 23 37 / 0.32);
+  /* 浮いているものの影（--shadow-float）は @theme inline 側に生値で置く。
+     ここに同名で置くと @theme 側が自己参照になるため。 */
+
+  /* 旧名の別名（撤去は別スライス。上のコメント参照） */
+  --panel:         var(--card);
+  --accent:        var(--brand);
+  --accent-strong: var(--brand-strong);
+  --accent-ink:    var(--brand);
+  --on-accent:     var(--on-brand);
 
   /* 日本語フォント。実体は @fontsource-variable/noto-sans-jp（セルフホスト）。
      読み込みは app/layout.tsx の import 側で行う。 */
   --font-jp: 'Noto Sans JP Variable';
 
   color-scheme: light;   /* iOSのフォーム部品をライトで描画させる */
+}
+
+/* ── Tailwind への登録 ──────────────────────────────────────────────────
+   `inline` を付けると生成されるクラスが var(--color-brand) ではなく
+   var(--brand) を直接参照する（:root で定義した値をそのまま使う）。
+   既定の名前（--radius-sm/md, --text-sm 等）を上書きしない名前だけ使う。 */
+@theme inline {
+  /* 色 → bg-* / text-* / border-* / ring-* など */
+  --color-background:   var(--bg);
+  --color-card:         var(--card);
+  --color-surface:      var(--surface);
+  --color-panel:        var(--panel);
+  --color-border:       var(--border);
+  --color-border-input: var(--border-input);
+  --color-muted:        var(--muted);
+  --color-ink:          var(--ink);
+  --color-ink-2:        var(--ink-2);
+  --color-brand:        var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-tint:   var(--brand-tint);
+  --color-on-brand:     var(--on-brand);
+  --color-focus:        var(--focus);
+  --color-accent:        var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink:    var(--accent-ink);
+  --color-on-accent:     var(--on-accent);
+  --color-success:      var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-danger:       var(--danger);
+  --color-danger-tint:  var(--danger-tint);
+  --color-warning-ink:  var(--warning-ink);
+  --color-warning-tint: var(--warning-tint);
+  --color-scrim:        var(--scrim);
+
+  /* 角丸 → rounded-field / rounded-card（DESIGN.md §5-4） */
+  --radius-field: 6px;
+  --radius-card:  12px;
+
+  /* 影 → shadow-float（DESIGN.md §5-5）。浮いているもの（シート・トースト・メニュー）用。
+     生値をここに置く（:root と同名にすると自己参照になるため）。 */
+  --shadow-float: 0 8px 24px rgb(13 23 37 / 0.12);
+
+  /* 文字サイズ → text-display … text-caption（DESIGN.md §5-2 の8段階） */
+  --text-display:               40px;
+  --text-display--line-height:  1.2;
+  --text-display--font-weight:  600;
+  --text-amount:                32px;
+  --text-amount--line-height:   1.2;
+  --text-amount--font-weight:   600;
+  --text-h1:                    24px;
+  --text-h1--line-height:       1.4;
+  --text-h1--font-weight:       600;
+  --text-h2:                    20px;
+  --text-h2--line-height:       1.4;
+  --text-h2--font-weight:       600;
+  --text-h3:                    18px;
+  --text-h3--line-height:       1.5;
+  --text-h3--font-weight:       600;
+  --text-body:                  16px;
+  --text-body--line-height:     1.8;
+  --text-body--font-weight:     400;
+  --text-small:                 14px;
+  --text-small--line-height:    1.7;
+  --text-small--font-weight:    400;
+  --text-caption:               12px;
+  --text-caption--line-height:  1.6;
+  --text-caption--font-weight:  400;
 }
 
 body {
@@ -102,33 +169,10 @@ body {
   line-height: 1.7;
 }
 
-/* ── Utility aliases (Tailwind v4 custom utilities) ────────────── */
+/* ── 暫定: 主ボタンのホバー ──────────────────────────────────────────
+   旧 globals.css にあった .bg-accent:hover の濃色化を、旧名を使う 16 か所の
+   ボタンが hover を失わないよう一時的に残す。切り分け2以降で各ボタンを
+   `bg-brand hover:bg-brand-strong` に置き換えたら、このブロックごと撤去する。 */
 @layer utilities {
-  .bg-background   { background-color: var(--bg); }
-  .bg-card         { background-color: var(--card); }
-  .bg-surface      { background-color: var(--surface); }
-  .bg-panel        { background-color: var(--panel); }
-  .border-border   { border-color: var(--border); }
-  .text-muted      { color: var(--muted); }
-
-  .text-ink        { color: var(--ink); }
-  .text-ink-2      { color: var(--ink-2); }
-
-  /* オレンジは文字なら --accent-ink、塗りなら --accent。混ぜない。 */
-  .text-accent     { color: var(--accent-ink); }
-  .bg-accent       { background-color: var(--accent); }
   .bg-accent:hover { background-color: var(--accent-strong); }
-  .border-accent   { border-color: var(--accent); }
-  /* .bg-accent の上に載せる文字色。白は 3.01 で不可なので濃色を使う。 */
-  .text-on-accent  { color: var(--on-accent); }
-
-  .text-success    { color: var(--success); }
-  .bg-success      { background-color: var(--success); }
-  .border-success  { border-color: var(--success); }
-
-  .text-danger     { color: var(--danger); }
-  .bg-danger       { background-color: var(--danger); }
-  .border-danger   { border-color: var(--danger); }
-
-  .bg-scrim        { background-color: var(--scrim); }
 }
