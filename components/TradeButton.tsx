@@ -14,19 +14,19 @@ export function TradeButton({ symbol, name, price }: TradeButtonProps) {
 
   return (
     <>
+      {/* 買う/売るは同じ重さの副ボタン（DESIGN.md §6-1）。緑/赤で塗らない＝どちらにも
+          誘導しない（DECISIONS 2026-09-10）。方向は記号 ▲/▼ と文字で伝える。 */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => setModalAction('buy')}
-          className="px-4 py-2 rounded-lg bg-success hover:bg-emerald-100 text-ink text-sm font-semibold transition-colors"
-        >
-          購入
-        </button>
-        <button
-          onClick={() => setModalAction('sell')}
-          className="px-4 py-2 rounded-lg bg-danger hover:bg-red-100 text-ink text-sm font-semibold transition-colors"
-        >
-          売却
-        </button>
+        {(['buy', 'sell'] as const).map(a => (
+          <button
+            key={a}
+            type="button"
+            onClick={() => setModalAction(a)}
+            className="h-12 px-4 rounded-card bg-card text-ink border border-border-input hover:bg-surface text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+          >
+            {a === 'buy' ? '▲ 買う' : '▼ 売る'}
+          </button>
+        ))}
       </div>
 
       {modalAction && (

@@ -134,12 +134,14 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-scrim flex items-center justify-center z-50"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
     >
-      <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-sm mx-4 shadow-2xl">
+      {/* 暗い配色時代の紺色（#1e293b / #334155 / #0f172a）は白地のサイトで浮いていたため、
+          面・線をトークン（card / surface / border）に揃える。 */}
+      <div className="bg-card border border-border rounded-2xl w-full max-w-sm mx-4 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#334155]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
             <h2 className="text-ink font-bold text-lg">
               {symbol} を{action === 'buy' ? '購入' : '売却'}
@@ -161,32 +163,29 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
           {signedIn === false && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-relaxed text-amber-700 flex items-center justify-between gap-2 flex-wrap">
               <span>記録を残すにはログインが必要です</span>
-              <LoginLink className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-accent text-on-accent font-medium transition-colors" />
+              <LoginLink className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-brand text-on-brand hover:bg-brand-strong font-medium transition-colors" />
             </div>
           )}
 
-          {/* Action tabs */}
+          {/* 買う/売る: /trade と同じ規律。同じ重さの副ボタン、選択中は --brand-tint ＋ --brand の輪郭 2px
+              ＋「選択中」。緑/赤で塗らない（DESIGN.md §6-1・DECISIONS 2026-09-10）。 */}
           <div className="flex gap-2">
-            <button
-              onClick={() => { setAction('buy'); setError('') }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                action === 'buy'
-                  ? 'bg-success text-ink'
-                  : 'bg-[#0f172a] text-ink-2 hover:text-ink'
-              }`}
-            >
-              購入
-            </button>
-            <button
-              onClick={() => { setAction('sell'); setError('') }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                action === 'sell'
-                  ? 'bg-danger text-ink'
-                  : 'bg-[#0f172a] text-ink-2 hover:text-ink'
-              }`}
-            >
-              売却
-            </button>
+            {(['buy', 'sell'] as const).map(a => (
+              <button
+                key={a}
+                type="button"
+                aria-pressed={action === a}
+                onClick={() => { setAction(a); setError('') }}
+                className={`flex-1 h-12 rounded-card inline-flex items-center justify-center gap-2 text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2 ${
+                  action === a
+                    ? 'bg-brand-tint text-brand border border-brand ring-1 ring-inset ring-brand'
+                    : 'bg-card text-ink border border-border-input hover:bg-surface'
+                }`}
+              >
+                <span>{a === 'buy' ? '▲ 買う' : '▼ 売る'}</span>
+                {action === a && <span className="text-caption font-normal">選択中</span>}
+              </button>
+            ))}
           </div>
 
           {/* Shares input */}
@@ -203,7 +202,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
                   setShares(v > 0 ? v : 1)
                   setError('')
                 }}
-                className="flex-1 bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-ink text-sm focus:outline-none focus:border-blue-200"
+                className="flex-1 bg-card border border-border-input rounded-lg px-3 py-2 text-ink text-sm focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
               />
               <span className="text-ink-2 text-sm">株</span>
             </div>
@@ -227,7 +226,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
           </div>
 
           {/* Summary */}
-          <div className="bg-[#0f172a] rounded-lg px-4 py-3 space-y-1.5 text-sm">
+          <div className="bg-surface rounded-lg px-4 py-3 space-y-1.5 text-sm">
             <div className="flex justify-between">
               <span className="text-ink-2">合計</span>
               <span className="text-ink font-medium">{formatCurrency(total)}</span>
@@ -244,7 +243,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
             )}
             {/* 残高は «自分の記録» なので、ログインして取得できたときだけ出す。
                 未ログインで 0 と表示すると、残高ゼロだと誤解させる。 */}
-            <div className="flex justify-between pt-1 border-t border-[#334155]">
+            <div className="flex justify-between pt-1 border-t border-border">
               <span className="text-ink-2">残高</span>
               {portfolio ? (
                 <span className="text-ink">
@@ -272,17 +271,15 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
             </p>
           )}
 
-          {/* Execute button */}
+          {/* Execute button — 確定は主ボタン1つ（--brand の塗り）。買い/売りで色を変えない。 */}
           {!success && (
             <button
+              type="button"
               onClick={handleExecute}
-              className={`w-full py-3 rounded-lg font-semibold text-sm transition-colors ${
-                action === 'buy'
-                  ? 'bg-success hover:bg-emerald-100 text-ink'
-                  : 'bg-danger hover:bg-red-100 text-ink'
-              }`}
+              disabled={submitting}
+              className="w-full h-12 rounded-card font-bold text-base transition-colors bg-brand text-on-brand enabled:hover:bg-brand-strong disabled:bg-surface disabled:text-muted focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
             >
-              実行
+              {action === 'buy' ? '買いを記録する' : '売りを記録する'}
             </button>
           )}
         </div>

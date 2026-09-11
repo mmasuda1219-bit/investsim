@@ -55,7 +55,7 @@ export default function ReadingText({ text, label, emptyNote = '記録があり�
           </p>
           {terms.length > 0 && (
             <details className="group mt-2">
-              <summary className="inline-flex items-center gap-1 text-sm text-accent-ink cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+              <summary className="inline-flex items-center gap-1 text-sm text-brand cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
                 <span aria-hidden className="transition-transform group-open:rotate-90">▸</span>
                 この文に出てきた用語（{terms.length}）
               </summary>

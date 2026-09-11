@@ -201,7 +201,7 @@ function TradePageBody() {
       {signedIn === false && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-center justify-between gap-3 flex-wrap">
           <span>売買の記録を残すにはログインが必要です。読むだけならログインは要りません。</span>
-          <LoginLink className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg bg-accent text-on-accent text-sm font-medium transition-colors" />
+          <LoginLink className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg bg-brand text-on-brand hover:bg-brand-strong text-sm font-medium transition-colors" />
         </div>
       )}
 
@@ -215,7 +215,7 @@ function TradePageBody() {
               type="button"
               onClick={() => { setSymbol(s); setResult(null) }}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                symbol === s ? 'bg-accent text-on-accent' : 'bg-panel text-ink-2 hover:text-ink'
+                symbol === s ? 'bg-brand text-on-brand hover:bg-brand-strong' : 'bg-panel text-ink-2 hover:text-ink'
               }`}
             >
               {s}
@@ -238,7 +238,7 @@ function TradePageBody() {
             placeholder="銘柄名かティッカーで検索（例: Ford, BRK-B, 半導体銘柄のティッカー）"
             aria-label="銘柄を検索"
             autoComplete="off"
-            className="w-full min-w-0 px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink placeholder:text-muted focus:border-emerald-200 focus:outline-none"
+            className="w-full min-w-0 px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
           />
 
           {input.trim() && (
@@ -304,8 +304,11 @@ function TradePageBody() {
             <span className="text-lg font-bold text-ink">{quote.symbol}</span>
             <span className="text-sm text-muted truncate">{quote.name}</span>
             <span className="text-2xl font-bold text-ink tabular-nums">{usd(quote.price)}</span>
-            <span className={`text-sm font-semibold tabular-nums ${quote.change >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-              {quote.change >= 0 ? '+' : ''}{quote.changePercent.toFixed(2)}%
+            {/* 騰落は損益なので緑/赤（DESIGN.md §6-4）。正＝+／負＝−／ゼロ＝± を必ず付ける */}
+            <span className={`text-sm font-semibold tabular-nums ${
+              quote.change === 0 ? 'text-muted' : quote.change > 0 ? 'text-success' : 'text-danger'
+            }`}>
+              {quote.change === 0 ? '±' : quote.change > 0 ? '+' : '−'}{Math.abs(quote.changePercent).toFixed(2)}%
             </span>
             <span className="text-sm text-muted ml-auto tabular-nums">
               {quote.isMarketOpen ? '取引時間中' : '時間外'}・保有 {held}株
@@ -318,7 +321,10 @@ function TradePageBody() {
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
         <h2 className="text-xl font-semibold text-ink">あなたの判断</h2>
 
-        {/* 買いと売りで «問うこと» が違うので、先にどちらかを選ぶ */}
+        {/* 買いと売りで «問うこと» が違うので、先にどちらかを選ぶ。
+            2つは同じ重さの副ボタン（DESIGN.md §6-1）。緑/赤で塗らない＝買いにも売りにも
+            誘導しない（DECISIONS 2026-09-10）。選択中は --brand-tint の下地＋--brand の輪郭 2px
+            （1px の枠＋内側 1px のリング。枠の太さを変えないので高さがぶれない）＋文字「選択中」。 */}
         <div className="flex gap-2">
           {(['buy', 'sell'] as const).map(a => (
             <button
@@ -326,13 +332,14 @@ function TradePageBody() {
               type="button"
               aria-pressed={action === a}
               onClick={() => { setAction(a); setResult(null) }}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              className={`flex-1 h-12 rounded-card inline-flex items-center justify-center gap-2 text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2 ${
                 action === a
-                  ? (a === 'buy' ? 'bg-success text-ink' : 'bg-danger text-ink')
-                  : 'bg-panel text-ink-2 hover:text-ink'
+                  ? 'bg-brand-tint text-brand border border-brand ring-1 ring-inset ring-brand'
+                  : 'bg-card text-ink border border-border-input hover:bg-surface'
               }`}
             >
-              {a === 'buy' ? '買う' : '売る'}
+              <span>{a === 'buy' ? '▲ 買う' : '▼ 売る'}</span>
+              {action === a && <span className="text-caption font-normal">選択中</span>}
             </button>
           ))}
         </div>
@@ -345,7 +352,7 @@ function TradePageBody() {
             min={1}
             value={shares}
             onChange={e => setShares(e.target.value)}
-            className="w-32 px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums focus:border-emerald-200 focus:outline-none"
+            className="w-32 px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
           />
           {quote && validShares && (
             <p className="text-sm text-muted tabular-nums">概算 {usd(sharesNum * quote.price)}</p>
@@ -365,15 +372,13 @@ function TradePageBody() {
           idPrefix={`trade-${action}`}
         />
 
+        {/* 記録の確定は主ボタン1つ（--brand の塗り）。買い/売りで色を変えない。
+            押せないときは --surface の面＋--muted の文字にし、理由は下の文で示す。 */}
         <button
           type="button"
           disabled={!canTrade}
           onClick={submit}
-          className={`w-full py-2.5 rounded-lg text-sm font-bold transition-colors disabled:bg-surface disabled:text-muted disabled:border-transparent ${
-            action === 'buy'
-              ? 'bg-success hover:bg-emerald-100 text-ink'
-              : 'bg-danger hover:bg-red-100 text-ink'
-          }`}
+          className="w-full h-12 rounded-card text-base font-bold transition-colors bg-brand text-on-brand enabled:hover:bg-brand-strong disabled:bg-surface disabled:text-muted disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
         >
           {action === 'buy' ? '買いを記録する' : '売りを記録する'}
         </button>

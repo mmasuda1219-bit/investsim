@@ -32,14 +32,16 @@ interface SessionSummary {
   decisions: Decision[]
 }
 
+// 方向の札は無彩色＋記号（DESIGN.md §6-5）。買い＝緑・売り＝赤で運ばない（DECISIONS 2026-09-10）。
+// 以前の「保有継続」は --muted の面に --ink-2 の文字で約 1.8:1 と読めなかった。
 const ACTION_LABEL: Record<Decision['action'], string> = {
-  buy: '買い', sell: '売り', hold: '保有継続', watch: '様子見',
+  buy: '▲ 買い', sell: '▼ 売り', hold: '＝ 保有継続', watch: '◇ 様子見',
 }
 const ACTION_STYLE: Record<Decision['action'], string> = {
-  buy:   'bg-emerald-50 text-emerald-700 border-emerald-200',
-  sell:  'bg-rose-50 text-rose-700 border-rose-200',
-  hold:  'bg-[var(--muted)] text-ink-2 border-border',
-  watch: 'bg-amber-50 text-amber-700 border-amber-200',
+  buy:   'bg-surface text-ink border border-border',
+  sell:  'bg-surface text-ink border border-border',
+  hold:  'bg-surface text-ink border border-border',
+  watch: 'bg-surface text-ink border border-border',
 }
 
 function formatWhen(iso: string): string {
@@ -96,7 +98,7 @@ export default function Home() {
         <div className="flex flex-wrap gap-3 pt-1">
           <Link
             href="/watch"
-            className="px-5 py-2.5 rounded-lg bg-accent text-on-accent text-sm font-bold transition-colors"
+            className="px-5 py-2.5 rounded-lg bg-brand text-on-brand hover:bg-brand-strong text-sm font-bold transition-colors"
           >
             まずAIの判断を見てみる
           </Link>
@@ -167,7 +169,7 @@ export default function Home() {
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="font-bold text-ink text-sm">{d.symbol}</span>
                     <span className="text-sm text-muted truncate">{d.name}</span>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${ACTION_STYLE[d.action]}`}>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded ${ACTION_STYLE[d.action]}`}>
                       {ACTION_LABEL[d.action]}
                     </span>
                   </div>

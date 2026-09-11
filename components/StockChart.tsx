@@ -47,6 +47,14 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
 
     const t = (v: number) => v as unknown as Time
 
+    // ローソク足の上げ/下げは損益なので --success / --danger を使う（DESIGN.md §6-4）。
+    // lightweight-charts は canvas に描くため 'var(--success)' の文字列は解釈できない。
+    // :root の値を getComputedStyle で読み出して渡す（フォールバックは同じ値の直書き）。
+    const cssVar = (name: string, fallback: string) =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+    const upColor = cssVar('--success', '#177A4F')
+    const downColor = cssVar('--danger', '#C03535')
+
     // ── Main Chart ──────────────────────────────────────────────────
     const chart = createChart(containerRef.current, {
       ...baseOpts, crosshair: { mode: CrosshairMode.Normal },
@@ -54,9 +62,9 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
     })
 
     const candles = chart.addSeries(CandlestickSeries, {
-      upColor: '#22c55e', downColor: '#ef4444',
-      borderUpColor: '#22c55e', borderDownColor: '#ef4444',
-      wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+      upColor, downColor,
+      borderUpColor: upColor, borderDownColor: downColor,
+      wickUpColor: upColor, wickDownColor: downColor,
     })
     candles.setData(data.map(d => ({ time: t(d.time), open: d.open, high: d.high, low: d.low, close: d.close })))
 
@@ -91,6 +99,7 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
     chartRef.current = chart
 
     // ── RSI Chart ───────────────────────────────────────────────────
+    // 以下の RSI 70/30 線・MACD ヒストグラムの #22c55e/#ef4444 は chartTheme スライスで一括して差し替える（今回は触らない）
     if (indicators.rsi && rsiContainerRef.current) {
       const rsiChart = createChart(rsiContainerRef.current, {
         ...baseOpts, width: rsiContainerRef.current.clientWidth, height: 120,

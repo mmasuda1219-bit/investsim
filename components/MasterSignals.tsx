@@ -19,13 +19,14 @@ import { INVESTOR_META } from '@/lib/investors/registry'
 
 const PRESET_SYMBOLS = ['AAPL', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
 
+// 方向の札は無彩色＋記号（DESIGN.md §6-5）。買い＝緑・売り＝赤で運ばない（DECISIONS 2026-09-10）。
 const ACTION_LABEL: Record<Signal['action'], string> = {
-  buy: '買い', sell: '売り', hold: '様子見',
+  buy: '▲ 買い', sell: '▼ 売り', hold: '◇ 様子見',
 }
 const ACTION_STYLE: Record<Signal['action'], string> = {
-  buy:  'bg-emerald-50 text-emerald-700 border-emerald-200',
-  sell: 'bg-rose-50 text-rose-700 border-rose-200',
-  hold: 'bg-[var(--muted)] text-ink-2 border-border',
+  buy:  'bg-surface text-ink border-border',
+  sell: 'bg-surface text-ink border-border',
+  hold: 'bg-surface text-ink border-border',
 }
 
 export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: string }) {
@@ -60,7 +61,7 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
             onClick={() => setSymbol(s)}
             aria-pressed={symbol === s}
             className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-              symbol === s ? 'bg-accent text-on-accent' : 'bg-surface text-muted hover:text-ink'
+              symbol === s ? 'bg-brand text-on-brand hover:bg-brand-strong' : 'bg-surface text-muted hover:text-ink'
             }`}
           >
             {s}

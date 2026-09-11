@@ -155,7 +155,7 @@ function StartScreen({ onStart }: { onStart: (capital: number, persona?: Investo
           <button
             onClick={() => { setLoading(true); onStart(capital, persona) }}
             disabled={loading}
-            className="w-full bg-accent disabled:opacity-50 text-on-accent font-bold py-3 rounded-xl text-sm transition-colors"
+            className="w-full bg-brand text-on-brand hover:bg-brand-strong disabled:opacity-50 font-bold py-3 rounded-xl text-sm transition-colors"
           >
             {loading ? '分析開始中...' : '▶ 自動売買を開始する'}
           </button>
@@ -734,7 +734,7 @@ export function AISessionClient() {
             <button
               onClick={() => runTick()}
               disabled={ticking}
-              className="w-full bg-accent disabled:opacity-40 text-on-accent text-sm font-bold py-2 rounded-lg transition-colors"
+              className="w-full bg-brand text-on-brand hover:bg-brand-strong disabled:opacity-40 text-sm font-bold py-2 rounded-lg transition-colors"
             >
               {ticking ? '⟳ 分析中...' : '▶ 今すぐ Tick 実行'}
             </button>
@@ -989,11 +989,8 @@ export function AISessionClient() {
                               </button>
                             </td>
                             <td className="py-2.5 pr-4">
-                              <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                t.action === 'buy'
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : 'bg-red-50 text-red-700'
-                              }`}>
+                              {/* 方向の札は無彩色＋記号（DESIGN.md §6-5・DECISIONS 2026-09-10） */}
+                              <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface text-ink">
                                 {t.action === 'buy' ? '▲ 買い' : '▼ 売り'}
                               </span>
                             </td>

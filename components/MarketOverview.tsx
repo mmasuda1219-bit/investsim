@@ -31,11 +31,13 @@ interface MarketData {
   buffettIndicator: BuffettData
 }
 
+// 旧ネオン色（#35D0A5 等）は白地で 2:1 前後と読めなかった。意味の色トークンに置き換える。
+// yellow は「適正水準」なので注意色ではなく本文色。段階は隣の label の文字でも伝える。
 const BUFFETT_COLOR: Record<BuffettData['color'], string> = {
-  green:  '#35D0A5',
-  yellow: '#E0C458',
-  orange: '#E0A458',
-  red:    '#F2617A',
+  green:  'var(--success)',
+  yellow: 'var(--ink)',
+  orange: 'var(--warning-ink)',
+  red:    'var(--danger)',
 }
 
 export function MarketOverview() {
@@ -80,15 +82,19 @@ export function MarketOverview() {
         <span className="text-sm font-semibold text-ink-2 shrink-0">いまの相場</span>
 
         {data.indices.slice(0, 5).map(ix => {
-          const up = ix.changePercent >= 0
+          // 騰落は損益なので緑/赤（DESIGN.md §6-4）。正＝+／負＝−／ゼロ＝± を必ず付ける
+          const flat = ix.changePercent === 0
+          const up = ix.changePercent > 0
+          const color = flat ? 'text-muted' : up ? 'text-success' : 'text-danger'
+          const sign = flat ? '±' : up ? '+' : '−'
           return (
             <span key={ix.symbol} className="flex items-baseline gap-1.5 text-sm tabular-nums">
               <span className="text-muted">{ix.name}</span>
               <span className="text-ink tabular-nums font-medium">
                 {ix.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
               </span>
-              <span className={`tabular-nums font-semibold ${up ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {up ? '+' : ''}{ix.changePercent.toFixed(2)}%
+              <span className={`tabular-nums font-semibold ${color}`}>
+                {sign}{Math.abs(ix.changePercent).toFixed(2)}%
               </span>
             </span>
           )

@@ -8,16 +8,18 @@ interface Props {
   symbol: string
 }
 
+// 方向の札は無彩色＋記号（DESIGN.md §6-5）。買い＝緑・売り＝赤で運ばない（DECISIONS 2026-09-10）。
+// 以前の text-bull / text-bear は定義の無いクラス名で、色が付いていなかった。
 const ACTION_LABEL: Record<Signal['action'], string> = {
-  buy: '買い',
-  sell: '売り',
-  hold: '保有',
+  buy: '▲ 買い',
+  sell: '▼ 売り',
+  hold: '＝ 保有',
 }
 
 const ACTION_COLOR: Record<Signal['action'], string> = {
-  buy: 'text-bull bg-green-50 border-green-200',
-  sell: 'text-bear bg-red-50 border-red-200',
-  hold: 'text-yellow-700 bg-yellow-50 border-yellow-200',
+  buy: 'text-ink bg-surface border-border',
+  sell: 'text-ink bg-surface border-border',
+  hold: 'text-ink bg-surface border-border',
 }
 
 const STRENGTH_DOTS = (n: Signal['strength']) => Array.from({ length: 3 }, (_, i) => i < n)
@@ -90,7 +92,7 @@ export function InvestorPanel({ symbol }: Props) {
       )}
 
       {error && (
-        <div className="text-bear text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+        <div className="text-danger text-sm bg-danger-tint border border-border rounded-lg px-4 py-3">
           データ取得エラー: {error}
         </div>
       )}

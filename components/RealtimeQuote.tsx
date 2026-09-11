@@ -38,7 +38,12 @@ export function RealtimeQuote({ symbol, initialQuote }: Props) {
   const secondsAgo = Math.floor((Date.now() - lastUpdated.getTime()) / 1000)
   const timeLabel = secondsAgo < 60 ? `${secondsAgo}秒前` : `${Math.floor(secondsAgo / 60)}分前`
 
-  const isPositive = quote.change >= 0
+  // 騰落は損益なので緑/赤を使ってよい（DESIGN.md §6-4）。符号は必ず付ける。
+  // ▲/▼ は買い/売りの札に使う記号なので、ここでは +/− にする。
+  const isPositive = quote.change > 0
+  const isFlat = quote.change === 0
+  const changeColor = isFlat ? 'text-muted' : isPositive ? 'text-success' : 'text-danger'
+  const changeSign = isFlat ? '±' : isPositive ? '+' : '−'
   const currency = quote.currency === 'JPY' ? '¥' : '$'
 
   return (
@@ -46,8 +51,8 @@ export function RealtimeQuote({ symbol, initialQuote }: Props) {
       <div className="text-3xl font-bold text-ink font-mono">
         {currency}{quote.price.toLocaleString('ja-JP', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </div>
-      <div className={`text-sm font-medium ${isPositive ? 'text-bull' : 'text-bear'}`}>
-        {isPositive ? '▲' : '▼'} {Math.abs(quote.change).toFixed(2)} ({Math.abs(quote.changePercent).toFixed(2)}%)
+      <div className={`text-sm font-medium tabular-nums ${changeColor}`}>
+        {changeSign}{Math.abs(quote.change).toFixed(2)} ({changeSign}{Math.abs(quote.changePercent).toFixed(2)}%)
       </div>
       <div className="text-muted text-sm mt-1 tabular-nums">更新: {timeLabel} • 60秒ごとに自動更新</div>
     </div>
