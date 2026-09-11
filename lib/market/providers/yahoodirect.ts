@@ -163,7 +163,8 @@ export async function yfDirectGetFundamentals(symbol: string): Promise<Fundament
 
     return {
       pe:             sd.trailingPE?.raw           ?? undefined,
-      pb:             sd.priceToBook?.raw          ?? undefined,
+      // PBR は summaryDetail から取れないことがある（2026-09-11 実測）。defaultKeyStatistics へフォールバック。
+      pb:             sd.priceToBook?.raw          ?? ks.priceToBook?.raw ?? undefined,
       pegRatio:       ks.pegRatio?.raw             ?? undefined,
       evToEbitda:     ks.enterpriseToEbitda?.raw   ?? undefined,
       roe:            fd.returnOnEquity?.raw        ?? undefined,

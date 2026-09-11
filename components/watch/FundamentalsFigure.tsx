@@ -18,7 +18,7 @@
 import type { FundamentalsData } from '@/types'
 import DetailsSection from '@/components/analyze/DetailsSection'
 import RangeMeter, { fmtAmount } from '@/components/watch/RangeMeter'
-import { PARSEABLE_FIELDS } from '@/lib/ai-trader/fundamentals-parse'
+import { PARSEABLE_FIELDS, type FundamentalsLegacy } from '@/lib/ai-trader/fundamentals-parse'
 
 export interface FundamentalsFigureProps {
   data: Partial<FundamentalsData>
@@ -32,9 +32,16 @@ export interface FundamentalsFigureProps {
   savedFields?: ReadonlyArray<keyof FundamentalsData>
   /** 'inline' は層1＋層2 だけ（層3 は `FundamentalsTable` を呼び出し側が置く）。既定 'full'。 */
   variant?: 'inline' | 'full'
+  /**
+   * 旧書式（v1）の記録についての注記（`parseFundamentalsWithMeta().legacy`）。
+   * `debtToEquityUnitUnknown` のとき D/E は保存値をそのまま単位なしで出し、注記を添える。
+   */
+  legacy?: FundamentalsLegacy
 }
 
-type Kind = 'x' | 'pct' | 'amount' | 'big'
+// 'de' は D/E 専用。FundamentalsData.debtToEquity は Yahoo 原値の%表記（78.4 ＝ 0.78倍）なので
+// 「78.4%（0.78倍）」と出す。v1 の記録（単位不明）は legacy で分岐する。
+type Kind = 'x' | 'pct' | 'de' | 'amount' | 'big'
 
 interface Row { field: keyof FundamentalsData; label: string; kind: Kind }
 interface Group { title: string; rows: Row[] }
@@ -60,7 +67,7 @@ const GROUPS: Group[] = [
     { field: 'earningsGrowth', label: '利益成長率', kind: 'pct' },
   ] },
   { title: '潰れにくさ', rows: [
-    { field: 'debtToEquity', label: 'D/E（負債資本倍率）', kind: 'x' },
+    { field: 'debtToEquity', label: 'D/E（負債資本比率）', kind: 'de' },
     { field: 'currentRatio', label: '流動比率',            kind: 'x' },
     { field: 'freeCashflow', label: 'フリーキャッシュフロー', kind: 'big' },
   ] },
@@ -89,17 +96,29 @@ const fmtBig = (currency: '$' | '¥', n: number) =>
     ? `¥${(n / 1e8).toLocaleString('ja-JP', { maximumFractionDigits: 0 })}億`
     : `$${(n / 1e9).toLocaleString('en-US', { maximumFractionDigits: 1 })}B`
 
-function fmtValue(kind: Kind, currency: '$' | '¥', n: number): string {
+/** D/E（正準＝Yahoo 原値の%）: 「78.4%」。 */
+const fmtDE = (n: number) => `${n.toLocaleString('ja-JP', { maximumFractionDigits: 1 })}%`
+/** D/E の%を倍率に読み替えた文字列: 78.4 → 「0.78」。 */
+const deTimes = (n: number) => (n / 100).toLocaleString('ja-JP', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** v1 の D/E（単位不明）: 保存値をそのまま、単位なし（推測で換算しない＝原則9）。 */
+const fmtDEUnknown = (n: number) => n.toLocaleString('ja-JP', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** v1 記録の D/E に添える注記。値は当時AIに渡したもの。 */
+const LEGACY_DE_NOTE =
+  '当時AIに渡した値。取得元により%か倍かが記録から判別できません（2026-09-11 に書式を修正）。AIの文章は当時のままです'
+
+function fmtValue(kind: Kind, currency: '$' | '¥', n: number, legacy?: FundamentalsLegacy): string {
   switch (kind) {
     case 'x':      return fmtX(n)
     case 'pct':    return fmtPct(n)
+    case 'de':     return legacy?.debtToEquityUnitUnknown ? fmtDEUnknown(n) : `${fmtDE(n)}（${deTimes(n)}倍）`
     case 'amount': return fmtAmount(currency, n)
     case 'big':    return fmtBig(currency, n)
   }
 }
 
 /** 層1のタイル。値が無ければ「未取得」と理由。評価語は書かない。 */
-function StatTile({ label, note, value }: { label: string; note: string; value?: string }) {
+function StatTile({ label, note, value, caveat }: { label: string; note: string; value?: string; caveat?: string }) {
   return (
     <div className="bg-surface border border-border rounded-xl px-3 py-2.5 min-w-0">
       <div className="text-xs text-muted">{label}</div>
@@ -111,6 +130,9 @@ function StatTile({ label, note, value }: { label: string; note: string; value?:
       <div className="text-[13px] text-ink-2 leading-snug mt-1">
         {value != null ? note : '判断の時点でデータ元から値が得られず N/A でした'}
       </div>
+      {value != null && caveat && (
+        <div className="text-[13px] text-muted leading-snug mt-1">{caveat}</div>
+      )}
     </div>
   )
 }
@@ -119,10 +141,12 @@ export interface FundamentalsTableProps {
   data: Partial<FundamentalsData>
   symbol: string
   savedFields?: ReadonlyArray<keyof FundamentalsData>
+  /** 旧書式（v1）の注記。`FundamentalsFigureProps.legacy` と同じ。 */
+  legacy?: FundamentalsLegacy
 }
 
 /** 層3: 全項目テーブル＋欠損の説明。折りたたみの殻は持たない（呼び出し側が包む）。 */
-export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS }: FundamentalsTableProps) {
+export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS, legacy }: FundamentalsTableProps) {
   const currency = currencyOf(symbol)
   const saved = new Set(savedFields)
   const unsaved = ALL_FIELDS.filter(f => !saved.has(f))
@@ -148,7 +172,7 @@ export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS
                   <tr key={r.field} className="border-t border-border">
                     <th scope="row" className="text-left font-normal text-ink-2 py-1.5 pr-3">{r.label}</th>
                     <td className={`text-right py-1.5 font-mono tabular-nums ${n != null ? 'text-ink' : 'text-muted'}`}>
-                      {n != null ? fmtValue(r.kind, currency, n) : '未取得'}
+                      {n != null ? fmtValue(r.kind, currency, n, legacy) : '未取得'}
                     </td>
                   </tr>
                 )
@@ -157,6 +181,12 @@ export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS
           )
         })}
       </table>
+
+      {legacy?.debtToEquityUnitUnknown && data.debtToEquity != null && (
+        <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+          D/E の値は{LEGACY_DE_NOTE}。
+        </p>
+      )}
 
       <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
         {savedFields.length}項目のうち {missingSaved.length} 項目が未取得
@@ -180,8 +210,11 @@ export default function FundamentalsFigure({
   price,
   savedFields = PARSEABLE_FIELDS,
   variant = 'full',
+  legacy,
 }: FundamentalsFigureProps) {
   const currency = currencyOf(symbol)
+  const de = data.debtToEquity
+  const deUnitUnknown = legacy?.debtToEquityUnitUnknown === true
   const unsavedCount = ALL_FIELDS.filter(f => !new Set(savedFields).has(f)).length
   const scopeTitle = unsavedCount > 0
     ? `全項目を見る（この判断に保存されていた範囲・${savedFields.length}項目）`
@@ -199,7 +232,13 @@ export default function FundamentalsFigure({
         <StatTile label="PER"     note="今の株価は1年の利益の何年分か"        value={v('pe', 'x')} />
         <StatTile label="ROE"     note="株主のお金で年に何%稼いだか"          value={v('roe', 'pct')} />
         <StatTile label="売上成長率" note="前年から何%伸びたか"               value={v('revenueGrowth', 'pct')} />
-        <StatTile label="D/E"     note="自己資本に対して借金がどれだけか"      value={v('debtToEquity', 'x')} />
+        {/* D/E: v2 は「78.4%」＋「負債は自己資本の 0.78 倍」。v1（単位不明）は保存値そのまま・単位なし・注記つき */}
+        <StatTile
+          label="D/E"
+          note={de != null && !deUnitUnknown ? `負債は自己資本の ${deTimes(de)} 倍` : '自己資本に対して借金がどれだけか'}
+          value={de != null ? (deUnitUnknown ? fmtDEUnknown(de) : fmtDE(de)) : undefined}
+          caveat={de != null && deUnitUnknown ? LEGACY_DE_NOTE : undefined}
+        />
       </div>
 
       {/* 層2: 52週レンジ */}
@@ -208,7 +247,7 @@ export default function FundamentalsFigure({
       {/* 層3: 全項目テーブル（折りたたみ）。inline では呼び出し側が置く */}
       {variant === 'full' && (
         <DetailsSection title={scopeTitle}>
-          <FundamentalsTable data={data} symbol={symbol} savedFields={savedFields} />
+          <FundamentalsTable data={data} symbol={symbol} savedFields={savedFields} legacy={legacy} />
         </DetailsSection>
       )}
     </div>

@@ -7,7 +7,7 @@
 //
 // 実行: npx tsx scripts/check-fundamentals-parse.ts
 
-import { parseFundamentals, fundamentalsProse, PARSEABLE_FIELDS } from '../lib/ai-trader/fundamentals-parse'
+import { parseFundamentals, parseFundamentalsWithMeta, fundamentalsProse, PARSEABLE_FIELDS } from '../lib/ai-trader/fundamentals-parse'
 
 let failures = 0
 function check(name: string, ok: boolean, detail = '') {
@@ -90,6 +90,61 @@ console.log('空・ダッシュ・null')
   check('"-" の prose は空', fundamentalsProse('-') === '')
   check('AIの文 + " | -" は prose だけ', fundamentalsProse('文だけ。 | -') === '文だけ。')
   check('空文字の prose は空', fundamentalsProse('') === '')
+}
+
+console.log('書式 v2（fmt=2・D/E は%・通貨記号つき）')
+{
+  // engine.ts fmtFundamentals() v2 の実出力（2026-09-11 AAPL）
+  const s = 'PER=36.1x | PBR=44.4x | ROE=148.8% | ROA=27.1% | 営業利益率=32.6% | 粗利益率=48.7% | 売上成長=16.4% | D/E=78.4% | FCF=$107.7B | 時価総額=$4766B | 配当利回り=0.3% | 52週高値=$345 | 安値=$227 | fmt=2'
+  const r = parseFundamentalsWithMeta(s)
+  check('v2 と判定', r.format === 2)
+  check('v2 の D/E=78.4% → 78.4（正準%のまま・/100 しない）', near(r.data.debtToEquity, 78.4))
+  check('v2 は legacy なし', r.legacy === undefined)
+  check('v2 の $ は剥がして数値だけ（FCF）', near(r.data.freeCashflow, 107.7e9, 1))
+  check('v2 の 52週高値=$345 → 345', near(r.data.week52High, 345) && near(r.data.week52Low, 227))
+  check('v2 でも 13項目すべて採用', Object.keys(r.data).length === 13, `actual=${Object.keys(r.data).length}`)
+  check('parseFundamentals() は data と同じ', near(parseFundamentals(s).debtToEquity, 78.4) && Object.keys(parseFundamentals(s)).length === 13)
+  check('fmt=2 は prose に混ざらない', fundamentalsProse(s) === '')
+  check('AIの文 + v2 でも prose はAIの文だけ', fundamentalsProse('負債は自己資本の0.78倍で健全。 | PER=36.1x | D/E=78.4% | fmt=2') === '負債は自己資本の0.78倍で健全。')
+
+  // 円建て（7203.T 実出力）: ¥ と負の FCF
+  const jp = 'PER=8.6x | PBR=N/A | ROE=12.4% | ROA=2.3% | 営業利益率=7.9% | 粗利益率=16.8% | 売上成長=10.4% | D/E=115.0% | FCF=¥-3600.0B | 時価総額=¥35893B | 配当利回り=3.3% | 52週高値=¥4000 | 安値=¥2686 | fmt=2'
+  const j = parseFundamentalsWithMeta(jp)
+  check('v2 の ¥ は剥がして数値だけ（時価総額）', near(j.data.marketCap, 35893e9, 1))
+  check('v2 の負の FCF ¥-3600.0B → -3600e9', near(j.data.freeCashflow, -3600e9, 1))
+  check('v2 の 52週高値=¥4000 → 4000', near(j.data.week52High, 4000))
+  check('v2 の D/E=115.0% → 115', near(j.data.debtToEquity, 115))
+  check('v2 の PBR=N/A は undefined', j.data.pb === undefined)
+
+  // その他通貨（ISOコード＋空白）
+  const eu = 'PER=10.0x | FCF=EUR 12.3B | 時価総額=EUR 200B | 52週高値=EUR 55 | fmt=2'
+  const e = parseFundamentalsWithMeta(eu)
+  check('v2 の "EUR 12.3B" → 12.3e9', near(e.data.freeCashflow, 12.3e9, 1) && near(e.data.marketCap, 200e9, 1))
+  check('v2 の "EUR 55" → 55', near(e.data.week52High, 55))
+
+  // 書式の取り違えは捨てる（v2 に x の D/E は無い・v1 に % の D/E は無い）
+  check('v2 で D/E=0.67x は書式違いとして捨てる', parseFundamentalsWithMeta('D/E=0.67x | fmt=2').data.debtToEquity === undefined)
+  check('v1 で D/E=78.4% は書式違いとして捨てる', parseFundamentalsWithMeta('D/E=78.4%').data.debtToEquity === undefined)
+  check('v1 で ¥ 付きは書式違いとして捨てる', parseFundamentalsWithMeta('時価総額=¥35893B').data.marketCap === undefined)
+}
+
+console.log('書式 v1 の D/E は単位不明（数値そのまま＋legacy フラグ）')
+{
+  // Yahoo 由来（%スケール）と mock 由来（倍率）が同じ書式で混在する。どちらも数値のまま。
+  const y = parseFundamentalsWithMeta('PER=14.2x | D/E=49.00x | 時価総額=$35892B')
+  check('v1 と判定', y.format === 1)
+  check('v1 の D/E=49.00x → 49（/100 しない）', near(y.data.debtToEquity, 49))
+  check('v1 は legacy.debtToEquityUnitUnknown', y.legacy?.debtToEquityUnitUnknown === true)
+  check('v1 の .T 銘柄に付いた $ は無視して数値だけ', near(y.data.marketCap, 35892e9, 1))
+
+  const m = parseFundamentalsWithMeta('PER=14.8x | D/E=0.67x')
+  check('v1 の D/E=0.67x → 0.67（×100 しない）', near(m.data.debtToEquity, 0.67))
+  check('v1 の 0.67x にも同じ legacy フラグ', m.legacy?.debtToEquityUnitUnknown === true)
+
+  check('v1 でも D/E が N/A なら legacy は付かない', parseFundamentalsWithMeta('PER=14.8x | D/E=N/A').legacy === undefined)
+  check('v1 でも D/E トークンが無ければ legacy は付かない', parseFundamentalsWithMeta('PER=14.8x').legacy === undefined)
+  check('空文字は v1・legacy なし', parseFundamentalsWithMeta('').format === 1 && parseFundamentalsWithMeta('').legacy === undefined)
+  check('"-" は v1・data 空', Object.keys(parseFundamentalsWithMeta('-').data).length === 0)
 }
 
 if (failures > 0) {

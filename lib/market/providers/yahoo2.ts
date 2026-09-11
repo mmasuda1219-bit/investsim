@@ -221,7 +221,9 @@ export async function yf2GetFundamentals(symbol: string): Promise<FundamentalsDa
   // (index.ts falls through to the next provider on an empty object).
   const raw: FundamentalsData = {
     pe: num(sd.trailingPE),
-    pb: num(sd.priceToBook),
+    // PBR: summaryDetail.priceToBook は 2026-09-11 実測で AAPL/7203.T/4063.T とも undefined。
+    // defaultKeyStatistics.priceToBook には値がある（AAPL 44.4 など）ので、そちらへフォールバックする。
+    pb: num(sd.priceToBook ?? ks.priceToBook),
     pegRatio: num(ks.pegRatio),
     evToEbitda: num(ks.enterpriseToEbitda),
     roe: num(fd.returnOnEquity),

@@ -292,9 +292,25 @@ async function buildStockContext(symbol: string): Promise<StockContext> {
   return { symbol, quote, fundamentals, technicals, techDetail, news: newsHeadlines, sources }
 }
 
-function fmtFundamentals(f: FundamentalsData): string {
+// 通貨コード(ISO 4217)→ 表示記号。USD/JPY 以外はコードをそのまま前置（例: "EUR 12.3B"）。
+function currencySymbol(currency?: string): string {
+  if (!currency) return ''
+  const c = currency.toUpperCase()
+  if (c === 'USD') return '$'
+  if (c === 'JPY') return '¥'
+  return `${c} `
+}
+
+// AI への入力に使うファンダ1行の書式 v2（2026-09-11）。
+//  - D/E は FundamentalsData の正準単位（Yahoo 原値の%表記、types/index.ts 参照）のまま "%" で出す。
+//    v1 は同じ数値に "x"（倍率）を付けていたため、AI が「D/E 49倍で高レバレッジ」と誤読していた。
+//  - FCF・時価総額・52週高値/安値には銘柄の通貨記号を付ける（v1 は .T 銘柄にも "$" を付けていた）。
+//  - 末尾に "fmt=2" トークンを足し、過去の v1 文字列と機械的に区別できるようにする
+//    （lib/ai-trader/fundamentals-parse.ts が判定に使う）。数値のスケール（10億=B）は v1 と同じ。
+function fmtFundamentals(f: FundamentalsData, currency?: string): string {
   const n = (v?: number, suffix = '', mul = 1, dec = 1) =>
     v != null ? `${(v * mul).toFixed(dec)}${suffix}` : 'N/A'
+  const cur = currencySymbol(currency)
 
   const parts = [
     `PER=${n(f.pe, 'x')}`,
@@ -304,12 +320,13 @@ function fmtFundamentals(f: FundamentalsData): string {
     `営業利益率=${n(f.operatingMargin, '%', 100)}`,
     `粗利益率=${n(f.grossMargin, '%', 100)}`,
     `売上成長=${n(f.revenueGrowth, '%', 100)}`,
-    `D/E=${n(f.debtToEquity, 'x', 1, 2)}`,
-    f.freeCashflow != null ? `FCF=$${(f.freeCashflow / 1e9).toFixed(1)}B` : null,
-    f.marketCap != null ? `時価総額=$${(f.marketCap / 1e9).toFixed(0)}B` : null,
+    `D/E=${n(f.debtToEquity, '%', 1, 1)}`,
+    f.freeCashflow != null ? `FCF=${cur}${(f.freeCashflow / 1e9).toFixed(1)}B` : null,
+    f.marketCap != null ? `時価総額=${cur}${(f.marketCap / 1e9).toFixed(0)}B` : null,
     f.dividendYield != null ? `配当利回り=${(f.dividendYield * 100).toFixed(1)}%` : null,
-    f.week52High != null ? `52週高値=${f.week52High.toFixed(0)}` : null,
-    f.week52Low != null ? `安値=${f.week52Low.toFixed(0)}` : null,
+    f.week52High != null ? `52週高値=${cur}${f.week52High.toFixed(0)}` : null,
+    f.week52Low != null ? `安値=${cur}${f.week52Low.toFixed(0)}` : null,
+    'fmt=2',
   ].filter(Boolean)
   return parts.join(' | ')
 }
@@ -379,7 +396,7 @@ async function askClaude(
 【${symbol}】${quote.name}
 • 現在値: ${quote.price.toFixed(2)} ${quote.currency}  前日比: ${quote.change >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%
 • テクニカル: ${technicals}
-• ファンダメンタル(バフェットコード): ${fmtFundamentals(fundamentals)}
+• ファンダメンタル(バフェットコード): ${fmtFundamentals(fundamentals, quote.currency)}
 • ニュース: ${news.length > 0 ? news.slice(0, 3).join(' / ') : 'なし'}`
   ).join('\n')
 
@@ -440,7 +457,7 @@ knowledgeRefsは実際に依拠した【投資の原則（知識ベース）】�
     return raw.map(r => {
       const sd = stockData.find(s => s.symbol === r.symbol)
       const f = sd?.fundamentals
-      const fundStr = f ? fmtFundamentals(f) : '-'
+      const fundStr = f ? fmtFundamentals(f, sd?.quote.currency) : '-'
       const sources = [
         'Yahoo Finance (株価・チャート)',
         'Yahoo Finance News',

@@ -17,9 +17,18 @@ export async function GET(
       getFundamentals(symbol),
     ])
 
+    // 単位の変換（2026-09-11）: `FundamentalsData.debtToEquity` は Yahoo 原値の%表記（78.4 ＝ 0.78倍。
+    // 規約は types/index.ts に明記）。一方 lib/investors/*.ts の5モデルの閾値は倍率で書かれている
+    // （dalio `> 2.0`／graham `< 0.5`／lynch `< 0.3` など）ので、渡す手前で /100 して倍率に直したコピーを渡す。
+    // 元オブジェクトは変えない（スクリーニング側 lib/backtest は%前提のまま正しい）。
+    const fundamentalsForModels =
+      fundamentals.debtToEquity == null
+        ? fundamentals
+        : { ...fundamentals, debtToEquity: fundamentals.debtToEquity / 100 }
+
     const signals: Record<string, Signal> = {}
     for (const investor of investors) {
-      signals[investor.id] = investor.analyze({ quote, history, fundamentals })
+      signals[investor.id] = investor.analyze({ quote, history, fundamentals: fundamentalsForModels })
     }
 
     return NextResponse.json({ symbol, signals }, {

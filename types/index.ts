@@ -22,6 +22,7 @@ export interface HistoricalBar {
 
 export interface FundamentalsData {
   pe?: number
+  /** PBR。summaryDetail からは取れなくなっている疑い（2026-09-11 実測で AAPL/7203.T/4063.T の3銘柄とも undefined） */
   pb?: number
   pegRatio?: number
   evToEbitda?: number
@@ -31,11 +32,17 @@ export interface FundamentalsData {
   grossMargin?: number
   profitMargin?: number
   eps?: number
+  /** 銘柄の通貨単位の実額（`.T` は円、米国株はドル）。通貨記号は `StockQuote.currency` から決める */
   freeCashflow?: number
+  /**
+   * Yahoo 原値の%表記（例: 78.4 ＝ 負債が自己資本の 0.78 倍）。倍率にするなら /100。
+   * `lib/backtest/fundamental.ts:76` の hint と同じ規約。スクリーニング側の閾値（investor-presets の `lte 200`）はこの%前提。
+   */
   debtToEquity?: number
   currentRatio?: number
   revenueGrowth?: number
   earningsGrowth?: number
+  /** 銘柄の通貨単位の実額（`.T` は円、米国株はドル）。通貨記号は `StockQuote.currency` から決める */
   marketCap?: number
   dividendYield?: number
   week52High?: number
