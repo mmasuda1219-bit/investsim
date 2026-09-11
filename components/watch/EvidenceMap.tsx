@@ -2,24 +2,32 @@
 
 // /watch S1: 根拠マップ。判断カード第3層を開くと最初に必ず出る縦フロー。
 //
-//   ● テクニカル（値動きの形）   → 開くと AI の作文（原文）
-//   ● ファンダメンタル（会社の中身）→ 開くと FundamentalsFigure
-//   ○ ニュース                     → 開くと NewsEvidence（記録が無ければ中空ノード）
+//   ● テクニカル（値動きの形）   → AIの読み（原文に札）を最初から表示
+//   ● ファンダメンタル（会社の中身）→ 取得件数の横棒＋タイル4枚＋52週メーターを最初から表示、
+//                                     AIの読み（原文に札）。開くと全項目表（FundamentalsTable）
+//   ○ ニュース                     → 見出し件数＋AIの読み（原文に札）。開くと NewsEvidence
 //   ◆ この判断                     → 判断バッジ＋確信度＋reasoning
 //
 // 3つの入力が1つの結論に収束する形を、レール（--border 1px）とノードで見せる。
 // アクセント（--accent）は結論ノードの1回だけ。
 //
+// 2026-09-11: 「見たもの: …（PER 17.4倍／ROE …）」「AIの読み: PER17.4x割安…」という文字列の羅列を
+//   やめ、数字はタイル・メーター・横棒で、AIの文は ReadingText（原文のまま・数値に札）で見せる。
+//   テクニカルの「見たもの」は出さない。機械生成の信号は保存されておらず、AIの文から抜き出すと
+//   文脈が失われる（S2 で信号を保存してから作る）。
+//
 // 原則9: 寄与の重み（%やバー）は絶対に出さない。AIは寄与度を出力していないので捏造になる。
-//        無い記録は中空ノード＋「無い」と書く。
-// 原則11: 評価語（割安・優良・買い時）はサイト側で書かない。
+//        取得件数の横棒は「何項目のデータが手元にあったか」であって、寄与ではない。
+//        無い記録は中空ノード＋「無い」と、なぜ無いかを書く。
+// 原則11: 評価語（割安・優良・買い時）はサイト側で書かない。AIの文は1文字も変えない。
 
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AIDecision } from '@/lib/ai-trader/engine'
 import { parseFundamentals, fundamentalsProse, PARSEABLE_FIELDS } from '@/lib/ai-trader/fundamentals-parse'
-import FundamentalsFigure from '@/components/watch/FundamentalsFigure'
+import FundamentalsFigure, { FundamentalsTable } from '@/components/watch/FundamentalsFigure'
 import NewsEvidence from '@/components/watch/NewsEvidence'
+import ReadingText from '@/components/watch/ReadingText'
 
 export interface EvidenceMapProps {
   decision: AIDecision
@@ -31,16 +39,8 @@ export interface EvidenceMapProps {
 
 type NodeKind = 'record' | 'empty' | 'conclusion'
 
-/** 先頭の1文、長ければ n 文字で切る。 */
-function head(s: string, n = 48): string {
-  const t = s.trim()
-  const stop = t.indexOf('。')
-  const first = stop >= 0 ? t.slice(0, stop + 1) : t
-  return first.length <= n ? first : `${first.slice(0, n)}…`
-}
-
-const fmtX   = (v: number) => `${v.toLocaleString('ja-JP', { maximumFractionDigits: 2 })}倍`
-const fmtPct = (v: number) => `${(v * 100).toLocaleString('ja-JP', { maximumFractionDigits: 1 })}%`
+const READ_LABEL = 'AIの読み（AIの言葉をそのまま）'
+const SUB_HEAD = 'text-[13px] font-semibold text-ink mb-1'
 
 function Node({ kind }: { kind: NodeKind }) {
   // 塗りは CSS 変数を直接使う（globals.css に bg-ink-2 / bg-border のユーティリティは無い）。
@@ -80,22 +80,47 @@ function Rail({ position }: { position: 'first' | 'middle' | 'last' }) {
   return <span aria-hidden className={`absolute left-[9.5px] border-l border-border ${cls}`} />
 }
 
+/**
+ * 取得件数の小さな横棒。台 --border・塗り --ink-2・幅＝取得/総数。数字は右に併記。
+ * 色相なし（多い/少ないを良し悪しとして色で運ばない）。
+ */
+function CountBar({ got, total }: { got: number; total: number }) {
+  const pct = total > 0 ? Math.round((Math.min(got, total) / total) * 100) : 0
+  return (
+    <div className="flex items-center gap-2 max-w-[42rem]" data-count-bar="">
+      {/* 棒は残り幅に合わせて縮む（狭い画面で右の数字を切らない）。最大 10rem。 */}
+      <span
+        aria-hidden
+        className="block h-1.5 flex-1 min-w-[3rem] max-w-[10rem] rounded-full overflow-hidden"
+        style={{ backgroundColor: 'var(--border)' }}
+      >
+        <span
+          className="block h-full rounded-full"
+          style={{ width: `${pct}%`, backgroundColor: 'var(--ink-2)' }}
+        />
+      </span>
+      <span className="text-sm text-ink-2 font-mono tabular-nums whitespace-nowrap shrink-0">
+        {got}
+        <span className="text-muted"> / {total} 項目を取得</span>
+      </span>
+    </div>
+  )
+}
+
 interface RowProps {
   position: 'first' | 'middle' | 'last'
   node: NodeKind
   title: string
-  /** 見たもの（事実の要約）。 */
-  seen?: string
-  /** AIの読み（短い）。 */
-  read?: string
-  /** 記録が無いときの説明。children が無いときに出す。 */
+  /** 常に見せる中身（図・札付きの文）。無いときは emptyNote を出す。 */
+  body?: ReactNode
+  /** 記録が無いときの説明（なぜ無いかまで）。body が無いときに出す。 */
   emptyNote?: string
   /** 開いたときの中身。無ければ開閉ボタンを出さない。 */
   children?: ReactNode
   openLabel?: string
 }
 
-function Row({ position, node, title, seen, read, emptyNote, children, openLabel = '開く' }: RowProps) {
+function Row({ position, node, title, body, emptyNote, children, openLabel = '開く' }: RowProps) {
   const [open, setOpen] = useState(false)
   const id = useId()
   const expandable = children != null
@@ -120,24 +145,16 @@ function Row({ position, node, title, seen, read, emptyNote, children, openLabel
       ) : (
         <div className="flex items-start justify-between gap-3">
           <span className="text-sm font-semibold text-ink">{title}</span>
-          <span className="text-sm text-muted shrink-0">記録なし</span>
+          {node === 'empty' && <span className="text-sm text-muted shrink-0">記録なし</span>}
         </div>
       )}
 
-      <div className="mt-1 space-y-1 max-w-[42rem]">
-        {seen && (
-          <p className="text-sm text-ink-2 leading-relaxed">
-            <span className="text-muted">見たもの: </span>{seen}
-          </p>
-        )}
-        {read && (
-          <p className="text-sm text-ink-2 leading-relaxed">
-            <span className="text-muted">AIの読み: </span>{read}
-          </p>
-        )}
-        {!expandable && emptyNote && (
-          <p className="text-sm text-muted leading-relaxed">{emptyNote}</p>
-        )}
+      <div className="mt-2">
+        {body != null ? (
+          body
+        ) : emptyNote ? (
+          <p className="text-sm text-muted leading-relaxed max-w-[42rem]">{emptyNote}</p>
+        ) : null}
       </div>
 
       {expandable && open && (
@@ -150,69 +167,98 @@ function Row({ position, node, title, seen, read, emptyNote, children, openLabel
 }
 
 export default function EvidenceMap({ decision, action, confidenceLabel }: EvidenceMapProps) {
-  const technicals = (decision.technicals ?? '').trim()
+  // AIの文は raw のまま ReadingText に渡す（trim も含めて1文字も変えない）。有無の判定だけ trim。
+  const technicalsRaw = decision.technicals ?? ''
   const fundamentals = decision.fundamentals ?? ''
   const fundData = parseFundamentals(fundamentals)
   const fundProse = fundamentalsProse(fundamentals)
+  const fundTotal = PARSEABLE_FIELDS.length
   const fundCount = PARSEABLE_FIELDS.filter(f => fundData[f] != null).length
+  const fundMissing = fundTotal - fundCount
   const news = decision.news ?? []
-  const influence = (decision.newsInfluence ?? '').trim()
+  const influenceRaw = decision.newsInfluence ?? ''
 
-  const hasTech = technicals.length > 0
-  const hasFund = fundCount > 0 || fundProse.length > 0
-  const hasNews = news.length > 0 || influence.length > 0
-
-  // ファンダの「見たもの」: 取得できた項目数と、タイル4項目のうち値があるもの。
-  const fundHighlights = [
-    fundData.pe            != null ? `PER ${fmtX(fundData.pe)}` : null,
-    fundData.roe           != null ? `ROE ${fmtPct(fundData.roe)}` : null,
-    fundData.revenueGrowth != null ? `売上成長 ${fmtPct(fundData.revenueGrowth)}` : null,
-    fundData.debtToEquity  != null ? `D/E ${fmtX(fundData.debtToEquity)}` : null,
-  ].filter((s): s is string => s != null)
-  const fundSeen =
-    `${PARSEABLE_FIELDS.length}項目のうち ${fundCount} 項目を取得` +
-    (fundHighlights.length > 0 ? `（${fundHighlights.join('／')}）` : '')
+  const hasTech = technicalsRaw.trim().length > 0
+  const hasFund = fundCount > 0 || fundProse.trim().length > 0
+  const hasInfluence = influenceRaw.trim().length > 0
+  const hasNews = news.length > 0 || hasInfluence
 
   return (
     <ol className="list-none m-0 p-0 pt-2">
+      {/* テクニカル: 「見たもの」は出さない（信号が保存されていない。冒頭コメント参照）。 */}
       <Row
         position="first"
         node={hasTech ? 'record' : 'empty'}
         title="テクニカル（値動きの形）"
-        seen={hasTech ? head(technicals) : undefined}
+        body={hasTech ? <ReadingText text={technicalsRaw} label={READ_LABEL} /> : undefined}
         emptyNote="この判断では、テクニカルの記録がありません。"
-      >
-        {hasTech ? (
-          <div className="max-w-[42rem]">
-            <h5 className="text-[13px] font-semibold text-ink mb-1">AIの読み（原文）</h5>
-            <p className="text-base text-ink-2 leading-relaxed">{technicals}</p>
-          </div>
-        ) : undefined}
-      </Row>
+      />
 
+      {/* ファンダメンタル: 横棒＋タイル＋メーターを最初から。開くと全項目表。 */}
       <Row
         position="middle"
         node={hasFund ? 'record' : 'empty'}
         title="ファンダメンタル（会社の中身）"
-        seen={hasFund ? fundSeen : undefined}
-        read={fundProse ? head(fundProse, 80) : undefined}
+        body={hasFund ? (
+          <div className="space-y-3">
+            <div>
+              <h5 className={SUB_HEAD}>見たもの（判断時点の数字）</h5>
+              <CountBar got={fundCount} total={fundTotal} />
+              {fundMissing > 0 && (
+                <p className="mt-1 text-sm text-muted leading-relaxed max-w-[42rem]">
+                  残り {fundMissing} 項目は、判断時点でデータ元（Yahoo Finance）から値が返らなかったもの（表では「未取得」）。
+                </p>
+              )}
+            </div>
+            {fundCount > 0 ? (
+              <FundamentalsFigure
+                variant="inline"
+                data={fundData}
+                symbol={decision.symbol}
+                price={decision.price}
+              />
+            ) : (
+              <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+                この判断には数値が記録されておらず、AIの文だけが残っています。
+              </p>
+            )}
+            <ReadingText
+              text={fundProse}
+              label={READ_LABEL}
+              emptyNote="この判断には、ファンダメンタルについてのAIの読み（文）が記録されていません（数値だけの記録）。"
+            />
+          </div>
+        ) : undefined}
         emptyNote="この判断では、ファンダメンタルの記録がありません。"
-        openLabel="数字を開く"
+        openLabel="全項目を開く"
       >
-        {hasFund ? (
-          <FundamentalsFigure data={fundData} symbol={decision.symbol} price={decision.price} />
+        {fundCount > 0 ? (
+          <FundamentalsTable data={fundData} symbol={decision.symbol} />
         ) : undefined}
       </Row>
 
+      {/* ニュース: 見出し件数の短い表示＋AIの読み。開くと見出し一覧（NewsEvidence）。 */}
       <Row
         position="middle"
-        node={influence.length > 0 ? 'record' : 'empty'}
+        node={hasInfluence ? 'record' : 'empty'}
         title="ニュース"
-        seen={news.length > 0 ? `見出し ${news.length} 件を読んだ` : undefined}
-        read={influence ? head(influence, 80) : undefined}
+        body={hasNews ? (
+          <div className="space-y-3">
+            <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
+              <span className="text-muted">見たもの: </span>
+              {news.length > 0 ? `見出し ${news.length} 件` : '見出しの記録なし'}
+            </p>
+            <ReadingText
+              text={influenceRaw}
+              label={READ_LABEL}
+              emptyNote="この判断には、ニュースについてのAIの読みが記録されていません。"
+            />
+          </div>
+        ) : undefined}
         emptyNote="この判断では、ニュースは判断に使われていません。"
+        openLabel="見出しを開く"
       >
-        {hasNews ? <NewsEvidence headlines={news} influence={influence} /> : undefined}
+        {hasNews ? <NewsEvidence headlines={news} influence={influenceRaw.trim()} /> : undefined}
       </Row>
 
       <li className="relative pl-8">

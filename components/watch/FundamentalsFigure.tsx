@@ -4,6 +4,11 @@
 //   層2 RangeMeter        … 52週レンジの中での現在地
 //   層3 全項目テーブル    … 折りたたみ。グループ分けして右揃えの数字列
 //
+// variant:
+//   'full'（既定） … 層1＋層2 を常時、層3 を DetailsSection の折りたたみで出す
+//   'inline'       … 層1＋層2 だけ。層3 は呼び出し側（EvidenceMap の行）が `FundamentalsTable` を
+//                     自分の開閉の中に置く（根拠マップの開閉手段を1つに揃えるため）
+//
 // 原則9: 欠損は「未取得」と書き、なぜ無いかまで添える。
 //   ・13項目の中で無い … 判断時点でデータ元（Yahoo Finance）から値が返らず N/A だった
 //   ・13項目の外（6項目）… サイト側の当時の実装が保存していなかった（取得失敗ではない）
@@ -25,6 +30,8 @@ export interface FundamentalsFigureProps {
    * 省略時は 13 項目（PARSEABLE_FIELDS）。
    */
   savedFields?: ReadonlyArray<keyof FundamentalsData>
+  /** 'inline' は層1＋層2 だけ（層3 は `FundamentalsTable` を呼び出し側が置く）。既定 'full'。 */
+  variant?: 'inline' | 'full'
 }
 
 type Kind = 'x' | 'pct' | 'amount' | 'big'
@@ -108,17 +115,75 @@ function StatTile({ label, note, value }: { label: string; note: string; value?:
   )
 }
 
+export interface FundamentalsTableProps {
+  data: Partial<FundamentalsData>
+  symbol: string
+  savedFields?: ReadonlyArray<keyof FundamentalsData>
+}
+
+/** 層3: 全項目テーブル＋欠損の説明。折りたたみの殻は持たない（呼び出し側が包む）。 */
+export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS }: FundamentalsTableProps) {
+  const currency = currencyOf(symbol)
+  const saved = new Set(savedFields)
+  const unsaved = ALL_FIELDS.filter(f => !saved.has(f))
+  const missingSaved = savedFields.filter(f => data[f] == null)
+
+  return (
+    <div className="space-y-3">
+      <table className="w-full text-sm">
+        <caption className="sr-only">ファンダメンタルの全項目</caption>
+        {GROUPS.map(group => {
+          const rows = group.rows.filter(r => saved.has(r.field))
+          if (rows.length === 0) return null
+          return (
+            <tbody key={group.title}>
+              <tr>
+                <th scope="rowgroup" colSpan={2} className="text-left text-xs text-muted font-semibold pt-3 pb-1">
+                  {group.title}
+                </th>
+              </tr>
+              {rows.map(r => {
+                const n = data[r.field]
+                return (
+                  <tr key={r.field} className="border-t border-border">
+                    <th scope="row" className="text-left font-normal text-ink-2 py-1.5 pr-3">{r.label}</th>
+                    <td className={`text-right py-1.5 font-mono tabular-nums ${n != null ? 'text-ink' : 'text-muted'}`}>
+                      {n != null ? fmtValue(r.kind, currency, n) : '未取得'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          )
+        })}
+      </table>
+
+      <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+        {savedFields.length}項目のうち {missingSaved.length} 項目が未取得
+        {missingSaved.length > 0 && '（判断の時点でデータ元から値が得られず N/A でした）'}
+      </p>
+
+      {unsaved.length > 0 && (
+        <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+          この判断の時点では、以下の{unsaved.length}項目は保存されていません（当時のサイトの実装が記録していなかったもので、取得に失敗したのではありません）:
+          {' '}
+          {unsaved.map(f => LABEL_OF[f]).join('、')}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function FundamentalsFigure({
   data,
   symbol,
   price,
   savedFields = PARSEABLE_FIELDS,
+  variant = 'full',
 }: FundamentalsFigureProps) {
   const currency = currencyOf(symbol)
-  const saved = new Set(savedFields)
-  const unsaved = ALL_FIELDS.filter(f => !saved.has(f))
-  const missingSaved = savedFields.filter(f => data[f] == null)
-  const scopeTitle = unsaved.length > 0
+  const unsavedCount = ALL_FIELDS.filter(f => !new Set(savedFields).has(f)).length
+  const scopeTitle = unsavedCount > 0
     ? `全項目を見る（この判断に保存されていた範囲・${savedFields.length}項目）`
     : `全項目を見る（${ALL_FIELDS.length}項目）`
 
@@ -140,49 +205,12 @@ export default function FundamentalsFigure({
       {/* 層2: 52週レンジ */}
       <RangeMeter low={data.week52Low} high={data.week52High} current={price} currency={currency} />
 
-      {/* 層3: 全項目テーブル（折りたたみ） */}
-      <DetailsSection title={scopeTitle}>
-        <table className="w-full text-sm">
-          <caption className="sr-only">ファンダメンタルの全項目</caption>
-          {GROUPS.map(group => {
-            const rows = group.rows.filter(r => saved.has(r.field))
-            if (rows.length === 0) return null
-            return (
-              <tbody key={group.title}>
-                <tr>
-                  <th scope="rowgroup" colSpan={2} className="text-left text-xs text-muted font-semibold pt-3 pb-1">
-                    {group.title}
-                  </th>
-                </tr>
-                {rows.map(r => {
-                  const n = data[r.field]
-                  return (
-                    <tr key={r.field} className="border-t border-border">
-                      <th scope="row" className="text-left font-normal text-ink-2 py-1.5 pr-3">{r.label}</th>
-                      <td className={`text-right py-1.5 font-mono tabular-nums ${n != null ? 'text-ink' : 'text-muted'}`}>
-                        {n != null ? fmtValue(r.kind, currency, n) : '未取得'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            )
-          })}
-        </table>
-
-        <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
-          {savedFields.length}項目のうち {missingSaved.length} 項目が未取得
-          {missingSaved.length > 0 && '（判断の時点でデータ元から値が得られず N/A でした）'}
-        </p>
-
-        {unsaved.length > 0 && (
-          <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
-            この判断の時点では、以下の{unsaved.length}項目は保存されていません（当時のサイトの実装が記録していなかったもので、取得に失敗したのではありません）:
-            {' '}
-            {unsaved.map(f => LABEL_OF[f]).join('、')}
-          </p>
-        )}
-      </DetailsSection>
+      {/* 層3: 全項目テーブル（折りたたみ）。inline では呼び出し側が置く */}
+      {variant === 'full' && (
+        <DetailsSection title={scopeTitle}>
+          <FundamentalsTable data={data} symbol={symbol} savedFields={savedFields} />
+        </DetailsSection>
+      )}
     </div>
   )
 }

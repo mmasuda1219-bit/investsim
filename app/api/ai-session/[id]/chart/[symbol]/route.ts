@@ -11,7 +11,7 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
   try {
-    const history = await getHistory(symbol, '3mo')
+    const history = await getHistory(symbol, '6mo')
 
     const trades = session.trades
       .filter(t => t.symbol === symbol)

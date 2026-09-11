@@ -188,7 +188,11 @@ function NavBar({ session, ticking }: NavBarProps) {
               最終更新 {ago(session.lastTickAt)}
             </span>
           )}
-          <div className={`text-base font-bold tabular-nums whitespace-nowrap ${pnlCls(session.pnl)}`}>
+          {/* 損益は「+$18,298.82 (+18.30%)」のように長く、whitespace-nowrap のまま 390px 幅に
+              置くとヘッダが縮まずページ本体を横に押し広げる（scrollWidth 455 > 390。
+              2bd216a のログインボタンと同種の事故）。スマホ幅では直下の「運用成績」カードに
+              同じ値が出るので、ここは 640px 以上でのみ表示して情報を落とさずに横はみ出しを塞ぐ。 */}
+          <div className={`hidden sm:block text-base font-bold tabular-nums whitespace-nowrap ${pnlCls(session.pnl)}`}>
             {session.pnl >= 0 ? '+' : ''}{fmtUSD(session.pnl)} ({fmtPct(session.pnlPct)})
           </div>
           {/* Tick番号は最も情報量が低いので、幅が足りないスマホでは落とす */}
