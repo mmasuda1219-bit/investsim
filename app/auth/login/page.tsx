@@ -25,8 +25,11 @@ function LoginForm() {
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="bg-panel border border-border rounded-2xl p-8 w-full max-w-sm text-center">
-        <div className="text-3xl mb-2">📈</div>
-        <h1 className="text-ink text-xl font-bold mb-1">InvestSim</h1>
+        {/* 絵文字＋文字の代わりにロゴ（public/logo.svg）。サイト名は alt として h1 に残す */}
+        <h1 className="flex justify-center mb-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="InvestSim" width={184} height={36} className="h-9 w-auto" />
+        </h1>
         <p className="text-muted text-sm mb-6">
           ログインすると、売買と判断の記録が
           <br />

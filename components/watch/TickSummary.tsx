@@ -138,7 +138,7 @@ export default function TickSummary({
               last
               label="この回で分析した銘柄"
               value={`${analyzedSymbols.length}銘柄`}
-              note="重複を除いた合計。1銘柄ごとに株価・テクニカル・ファンダメンタル・ニュースを集めてAIに渡す"
+              note="同じ銘柄の重なりを除いた数です。1銘柄ずつ、株価・値動きの形・会社の数字・ニュースを集めてAIに渡しています"
             />
           </ol>
         </div>
@@ -176,8 +176,8 @@ export default function TickSummary({
             </ul>
           )}
           <p className="text-sm text-muted leading-relaxed mt-2 max-w-[42rem]">
-            「保有中」の印が無い銘柄は、当日の値動きの大きさだけで選ばれています。
-            銘柄の良し悪しの評価ではありません。
+            「保有中」の印が無い銘柄は、その日に大きく動いたから選ばれただけです。
+            良い銘柄だから選んだ、という意味ではありません。
           </p>
         </div>
       </div>

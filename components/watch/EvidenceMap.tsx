@@ -218,7 +218,7 @@ export default function EvidenceMap({ decision, action, confidenceLabel }: Evide
               <CountBar got={fundCount} total={fundTotal} />
               {fundMissing > 0 && (
                 <p className="mt-1 text-sm text-muted leading-relaxed max-w-[42rem]">
-                  残り {fundMissing} 項目は、判断時点でデータ元から値が得られなかったもの（N/A。表では「未取得」）。
+                  残りの {fundMissing} 項目は、この判断のときに数字が手に入らなかったものです（表では「未取得」と表示）。
                 </p>
               )}
             </div>

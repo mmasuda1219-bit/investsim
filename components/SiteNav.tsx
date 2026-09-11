@@ -29,8 +29,14 @@ export function SiteNav() {
     <>
       <header className="sticky top-0 z-40 border-b border-border bg-panel backdrop-blur">
         <div className="max-w-screen-2xl mx-auto px-4 py-2.5 flex items-center gap-4">
-          <Link href="/" className="font-black text-lg tracking-tight shrink-0">
-            <span className="text-emerald-700">Invest</span>Sim
+          {/* ロゴ（2026-09-11 オーナー提供のデザインをベクター化した public/logo.svg）。
+              スマホ幅はマークだけにする。ヘッダには検索とログインも並ぶので、文字まで入れると
+              390px で横にはみ出す（2bd216a と同種の事故）。 */}
+          <Link href="/" className="shrink-0 flex items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.svg" alt="InvestSim" width={143} height={28} className="hidden sm:block h-7 w-auto" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.svg" alt="InvestSim" width={25} height={28} className="sm:hidden h-7 w-auto" />
           </Link>
 
           {/* スマホでは下部ナビに任せるので隠す */}

@@ -105,7 +105,7 @@ const fmtDEUnknown = (n: number) => n.toLocaleString('ja-JP', { minimumFractionD
 
 /** v1 記録の D/E に添える注記。値は当時AIに渡したもの。 */
 const LEGACY_DE_NOTE =
-  '当時AIに渡した値。取得元により%か倍かが記録から判別できません（2026-09-11 に書式を修正）。AIの文章は当時のままです'
+  'この判断のときにAIへ渡した数字を、そのまま表示しています。当時は記録のしかたに不具合があり、「倍」なのか「%」なのかが記録から分かりません（9月11日に修正済み）。AIの文章も当時のままです。'
 
 function fmtValue(kind: Kind, currency: '$' | '¥', n: number, legacy?: FundamentalsLegacy): string {
   switch (kind) {
@@ -128,7 +128,7 @@ function StatTile({ label, note, value, caveat }: { label: string; note: string;
         <div className="text-base font-semibold text-muted leading-tight mt-1">未取得</div>
       )}
       <div className="text-[13px] text-ink-2 leading-snug mt-1">
-        {value != null ? note : '判断の時点でデータ元から値が得られず N/A でした'}
+        {value != null ? note : 'この判断のときは、数字が手に入りませんでした'}
       </div>
       {value != null && caveat && (
         <div className="text-[13px] text-muted leading-snug mt-1">{caveat}</div>
@@ -190,7 +190,7 @@ export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS
 
       <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
         {savedFields.length}項目のうち {missingSaved.length} 項目が未取得
-        {missingSaved.length > 0 && '（判断の時点でデータ元から値が得られず N/A でした）'}
+        {missingSaved.length > 0 && '（この判断のときは、数字が手に入りませんでした）'}
       </p>
 
       {unsaved.length > 0 && (
