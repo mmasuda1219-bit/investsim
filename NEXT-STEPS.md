@@ -278,7 +278,9 @@ Step 1・2・2b は完了済み（公開・動作確認まで）。オーナー�
 - [x] オーナー決定3点: ブランド色＝ロゴの紺青 `#1A4787`／主役＝4段階の流れ・心臓は `/trade`（`COMPANY.md` 原則12を書き換え）／目的の一文＝「実データと仮想資金で、自分の投資判断を言葉にし、あとから答え合わせできるようになる練習場。」（法務の代案を退けて原文維持＝弁護士確認事項）
 - [x] 別の目のレビュー: designer（Tailwind v4 の `@theme inline` 問題・問いは `lib/trade/reason.ts` が正・紺青の用途の一本化・金額はドル建て 等）と legal-compliance（画面間は銘柄だけ引き継ぐ・「リスクゼロ」禁止・全株価に時点表示 等）を反映済み。`DECISIONS.md` に記録
 - [x] **同日夜・オーナー指摘「AI が作ったと分かる」→ 囲いと構成を A＋C に決定、未来感は「分析の過程の再生」で**（DECISIONS 同日）。動く見本を本物の第72回で作りオーナー承認。`DESIGN.md` §2 禁止の形・§6-6・§6-19・§10 P1.5 を追加
-- [ ] **次の一手: `DESIGN.md` §10 の P0 から builder が1項目ずつ**。最初は「トークンを `@theme inline` に登録し、効いていない hover（59か所の疑い）を実機で確認」が効果大（全画面の土台）。計画承認（人間ゲート①）を取ってから
+- [x] **同日夜・実装開始（オーナー「進めて」＝人間ゲート①）**: ①土台（`b1d95c5`）・②読めない所（`3988c8d`）をコミット。オーナー目視 OK 済み。③3a トップ＋/review の囲い撤去（A/C の見本。囲い 20→2、reviewer 指摘3件修正済み。PC 幅で灰の地が端まで届かない不具合を box-shadow 方式で修正。2026-09-12 オーナーが変更前後の比較 https://claude.ai/code/artifact/cdfb4721-5baa-413a-9a81-e88b5a358d0b を見て「**今のままが見やすい**」＝承認。トップの見出しは 24px のまま据え置き）。④4a tick 過程の記録（`lib/ai-trader/tick-record.ts` 新設・`engine.ts`、reviewer「出荷可」・小修正中・**未コミット**）。本番の次 tick から `ticks[]` が貯まり始める
+- [ ] **残り**: 3b /watch（囲い約35・ピル15・数字タイル8→表）→ 3c /learn＋analyze/*（約40）→ 3d Band/Row 抽出＋地の敷き方を layout へ → 4b 読み出し API（`/api/ai-session/[id]/ticks`、一覧の要約化＝343KB 問題も同時）→ ⑤ /watch の再生部品（4a の記録が数 tick 貯まってから。見本: https://claude.ai/code/artifact/a554ecc6-8b8c-42d6-bf7a-ee4639af40a6 ）。P0 の免責共通部品化・トップ文言（法務）は別スライス
+- [ ] ~~**次の一手: `DESIGN.md` §10 の P0 から builder が1項目ずつ**。~~最初は「トークンを `@theme inline` に登録し、効いていない hover（59か所の疑い）を実機で確認」が効果大（全画面の土台）。計画承認（人間ゲート①）を取ってから
 - [ ] 🔴 **legal-compliance 指摘・MC 未検証**: 株価の取得失敗で架空値に切り替わる箇所（`engine.ts` 224・252-254・797・889・906、`app/stocks/[symbol]/page.tsx:23`、`app/api/signals/[symbol]/route.ts:15-17`、`lib/simulation.ts:100・110`）。下の積み残し4（`allowMock`）と同根の可能性。見出しに「実データ」を掲げる前に解消が要る → architect で調査
 - [ ] データ提供元の利用規約（Yahoo 商用利用禁止／Twelve Data 再配布契約／J-Quants 私的利用のみ）→ 有料化の前に弁護士確認
 

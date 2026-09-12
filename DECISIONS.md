@@ -2,6 +2,26 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-09-11: 分析の過程は AISession.ticks に別配列で記録する（切り分け4a）
+- 背景: DESIGN.md §6-19 の再生に、走査結果・段の所要時間・テクニカル数値・AI の usage が残っていない。72回中42回は判断の記録が0件で原因が切り分けられない
+- 決定: AISession.ticks: TickRecord[]（直近12件・decisions/trades と同じ新しい順＝ticks[0] が最新）を追加。AIDecision には tickId/decidedAt だけ足し、リッチ項目は ticks 側へ寄せる。プロンプト全文と返事の本文は保存しない。askClaude の失敗も stopReason（timeout/error）付きで tick を保存してから元のエラーを再送出（tickCount/equityHistory/decisions は進めない。watchlist・knowledgeShown も失敗前の値に戻し「失敗 tick が変えるのは ticks と、旧セッションの欠損フィールドの補完（冪等＝何度やっても同じ値）だけ」にする）。返事は来たが救出0件は stopReason='empty'、元の stop_reason は段の note に残す
+- 理由: tick 単位の事実を判断ごとに持つと重複し古い分を捨てられない。既存の保存値は不変、無い回は「記録なし」
+- 却下: S2 の AIDecision 拡張のみ（重複・上限管理不能）／プロンプト全文の保存（毎回数KB・知識本文を抱え込む）
+- 実装上の補足: (1) 段は candidates/contexts/knowledge/ai/trade の5つ。'save' は保存そのものなので、この記録の中に所要を書けず積まない（finishedAt＝保存直前の時刻）。(2) lib/market の getQuote は取得元（yahoo2/yahoodirect/twelvedata/mock）を戻り値に持たないため `source` は記録しない（推測で埋めない）。(3) 知識の読み込み失敗は loadKnowledgePoolSafely の中で [] に畳まれるので、knowledge 段は「N件から M件」の件数だけで失敗と0件を区別しない。(4) ニュース見出しは buildStockContext の news（`[Nh前] title (publisher)`・最大5件）をそのまま使い、別項目に複製しない。(5) engine.ts は store.ts 経由で server-only を含み tsx から読めないため、純関数は tick-record.ts に分け、本番複製の検査では runTick 冒頭の正規化を同じ順序で再現した
+- 検証: npx tsc --noEmit exit 0（途中1回だけ別作業者が編集中だった app/review/page.tsx で formatClock 未定義が出たが、編集完了後の再実行で 0）／scripts/check-tick-record.ts 26件 PASS／check-decision-parse・check-trade-reason PASS のまま／本番 GET /api/ai-session の複製（tickCount=73・decisions 50・learning.allDecisions 228・trades 17・equityHistory 73・ticks 無し）を正規化＋pushTick 1回に通して 4配列とも JSON 完全一致・先頭要素同一（15件 PASS・本番への書き込みなし）／1件のサイズ実測 9,836 bytes（40銘柄・8 contexts・見出し5件×8・知識6件・段5つ）→ 12件で約115KB、本番 JSON 365,308→365,514 bytes（空 tick 1件）／npm run build exit 0（1回目で成功）／runTick の通し実行は API キーと Supabase が無く未実行
+- 影響ファイル: lib/ai-trader/tick-record.ts（新）, lib/ai-trader/engine.ts, scripts/check-tick-record.ts（新）
+- レビュー後の修正: TickAI.promptChars を null 許容にし、プロンプト組み立て前に落ちた経路は 0 でなく null／失敗経路の upsertSession に withDeadline（5秒）を掛け、Claude の35秒タイムアウト後に保存で関数上限まで延びないようにした（成功経路は無期限のまま）
+
+## 2026-09-11: 囲いの撤去は「見本1枚→全画面」の4分割で進め、共通部品は3回目まで作らない（切り分け3・3a 実施）
+- 背景: 囲い約224か所・37ファイルを一度に直すとレビューできず、部品を先に作ると形を誤る
+- 決定: 3a トップ＋/review（A/C の見本）→ 3b /watch → 3c /learn＋analyze/* → 3d components/ui/ 抽出 の順。/trade は §6-9 の作り直しスライスに委ねて触らない
+- 理由: 最初に見本を作れば以後は模倣で済む。共用部品(analyze/*)を1切り分けに集約して衝突を防ぐ。原則8より Band/Row は3回出てから抽出
+- 3a の結果: 囲い 5→1・15→1（残り2つは副ボタン／取り消しボタン＝§6-6 で許される「押せる塊」）、text-center 0→0・6→0、uppercase 1→0・2→0（app/page.tsx・app/review/page.tsx）。旧色（bg-panel・emerald・green/red・blue 等）は両ファイルで 38か所→0。部品の内側に残る囲い: なし（/ と /review が使う共通部品は SiteNav・LoginLink のみで、囲いは持たない）
+- 実装上の補足: (1) 地（--surface）は layout.tsx を触れないため、各ページの根で <main> の余白を負のマージンで打ち消して端まで敷き、`min-h-[calc(100dvh-59px)]`（59px＝ヘッダー実測）で画面の下端まで伸ばした。PC の 1152px 超では main の max-w-6xl で灰が切れる（--bg との差は約 1.05:1 で薄い）。地は 3d で layout 側へ移す。(2) 03 やる の強調は text-h2 対 text-h3＋行の高さで付け、--brand-tint の下地は §5-1（現在地・選択中だけ）に従い使わなかった。(3) /review の株価取得に失敗した銘柄は avgCost で埋めず「取得できませんでした」と出し、1つでも欠けたら総資産・損益を「—」にした（原則9・P9）。「今」の株価には API の lastUpdated を時点として添える。(4) 損益の書式を §5-2・§6-4 に合わせた（U+2212・±・割合は小数1桁）。取引履歴の BUY/SELL の緑/赤の札は「▲ 買い／▼ 売り」の文字に（P8）。(5) 空の状態の次の一手は1つに絞り（§6-12）、主ボタン（bg-brand）は「判断と、その結果」の空状態だけが持つ。保有なし側は文字リンク「自分で判断して売買する →」、銘柄探し（/learn）も文字リンク（記録0・保有0の新規アカウントで主ボタンが2つ並ばないため・§6-1）
+- レビュー後の修正: 株価の読み込み中を3値（取得中／取れた／取れなかった）に分けて「取得しています」と出す（取得中を失敗と表示しない・§6-12）／株価の取得対象を保有銘柄∪未決済の判断記録の銘柄にし「実際の取引の記録」の未決済分も「今」が出るように／主ボタンを1画面1つに／「銘柄の当たり」→「買いたい銘柄が決まっていなければ」（RULES #8）／資産の見出しに取得した株価の時点を添える（§6-2）
+- レビュー後の修正（2）: 地の敷き方を「ページの根に同色・広がり 100vmax・ぼかし 0 の box-shadow（`shadow-[0_0_0_100vmax_var(--surface)]`）」に変え、PC 幅で灰が端まで届かない不具合を解消（1280px で片側 64px が --bg のまま残り、中央だけ灰の柱に見えていた）。box-shadow はレイアウトにもスクロール範囲にも入らない「インクのはみ出し」なので、100vw／w-screen と違って Windows のスクロールバー幅ぶんの横スクロールが出ない（実スクロールバー表示で scrollWidth=clientWidth=1265 を確認）。上はヘッダー（sticky・不透明）が上に描かれて隠れ、下は内容が短くても画面の下端まで塗られるため、負のマージンと `min-h-[calc(100dvh-59px)]`（59px の決め打ち）は撤去。他ルートの地（--bg）は不変。注意: 3d で共通化するとき、この根の内側に fixed の窓（TradeModal 等）を置くページでは clip-path を足さないこと（足すと重なり順の文脈ができて窓が切れる）
+- 影響ファイル: app/page.tsx, app/review/page.tsx
+
 ## 2026-09-11: 売買の選択から緑/赤の塗りを外し、副ボタン＋選択中の枠に変える（DESIGN.md 移行・切り分け2）
 - 背景: 緑/赤の塗りに濃い文字で 3.2〜3.3:1、トップの「保有継続」札は 1.8:1 と読めない状態だった。text-bull/text-bear は未定義、text-accent-ink は切り分け1以前は未定義で、色が付いていなかった
 - 決定: 買う/売るは同じ重さの副ボタン、選択中は --brand-tint 下地＋--brand 枠2px＋文字「選択中」＋aria-pressed。方向の札は無彩色＋▲/▼/＝/◇。緑/赤は損益と誤りだけ。キーボード枠は focus-visible で --focus 2px

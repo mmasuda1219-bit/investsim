@@ -21,6 +21,11 @@ import type { KnowledgeItem, KnowledgeKind } from '@/lib/knowledge/types'
 // 監視母集団は lib/ai-trader/universe.ts（純データ・副作用なし）に置き、クライアント側の
 // 画面(/watch)が「AIは何銘柄を監視しているのか」を同じ定義から読めるようにしている。
 import { UNIVERSE, TICK_CANDIDATE_COUNT } from './universe'
+// 4a(2026-09-11): tick ごとの過程の記録（DESIGN.md §6-19 の材料）。型と組み立ては純関数側に置く。
+import {
+  emptyTickRecord, makeStage, pushTick, decisionIdFor,
+  type TickRecord, type TickAI, type TickUniverseRow, type TickContext,
+} from './tick-record'
 
 // AIモデルID（環境変数で上書き可）。tickは頻繁・高速・低コストが要件なので Haiku を既定に。
 // sonnet-4-6 だと1呼び出し+データ取得で約55秒かかり Vercel の60秒関数タイムアウトを不定期に
@@ -36,8 +41,50 @@ const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-4-5'
 /** Claude呼び出しの上限。呼び出し側の性質（hot path/間引き）で使い分ける。 */
 type CallClaudeOpts = { maxTokens?: number; timeoutMs?: number }
 
-function callClaude(prompt: string, opts: CallClaudeOpts = {}): Promise<string> {
-  return process.env.ANTHROPIC_API_KEY ? callClaudeApi(prompt, opts) : callClaudeCli(prompt)
+/** Claude の返事＋計測値。本文（text）は呼び出し側で使うだけで、記録（TickAI）には載せない。 */
+interface ClaudeReply {
+  text: string
+  model: string
+  inputTokens: number | null
+  outputTokens: number | null
+  stopReason: string
+  ms: number
+  promptChars: number
+  responseChars: number
+}
+
+/** 4a: 計測値つきの呼び出し。CLI 経路は usage も stop_reason も無いので model:'cli'・トークン null。 */
+async function callClaudeDetailed(prompt: string, opts: CallClaudeOpts = {}): Promise<ClaudeReply> {
+  if (process.env.ANTHROPIC_API_KEY) return callClaudeApi(prompt, opts)
+  const t0 = Date.now()
+  const text = await callClaudeCli(prompt)
+  return {
+    text, model: 'cli', inputTokens: null, outputTokens: null, stopReason: 'cli',
+    ms: Date.now() - t0, promptChars: prompt.length, responseChars: text.length,
+  }
+}
+
+/** 既存の呼び出し口（generateFullLearning が使う）。本文だけ返す挙動は不変。 */
+async function callClaude(prompt: string, opts: CallClaudeOpts = {}): Promise<string> {
+  return (await callClaudeDetailed(prompt, opts)).text
+}
+
+/** SDK のタイムアウト（APIConnectionTimeoutError "Request timed out."）と withDeadline の "timed out" を同じ扱いにする。 */
+function isTimeoutError(e: unknown): boolean {
+  const name = (e as { name?: unknown })?.name
+  const msg = e instanceof Error ? e.message : String(e)
+  return name === 'APIConnectionTimeoutError' || /timed out/i.test(msg)
+}
+
+/**
+ * askClaude が Claude 呼び出しで落ちたときに投げる。runTick はこれを捕まえて `ai` を TickRecord に
+ * 積んで保存してから `original` を再送出する（呼び出し側が見るエラーは従来と同じ）。
+ */
+class AskClaudeError extends Error {
+  constructor(readonly original: unknown, readonly ai: TickAI) {
+    super(original instanceof Error ? original.message : String(original))
+    this.name = 'AskClaudeError'
+  }
 }
 
 // HOTFIX(2026-07-24): @anthropic-ai/sdkの既定値はtimeout=10分・maxRetries=2（429/5xx等を
@@ -63,10 +110,11 @@ const CLAUDE_LEARN_TIMEOUT_MS = 40_000
 const DECISION_MAX_TOKENS = 2500
 const LEARN_MAX_TOKENS = 4096
 
-async function callClaudeApi(prompt: string, opts: CallClaudeOpts = {}): Promise<string> {
+async function callClaudeApi(prompt: string, opts: CallClaudeOpts = {}): Promise<ClaudeReply> {
   // 動的import: APIキー未設定のローカル環境ではSDKを読み込まない
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const client = new Anthropic()
+  const t0 = Date.now()
   const res = await client.messages.create(
     {
       model: AI_MODEL,
@@ -88,7 +136,16 @@ async function callClaudeApi(prompt: string, opts: CallClaudeOpts = {}): Promise
   if (res.stop_reason === 'max_tokens') {
     console.warn(`[ai-trader] 出力上限(max_tokens=${maxTokens})で打ち切られた。判断が欠けている可能性`)
   }
-  return text
+  return {
+    text,
+    model: res.model ?? AI_MODEL,
+    inputTokens: res.usage?.input_tokens ?? null,
+    outputTokens: res.usage?.output_tokens ?? null,
+    stopReason: res.stop_reason ?? 'unknown',
+    ms: Date.now() - t0,
+    promptChars: prompt.length,
+    responseChars: text.length,
+  }
 }
 
 function callClaudeCli(prompt: string): Promise<string> {
@@ -146,6 +203,11 @@ export interface AIDecision {
   // （旧永続セッションに無くても壊れない）。titleを非正規化で持つのは、古い判断でも
   // 知識ストア側の更新・削除に関わらず単体でUI描画できるようにするため。
   knowledgeRefs?: Array<{ id: string; title: string }>
+  // 4a(2026-09-11): この判断が生まれた tick（AISession.ticks[].id）と、AI の返事を受け取った時刻。
+  // 任意フィールド（旧判断には無い。読む側は `tickId ?? null`）。過程の詳細は ticks 側にあり、
+  // ここには参照だけを持つ（判断ごとに走査結果を複製しない）。
+  tickId?: string
+  decidedAt?: string
 }
 
 export interface Holding {
@@ -203,6 +265,10 @@ export interface AISession {
   // どうかは問わない「提示」の記録。「引用」（実際に依拠したもの）はAIDecision.knowledgeRefs側。
   // 任意フィールド（旧永続セッションに無くても壊れない）。
   knowledgeShown?: Array<{ id: string; title: string; kind: KnowledgeKind }>
+  // 4a(2026-09-11): tick ごとの過程の記録（直近 TICK_RECORD_LIMIT=12 件・新しい順）。DESIGN.md §6-19 の材料。
+  // 任意フィールド（旧永続セッションに無い。読む側は `ticks ?? []`）。askClaude が失敗した tick も
+  // stopReason 付きで残す。decisions / trades / equityHistory の作り方・件数はこの配列の有無で変わらない。
+  ticks?: TickRecord[]
 }
 
 // 永続化はstore.tsに集約（Supabase JSONB blob / キー未設定ローカルはファイルにフォールバック）。
@@ -212,9 +278,14 @@ export interface AISession {
 export { getSession, listSessions } from './store'
 import { getSession, upsertSession } from './store'
 
-async function selectCandidates(n = 8): Promise<string[]> {
+/**
+ * 値動き（|前日比%|）の大きい順に n 銘柄を選ぶ。`candidates` の中身・順序は従来の戻り値と同じ。
+ * 4a: 走査した40銘柄の結果を `universe`（UNIVERSE の並び順・順位つき）としても返す。
+ * quote 取得に失敗した行は ok:false・changePercent/rank は null（0 で埋めない）。
+ */
+async function selectCandidates(n = 8): Promise<{ candidates: string[]; universe: TickUniverseRow[] }> {
   const chunks = [UNIVERSE.slice(0, 20), UNIVERSE.slice(20)]
-  const results: Array<{ symbol: string; changeAbs: number }> = []
+  const results: Array<{ symbol: string; changeAbs: number; changePercent: number | null }> = []
 
   // 2チャンクを逐次awaitせず並列に走らせる（Vercelの関数タイムアウト対策で待ち時間短縮）。
   const chunkResults = await Promise.all(
@@ -222,7 +293,12 @@ async function selectCandidates(n = 8): Promise<string[]> {
       Promise.allSettled(
         chunk.map(async (sym) => {
           const q = await getQuote(sym)
-          return { symbol: sym, changeAbs: Math.abs(q.changePercent) }
+          return {
+            symbol: sym,
+            changeAbs: Math.abs(q.changePercent),
+            // 記録用。数値でない（NaN 等）場合は null にする（順位の計算は従来どおり changeAbs で行う）。
+            changePercent: Number.isFinite(q.changePercent) ? q.changePercent : null,
+          }
         })
       )
     )
@@ -234,7 +310,15 @@ async function selectCandidates(n = 8): Promise<string[]> {
   }
 
   results.sort((a, b) => b.changeAbs - a.changeAbs)
-  return results.slice(0, n).map(r => r.symbol)
+  const rankBySymbol = new Map(results.map((r, i) => [r.symbol, i + 1]))
+  const rowBySymbol = new Map(results.map(r => [r.symbol, r]))
+  const universe: TickUniverseRow[] = UNIVERSE.map(symbol => {
+    const row = rowBySymbol.get(symbol)
+    return row
+      ? { symbol, changePercent: row.changePercent, ok: true, rank: rankBySymbol.get(symbol) ?? null }
+      : { symbol, changePercent: null, ok: false, rank: null }
+  })
+  return { candidates: results.slice(0, n).map(r => r.symbol), universe }
 }
 
 export interface StockContext {
@@ -245,6 +329,12 @@ export interface StockContext {
   techDetail:   string
   news:         string[]
   sources:      string[]
+  // 4a(2026-09-11): 記録用。technicals/techDetail の文字列を作るのに使った数値そのもの（丸めは
+  // lib/technicals の計算どおり）。算出できなかった指標は null。bars は取得した日足の本数。
+  bars:         number
+  indicators:   Pick<TickContext, 'ma20' | 'ma50' | 'rsi14' | 'macd' | 'bb'>
+  /** getFundamentals が {}（データなし）以外を返したか */
+  fundamentalsOk: boolean
 }
 
 async function buildStockContext(symbol: string): Promise<StockContext> {
@@ -302,7 +392,42 @@ async function buildStockContext(symbol: string): Promise<StockContext> {
 
   const sources = ['Yahoo Finance (リアルタイム株価・チャート)', 'Yahoo Finance News (ニュース)']
 
-  return { symbol, quote, fundamentals, technicals, techDetail, news: newsHeadlines, sources }
+  // 4a: 記録用の数値。文字列化（technicals/techDetail）は上のとおり不変で、ここは同じ値を数値のまま持つ。
+  const indicators: StockContext['indicators'] = {
+    ma20:  latestMA20 ?? null,
+    ma50:  latestMA50 ?? null,
+    rsi14: latestRSI ?? null,
+    macd:  latestMACD ? { macd: latestMACD.macd, signal: latestMACD.signal, histogram: latestMACD.histogram } : null,
+    bb:    latestBB ? { upper: latestBB.upper, middle: latestBB.middle, lower: latestBB.lower } : null,
+  }
+
+  return {
+    symbol, quote, fundamentals, technicals, techDetail, news: newsHeadlines, sources,
+    bars: history.length,
+    indicators,
+    fundamentalsOk: Object.keys(fundamentals).length > 0,
+  }
+}
+
+/** 4a: StockContext から記録用の行を切り出す（ニュース見出しは news の `[Nh前] title (publisher)` をそのまま）。 */
+function toTickContext(ctx: StockContext): TickContext {
+  return {
+    symbol: ctx.symbol,
+    bars: ctx.bars,
+    ...ctx.indicators,
+    fundamentalsOk: ctx.fundamentalsOk,
+    newsCount: ctx.news.length,
+    newsHeadlines: ctx.news,
+  }
+}
+
+/** 4a: buildStockContext が落ちた銘柄の行。数値は null・見出しは空（分析対象からは外れている）。 */
+function failedTickContext(symbol: string, error: unknown): TickContext {
+  return {
+    symbol, bars: 0, ma20: null, ma50: null, rsi14: null, macd: null, bb: null,
+    fundamentalsOk: false, newsCount: 0, newsHeadlines: [],
+    error: (error instanceof Error ? error.message : String(error)).slice(0, 200),
+  }
 }
 
 // 通貨コード(ISO 4217)→ 表示記号。USD/JPY 以外はコードをそのまま前置（例: "EUR 12.3B"）。
@@ -360,6 +485,9 @@ function buildCriteriaBlock(persona: { criteria: string[] }): string {
 // 「無音のハング→504」を再来させうる。listKnowledge/recordKnowledgeUsageのどちらも
 // このデッドラインで包み、超過・失敗時は必ずfail-open（[]/スキップ）にする。
 const KNOWLEDGE_IO_TIMEOUT_MS = 2_000
+// 4a: askClaude 失敗時に記録だけを保存する upsert の期限。cron の50秒枠のうち Claude の35秒を使い切った
+// 後に呼ばれるため、ここで粘ると関数上限に達する。JSONB 1行（数百KB）の upsert は通常1秒未満。
+const FAILED_TICK_SAVE_TIMEOUT_MS = 5_000
 
 function withDeadline<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -394,11 +522,21 @@ async function recordKnowledgeUsageSafely(ids: string[]): Promise<void> {
   }
 }
 
+/** askClaude の戻り値。decisions の中身は従来と同じ。ai/decidedAt/note は 4a の記録用。 */
+interface AskClaudeResult {
+  decisions: AIDecision[]
+  ai: TickAI
+  /** AI の返事を受け取った時刻（判断の decidedAt に使う） */
+  decidedAt: string
+  /** 0件・一部欠落のときの補足（stage 'ai' の note に載せる）。正常時は undefined */
+  note?: string
+}
+
 async function askClaude(
   session: AISession,
   stockData: StockContext[],
   knowledge: KnowledgeItem[]
-): Promise<AIDecision[]> {
+): Promise<AskClaudeResult> {
 
   const holdingsSummary = Object.entries(session.holdings).map(([sym, pos]) => {
     const hrsSince = Math.round((Date.now() - new Date(pos.entryAt).getTime()) / 3600000)
@@ -461,20 +599,55 @@ ${buildCriteriaBlock(persona)}
 actionは "buy" | "sell" | "hold" | "watch"。buyは現金十分な場合のみ。sellは保有銘柄のみ。
 knowledgeRefsは実際に依拠した【投資の原則（知識ベース）】のIDのみ。最大2件。無ければ []（体裁のために埋めない）。`
 
-  const text = await callClaude(prompt)
+  // 4a: 失敗（タイムアウト・例外）は計測値を添えて AskClaudeError にくるむ。runTick が記録を保存してから
+  // 元のエラーを再送出する。ここで握りつぶさない（従来どおり tick は失敗として扱う）。
+  const askedAtMs = Date.now()
+  let reply: ClaudeReply
+  try {
+    reply = await callClaudeDetailed(prompt)
+  } catch (e) {
+    throw new AskClaudeError(e, {
+      model: process.env.ANTHROPIC_API_KEY ? AI_MODEL : 'cli',
+      inputTokens: null,
+      outputTokens: null,
+      stopReason: isTimeoutError(e) ? 'timeout' : 'error',
+      ms: Date.now() - askedAtMs,
+      decisionsReturned: 0,
+      decisionsExpected: stockData.length,
+      promptChars: prompt.length,
+      responseChars: null,
+    })
+  }
+  const decidedAt = new Date().toISOString()
+  const text = reply.text
+  const aiBase: Omit<TickAI, 'stopReason' | 'decisionsReturned'> = {
+    model: reply.model,
+    inputTokens: reply.inputTokens,
+    outputTokens: reply.outputTokens,
+    ms: reply.ms,
+    decisionsExpected: stockData.length,
+    promptChars: reply.promptChars,
+    responseChars: reply.responseChars,
+  }
   // S4-0: 返事が max_tokens で打ち切られ閉じフェンスが無いと、旧実装（正規表現で ```json…``` を
   // 切り出し）は無マッチになり、12銘柄ぶん書けていても全部捨てて 0 件を返していた。
   // 完成している要素だけ救出し、欠落は必ず警告する（無音にしない）。
   const raw = extractDecisionArray(text) as any[]
   if (raw.length === 0) {
     console.warn('[ai-trader] 判断のJSONを1件も救出できなかった（出力の打ち切りか書式崩れ）')
-    return []
+    return {
+      decisions: [],
+      // 'empty' = 返事は来たが判断を1件も救出できなかった。元の stop_reason は note に残す。
+      ai: { ...aiBase, stopReason: 'empty', decisionsReturned: 0 },
+      decidedAt,
+      note: `返事あり(stop=${reply.stopReason}, ${reply.responseChars}字)だが判断を1件も救出できず`,
+    }
   }
   if (raw.length < stockData.length) {
     console.warn(`[ai-trader] ${stockData.length}銘柄中 ${raw.length} 件のみ救出。残りは出力の打ち切りで欠落した可能性`)
   }
 
-  try {
+  const decisions: AIDecision[] = (() => { try {
     return raw.map(r => {
       const sd = stockData.find(s => s.symbol === r.symbol)
       const f = sd?.fundamentals
@@ -508,6 +681,18 @@ knowledgeRefsは実際に依拠した【投資の原則（知識ベース）】�
     })
   } catch {
     return []
+  } })()
+
+  // 記録: 救出できた件数は最終的な decisions の件数（上の map が落ちて [] になった場合も含む）。
+  const returned = decisions.length
+  const partial = returned < stockData.length
+  return {
+    decisions,
+    ai: { ...aiBase, stopReason: returned === 0 ? 'empty' : reply.stopReason, decisionsReturned: returned },
+    decidedAt,
+    note: returned === 0
+      ? `返事あり(stop=${reply.stopReason})だが判断の組み立てに失敗`
+      : partial ? `${stockData.length}銘柄中 ${returned} 件のみ救出 (stop=${reply.stopReason})` : undefined,
   }
 }
 
@@ -826,6 +1011,11 @@ export async function startSession(capital = 100000, persona?: InvestorId): Prom
 }
 
 export async function runTick(sessionId: string): Promise<AISession> {
+  // 4a: 過程の記録。開始時刻は関数の入口（セッション読み込みも含む）。各段は Date.now() で挟んで
+  // stages に積む。組み立ては計算だけで、記録のための外部呼び出しは一切足していない（cron の50秒枠）。
+  const startedAtMs = Date.now()
+  const record = emptyTickRecord(startedAtMs)
+
   const session = await getSession(sessionId)
   if (!session) throw new Error('Session not found')
 
@@ -840,35 +1030,102 @@ export async function runTick(sessionId: string): Promise<AISession> {
   if (!session.holdings)  session.holdings = {}
   if (!session.watchlist) session.watchlist = []
 
+  // 失敗 tick（askClaude が投げた場合）は、この2つを tick 前の値に戻してから記録だけを保存する。
+  // 従来は失敗時に何も保存されなかったので、「失敗 tick が変えるのは ticks だけ」を保つため。
+  const prevWatchlist = session.watchlist
+  const prevKnowledgeShown = session.knowledgeShown
+
   // 4件: プロンプトと出力トークンを削り、判断1回をCLAUDE_TIMEOUT_MS内に収めるため（2026-07-30）。
   // combined = 候補 + 保有銘柄 なので、保有が増えると実際の分析対象はこれより多くなる。
-  const candidates = await selectCandidates(TICK_CANDIDATE_COUNT)
+  const candStartMs = Date.now()
+  const { candidates, universe } = await selectCandidates(TICK_CANDIDATE_COUNT)
   const combined = Array.from(new Set([...candidates, ...Object.keys(session.holdings)]))
   session.watchlist = combined
-
-  type StockCtx = Awaited<ReturnType<typeof buildStockContext>>
-  const rawData = await Promise.all(
-    combined.map(sym => buildStockContext(sym).catch(() => null))
-  )
-  const enriched: StockCtx[] = []
-  for (let i = 0; i < combined.length; i++) {
-    const ctx = rawData[i]
-    if (ctx) enriched.push(ctx)
+  {
+    const okRows = universe.filter(r => r.ok).length
+    record.universe = universe
+    record.selected = candidates
+    record.heldAdded = combined.filter(s => !candidates.includes(s))
+    record.stages.push(makeStage('candidates', candStartMs, Date.now(), candidates.length > 0,
+      `${okRows}/${universe.length}銘柄の株価を取得・候補${candidates.length}件・保有から${record.heldAdded.length}件`))
   }
+
+  // 銘柄ごとの材料集め。失敗した銘柄は従来どおり分析対象から外す（記録には error 付きの行を残す）。
+  const ctxStartMs = Date.now()
+  const settled = await Promise.allSettled(combined.map(sym => buildStockContext(sym)))
+  const enriched: StockContext[] = []
+  for (let i = 0; i < combined.length; i++) {
+    const r = settled[i]
+    if (r.status === 'fulfilled') {
+      enriched.push(r.value)
+      record.contexts.push(toTickContext(r.value))
+    } else {
+      record.contexts.push(failedTickContext(combined[i], r.reason))
+    }
+  }
+  record.stages.push(makeStage('contexts', ctxStartMs, Date.now(), enriched.length > 0,
+    `${enriched.length}/${combined.length}銘柄の材料を取得`))
 
   // S2(知識配線): knowledge_items未設定/未実行・タイムアウト時は[]にフォールバックする
   // （loadKnowledgePoolSafely内部でfail-open・1行warn）。selectKnowledgeForDecisionは
   // 純関数なので空プールなら[]を返し、formatKnowledgeBlockも空文字を返すため、
   // askClaudeへ渡すプロンプトは知識未接続時と完全に同一の挙動になる。
+  const knStartMs = Date.now()
   const knowledgePool = await loadKnowledgePoolSafely()
   const selectedKnowledge = selectKnowledgeForDecision(knowledgePool, {
     persona: session.persona,
     symbols: combined,
   })
   session.knowledgeShown = selectedKnowledge.map(k => ({ id: k.id, title: k.title, kind: k.kind }))
+  record.knowledge = selectedKnowledge.map(k => ({ id: k.id, title: k.title }))
+  // 読み込み失敗は loadKnowledgePoolSafely の中で [] に畳まれ、ここからは「0件」としか見えない
+  // （ok は段が完了したことだけを表す。失敗と0件の区別は本スライスでは付けない）。
+  record.stages.push(makeStage('knowledge', knStartMs, Date.now(), true,
+    `${knowledgePool.length}件から${selectedKnowledge.length}件を提示`))
 
-  const decisions = await askClaude(session, enriched, selectedKnowledge)
+  // AI に聞く。失敗（タイムアウト・例外）は stopReason 付きで記録を保存してから元のエラーを再送出する。
+  // tickCount・equityHistory・decisions は進めない（今までの数え方のまま）。
+  const aiStartMs = Date.now()
+  let asked: AskClaudeResult
+  try {
+    asked = await askClaude(session, enriched, selectedKnowledge)
+  } catch (e) {
+    const original = e instanceof AskClaudeError ? e.original : e
+    const msg = (original instanceof Error ? original.message : String(original)).slice(0, 200)
+    record.ai = e instanceof AskClaudeError ? e.ai : {
+      model: process.env.ANTHROPIC_API_KEY ? AI_MODEL : 'cli',
+      inputTokens: null, outputTokens: null,
+      stopReason: isTimeoutError(original) ? 'timeout' : 'error',
+      ms: Date.now() - aiStartMs,
+      decisionsReturned: 0, decisionsExpected: enriched.length,
+      // プロンプトを組み立てる前に落ちた経路。文字数は不明なので null（0 で埋めない・原則9）。
+      promptChars: null, responseChars: null,
+    }
+    record.stages.push(makeStage('ai', aiStartMs, Date.now(), false, msg))
+    record.finishedAt = new Date().toISOString()
+    session.watchlist = prevWatchlist
+    session.knowledgeShown = prevKnowledgeShown
+    session.ticks = pushTick(session.ticks, record)
+    // 35秒のタイムアウト後に Supabase まで固まると関数上限（60秒）まで延びるため、記録の保存には期限を掛ける。
+    // 超過・失敗は1行 warn して元のエラーを優先する（成功経路の upsertSession は従来どおり無期限）。
+    try {
+      await withDeadline(upsertSession(session), FAILED_TICK_SAVE_TIMEOUT_MS, 'failed tick save')
+    } catch (saveErr) {
+      console.warn(`[ai-trader] 失敗 tick の記録を保存できなかった: ${saveErr instanceof Error ? saveErr.message : String(saveErr)}`)
+    }
+    throw original
+  }
+  const { decisions, ai, decidedAt } = asked
+  record.ai = ai
+  record.stages.push(makeStage('ai', aiStartMs, Date.now(), decisions.length > 0, asked.note))
+  for (const d of decisions) {
+    d.tickId = record.id
+    d.decidedAt = decidedAt
+  }
+  record.decisionIds = decisions.map(d => decisionIdFor(d.symbol, decidedAt))
   session.decisions = [...decisions, ...session.decisions].slice(0, 50)
+
+  const tradeStartMs = Date.now()
 
   // 「提示」(knowledgeShown・上で記録済み)と「引用」(recordKnowledgeUsageで加算)を分離する。
   // 実際にAIが依拠したと申告し、注入集合での検証を通ったIDが1件以上あるときだけ加算する
@@ -883,12 +1140,15 @@ export async function runTick(sessionId: string): Promise<AISession> {
   const newTrades = executeTrades(session, decisions)
   session.trades = [...newTrades, ...session.trades].slice(0, 200)
 
+  // 評価額の株価取得に失敗した銘柄は従来どおり取得単価で代用する（挙動は不変）。件数だけ記録の note に残す。
+  let valuationFallbacks = 0
   const holdingValues = await Promise.all(
     Object.entries(session.holdings).map(async ([sym, pos]) => {
       try {
         const q = await getQuote(sym)
         return pos.shares * q.price
       } catch {
+        valuationFallbacks++
         return pos.shares * pos.avgCost
       }
     })
@@ -927,6 +1187,13 @@ export async function runTick(sessionId: string): Promise<AISession> {
   // (b)最終upsertSessionが学習の後ろにあるため売買結果の保存まで道連れになる、
   // という2つの問題が起きていた（実際 tickCount=10 の回で発生）。
   // tickは「売買判断1回だけ」に保ち、学習は専用cronの独立した60秒枠で回す。
+
+  // 4a: 'trade' 段は AI の返事を受けてから保存の直前まで（知識の使用記録・約定・評価額・指標更新）。
+  // 'save' 段は保存そのものなので、この記録の中には所要を書けない（finishedAt が保存直前の時刻）。
+  record.stages.push(makeStage('trade', tradeStartMs, Date.now(), true,
+    `約定${newTrades.length}件` + (valuationFallbacks > 0 ? `・評価額の株価取得に失敗${valuationFallbacks}銘柄（取得単価で代用）` : '')))
+  record.finishedAt = new Date().toISOString()
+  session.ticks = pushTick(session.ticks, record)
 
   // runTickで読み込んだセッションは、変更の有無に関わらず最後に必ず明示保存する。
   await upsertSession(session)
