@@ -81,131 +81,108 @@ const PERSONA_OPTIONS: Array<{ id: InvestorId | undefined; label: string }> = [
   { id: 'buffett',   label: 'ウォーレン・バフェット' },
 ]
 
-// ── Start screen ──────────────────────────────────────────────────────────
+// ── Start screen（運営者だけ） ────────────────────────────────────────────
+// A アプリ型（DESIGN.md §6-6）: 白い帯1本に入力を並べる。中央揃え・大きな飾り文字は使わない。
+// 選択肢は「押せる塊」なので枠を持てる（§6-18 選択チップ: 角丸 6px、選択中は --brand-tint＋--brand の枠）。
 function StartScreen({ onStart }: { onStart: (capital: number, persona?: InvestorId) => void }) {
   const [capital, setCapital] = useState(100000)
   const [persona, setPersona] = useState<InvestorId | undefined>(undefined)
   const [loading, setLoading] = useState(false)
 
+  const chip = (selected: boolean) =>
+    `min-h-11 rounded-field border px-3 py-2 text-small font-semibold tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2 ${
+      selected ? 'border-brand bg-brand-tint text-brand' : 'border-border-input bg-card text-ink hover:bg-surface'
+    }`
+
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-md space-y-6 text-center">
-        <div className="space-y-2">
-          <div className="text-4xl font-black tracking-tight">
-            <span className="text-emerald-700">AI</span>
-            <span className="text-ink"> TRADER</span>
-          </div>
-          <p className="text-ink-2 text-base leading-relaxed max-w-[42rem] mx-auto">
-            Claude が自律的にリアルタイム市場データを分析し、<br />
-            ファンダメンタル＋テクニカル＋ニュースを総合判断して<br />
-            仮想売買を行います
-          </p>
-        </div>
+    <section className="space-y-2">
+      <h2 className="text-small text-muted">AI TRADER</h2>
+      <div className="bg-card rounded-card px-4 py-5 space-y-4">
+        <p className="text-body text-ink-2 max-w-[42rem]">
+          Claude が自律的にリアルタイム市場データを分析し、ファンダメンタル＋テクニカル＋ニュースを総合判断して仮想売買を行います
+        </p>
+        <p className="text-small text-muted">Yahoo Finance・ファンダメンタル分析・Claude AI</p>
 
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-muted">
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Yahoo Finance</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> ファンダメンタル分析</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-400 inline-block" /> Claude AI</span>
+        <div>
+          <label htmlFor="ai-start-capital" className="text-small text-ink-2 block mb-2">初期資金 (USD)</label>
+          <input
+            id="ai-start-capital"
+            type="number"
+            value={capital}
+            onChange={e => setCapital(Number(e.target.value))}
+            min={10000} max={10000000} step={10000}
+            className="w-full rounded-field border border-border-input bg-card px-4 py-3 text-body text-ink tabular-nums focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+          />
         </div>
-
-        <div className="bg-panel border border-border rounded-2xl p-6 space-y-4 text-left">
-          <div>
-            <label className="text-sm text-ink-2 block mb-2">初期資金 (USD)</label>
-            <input
-              type="number"
-              value={capital}
-              onChange={e => setCapital(Number(e.target.value))}
-              min={10000} max={10000000} step={10000}
-              className="w-full bg-background border border-border rounded-lg px-4 py-3 text-ink text-base tabular-nums focus:outline-none focus:border-emerald-200 transition-colors"
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[50000, 100000, 500000].map(v => (
+        <div className="grid grid-cols-3 gap-2">
+          {[50000, 100000, 500000].map(v => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setCapital(v)}
+              aria-pressed={capital === v}
+              className={chip(capital === v)}
+            >
+              ${(v / 1000).toFixed(0)}K
+            </button>
+          ))}
+        </div>
+        <div>
+          {/* 見出しと選択肢を結び付ける（読み上げで「投資家人格」のグループと分かる） */}
+          <p id="ai-start-persona-label" className="text-small text-ink-2 mb-2">投資家人格</p>
+          <div role="group" aria-labelledby="ai-start-persona-label" className="grid grid-cols-2 gap-2">
+            {PERSONA_OPTIONS.map(opt => (
               <button
-                key={v}
-                onClick={() => setCapital(v)}
-                className={`py-2 rounded-lg text-sm font-medium tabular-nums border transition-colors ${
-                  capital === v
-                    ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
-                    : 'border-border text-muted hover:border-accent hover:text-ink'
-                }`}
+                key={opt.label}
+                type="button"
+                onClick={() => setPersona(opt.id)}
+                aria-pressed={persona === opt.id}
+                className={chip(persona === opt.id)}
               >
-                ${(v / 1000).toFixed(0)}K
+                {opt.label}
               </button>
             ))}
           </div>
-          <div>
-            <label className="text-sm text-ink-2 block mb-2">投資家人格</label>
-            <div className="grid grid-cols-2 gap-2">
-              {PERSONA_OPTIONS.map(opt => (
-                <button
-                  key={opt.label}
-                  onClick={() => setPersona(opt.id)}
-                  className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    persona === opt.id
-                      ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
-                      : 'border-border text-muted hover:border-accent hover:text-ink'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            onClick={() => { setLoading(true); onStart(capital, persona) }}
-            disabled={loading}
-            className="w-full bg-brand text-on-brand hover:bg-brand-strong disabled:opacity-50 font-bold py-3 rounded-xl text-sm transition-colors"
-          >
-            {loading ? '分析開始中...' : '▶ 自動売買を開始する'}
-          </button>
         </div>
+        {/* 主ボタン（§6-1）: この画面の1つの目的。 */}
+        <button
+          type="button"
+          onClick={() => { setLoading(true); onStart(capital, persona) }}
+          disabled={loading}
+          className="inline-flex h-12 w-full items-center justify-center rounded-card bg-brand px-5 text-body font-semibold text-on-brand transition-colors hover:bg-brand-strong disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+        >
+          {loading ? '分析開始中...' : '▶ 自動売買を開始する'}
+        </button>
       </div>
-    </div>
+    </section>
   )
 }
 
-// ── Nav (module-level to prevent remount on every render) ─────────────────
-interface NavBarProps {
+// ── Page header (module-level to prevent remount on every render) ─────────
+// 見出しは1ページに1つ（h1・DESIGN.md §5-2）。以前は page.tsx の見出しと、この位置にあった
+// 貼り付く帯（NavBar: sticky・「AIの判断」「Beta」「最終更新」「損益」「Tick #」）とで
+// 見出しも貼り付く帯も二重だった。貼り付く帯は SiteNav の1本だけにする（§6-7）。
+// 状態は実際にその状態のときだけ出す: 「分析中...」は tick が走っている間だけ。それ以外は
+// «最後に分析した時刻» という検証可能な事実を出す。損益と Tick 番号は、この下の「最新の分析」
+// と「運用の記録」に同じ値があるのでここでは繰り返さない（成績を上に大きく出さない・§1-4）。
+interface PageHeaderProps {
   session: AISession | null
   ticking: boolean
 }
-function NavBar({ session, ticking }: NavBarProps) {
+function PageHeader({ session, ticking }: PageHeaderProps) {
   return (
-    <nav className="border-b border-border bg-panel backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4 sticky top-0 z-30">
-      {/* ロゴとページ間リンクはグローバルの SiteNav が持つ。ここに置くと
-          ロゴが縦に2つ並ぶため、この帯は運用状態の表示だけに専念する。
-          スマホ幅では横に詰まって「AIの判 / 断」「Tick / #1」と語中で折れるため、
-          この帯の項目はすべて whitespace-nowrap で1行に固定する。 */}
-      <span className="text-xl font-semibold text-ink whitespace-nowrap">AIの判断</span>
-      <span className="text-xs text-muted border border-border px-2 py-0.5 rounded whitespace-nowrap">Beta</span>
-      {session && (
-        <div className="ml-auto flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* 常時点灯の「LIVE」は実態と合わない（自動tickは1日3回まで）。偽のリアルタイム風
-              表示はこのサイトが最も避けたい視覚言語なので、実際に動いている間だけ状態を出し、
-              それ以外は «最後に分析した時刻» という検証可能な事実を出す。 */}
-          {ticking ? (
-            <div className="flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border border-border bg-surface text-ink-2 whitespace-nowrap shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-              分析中...
-            </div>
-          ) : (
-            <span className="text-sm text-muted tabular-nums whitespace-nowrap shrink-0">
-              最終更新 {ago(session.lastTickAt)}
-            </span>
-          )}
-          {/* 損益は「+$18,298.82 (+18.30%)」のように長く、whitespace-nowrap のまま 390px 幅に
-              置くとヘッダが縮まずページ本体を横に押し広げる（scrollWidth 455 > 390。
-              2bd216a のログインボタンと同種の事故）。スマホ幅では直下の「運用成績」カードに
-              同じ値が出るので、ここは 640px 以上でのみ表示して情報を落とさずに横はみ出しを塞ぐ。 */}
-          <div className={`hidden sm:block text-base font-bold tabular-nums whitespace-nowrap ${pnlCls(session.pnl)}`}>
-            {session.pnl >= 0 ? '+' : ''}{fmtUSD(session.pnl)} ({fmtPct(session.pnlPct)})
-          </div>
-          {/* Tick番号は最も情報量が低いので、幅が足りないスマホでは落とす */}
-          <div className="hidden sm:block text-sm text-muted tabular-nums whitespace-nowrap">Tick #{session.tickCount}</div>
-        </div>
-      )}
-    </nav>
+    <header>
+      <p className="text-small text-muted">01 見る</p>
+      <h1 className="text-h1 text-ink text-balance">AIと名人の判断を読む</h1>
+      <p className="mt-1 flex flex-wrap items-center gap-x-3 text-small text-muted">
+        <span>Beta</span>
+        {session && (ticking ? (
+          <span className="text-ink-2 whitespace-nowrap" role="status">分析中...</span>
+        ) : (
+          <span className="tabular-nums whitespace-nowrap">最終更新 {ago(session.lastTickAt)}</span>
+        ))}
+      </p>
+    </header>
   )
 }
 
@@ -418,44 +395,46 @@ export function AISessionClient() {
     return () => { cancelled = true }
   }, [sessionId, chartSymbol, lastTickKey])
 
-  // Loading
+  // Loading: 完成時と同じ形の薄い枠（DESIGN.md §6-12）。画面全体をぐるぐるで覆わない。
   if (restoring) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="flex items-center gap-3 text-ink-2">
-        <div className="w-5 h-5 border-2 border-border border-t-emerald-400 rounded-full animate-spin" />
-        <span className="text-sm">セッション復元中...</span>
-      </div>
+    <div className="max-w-[760px] mx-auto space-y-6">
+      <PageHeader session={null} ticking={false} />
+      <ul className="bg-card rounded-card motion-safe:animate-pulse" aria-busy="true" aria-label="セッション復元中...">
+        {[0, 1, 2].map(i => (
+          <li key={i} className="mx-4 border-t border-border first:border-t-0 py-4 space-y-2">
+            <div className="h-4 w-40 rounded-field bg-surface" />
+            <div className="h-4 w-full rounded-field bg-surface" />
+          </li>
+        ))}
+      </ul>
+      <p className="text-small text-muted">セッション復元中...</p>
     </div>
   )
 
   if (!session) return (
-    <div className="min-h-screen bg-background text-ink">
-      <NavBar session={null} ticking={false} />
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pt-4">
-        <MarketOverview />
-      </div>
+    <div className="max-w-[760px] mx-auto space-y-6">
+      <PageHeader session={null} ticking={false} />
+      <MarketOverview />
       {/* セッション作成は運営者だけの操作。読むだけの人にフォームを見せると
           「自分がAIを起動する場所」に見えてしまうし、実際APIも通らない。
           一般の利用者には、まだ記録が無いことを正直に伝える。 */}
       {isAdmin ? (
         <StartScreen onStart={startSession} />
       ) : (
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-16">
-          <div className="max-w-[42rem] mx-auto bg-panel border border-border rounded-2xl px-6 py-10 space-y-3">
-            <h2 className="text-xl font-semibold text-ink">まだAIの記録がありません</h2>
-            <p className="text-base text-ink-2 leading-relaxed">
-              このページは、AIが実際の市場データを読んで下した売買判断を、そのまま公開している記録です。
-              最初の分析が行われると、いつ・どの銘柄を・なぜ選び・何をどう判断したのかがここに並びます。
-            </p>
-            <p className="text-sm text-muted leading-relaxed">
-              分析を動かせるのは運営者だけです。読むのはログインなしで自由にできます。
-            </p>
-          </div>
+        // 空: 何が無いかを書く（§6-12）。見本の架空データで埋めない。枠線で囲わず白い帯に。
+        <div className="bg-card rounded-card px-4 py-5 space-y-2">
+          <p className="text-body font-semibold text-ink">まだAIの記録がありません</p>
+          <p className="text-body text-ink-2 max-w-[42rem]">
+            このページは、AIが実際の市場データを読んで下した売買判断を、そのまま公開している記録です。
+            最初の分析が行われると、いつ・どの銘柄を・なぜ選び・何をどう判断したのかがここに並びます。
+          </p>
+          <p className="text-small text-muted max-w-[42rem]">
+            分析を動かせるのは運営者だけです。読むのはログインなしで自由にできます。
+          </p>
         </div>
       )}
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-10">
-        <MasterSignals />
-      </div>
+      {/* 名人のシグナル。「見る」＝AIと名人の判断を読む面なので、AIの下に並べる */}
+      <MasterSignals />
     </div>
   )
 
@@ -501,24 +480,27 @@ export function AISessionClient() {
   const roundTripCount = roundTrips.length
 
   return (
-    <div className="min-h-screen bg-background text-ink">
-      <NavBar session={session} ticking={ticking} />
+    // 地（--surface）は page.tsx が敷く。ここに bg-background を置くと、灰の地の上に
+    // --bg の柱が立つ（3a と同じ事故）ので、根は無地にする。
+    <div>
+      {/* ── 上半分: 見出し・市場の状況・最新の分析・この回の判断（A アプリ型・中央 760px）。
+          下半分（運用の記録）の class は従来のまま。ただし layout.tsx の負のマージンが消えたので
+          実幅は <main>（max-w-6xl・px-4/6）に従い狭くなる（切り分け3b-2 で組み直す）。 ── */}
+      <div className="max-w-[760px] mx-auto space-y-6">
+        <PageHeader session={session} ticking={ticking} />
 
-      {error && (
-        <div className="max-w-screen-2xl mx-auto px-6 pt-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-red-700 text-sm">{error}</div>
-        </div>
-      )}
+        {error && (
+          // エラーは面の色（--danger-tint）で示し、角丸の枠線で囲わない（§6-12）。
+          <div role="alert" className="bg-danger-tint rounded-card px-4 py-3 text-small text-danger">{error}</div>
+        )}
 
-      <div className="max-w-screen-2xl mx-auto px-6 pt-4">
         <MarketOverview />
-      </div>
 
-      {/* ── 主役: 最新tickの判断 ───────────────────────────────────────
-          «AIがいつ・なぜその銘柄を選び・何をどう判断したか» をページの最初に置く。
-          以前はタブの中の max-h-[560px] の枠に押し込まれ、開いた人が最初に見るのは
-          運用成績（＝結果の数字）だった。読ませたい順に並べ替える。 */}
-      <div className="max-w-screen-lg mx-auto px-4 sm:px-6 pt-5 space-y-5">
+        {/* ── 主役: 最新tickの判断 ───────────────────────────────────────
+            «AIがいつ・なぜその銘柄を選び・何をどう判断したか» をページの最初に置く。
+            以前はタブの中の max-h-[560px] の枠に押し込まれ、開いた人が最初に見るのは
+            運用成績（＝結果の数字）だった。読ませたい順に並べ替える。
+            TickSummary は切り分け⑤（分析の過程の再生）で置き換えるので、ここでは触らない。 */}
         <TickSummary
           lastTickAt={lastTickAt}
           tickCount={tickCount}
@@ -528,38 +510,44 @@ export function AISessionClient() {
           decisionsRecorded={decisionsFromLatestTick || watchlist.length === 0}
         />
 
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-baseline gap-x-3">
-            <h2 className="text-ink font-semibold">
+        <section className="space-y-2">
+          {/* 見出しは帯の外（灰の上）に small/--muted（§6-6） */}
+          <div className="flex items-baseline justify-between gap-4 flex-wrap">
+            <h2 className="text-small text-muted">
               {decisionsFromLatestTick || watchlist.length === 0 ? 'この回のAIの判断' : '最後に記録されたAIの判断'}
             </h2>
-            <span className="text-sm text-muted tabular-nums">{latestDecisions.length}件</span>
+            <span className="text-caption text-muted tabular-nums">{latestDecisions.length}件</span>
           </div>
 
           {latestDecisions.length === 0 ? (
-            <div className="bg-panel border border-border rounded-2xl px-5 py-8">
-              <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
+            <div className="bg-card rounded-card px-4 py-5">
+              <p className="text-body text-ink-2 max-w-[42rem]">
                 この回の判断は記録されていません。
               </p>
             </div>
           ) : (
-            latestDecisions.map((dec, i) => (
-              <DecisionCard
-                key={dec.symbol + '-' + i}
-                decision={dec}
-                held={holdingSymbols.includes(dec.symbol)}
-              />
-            ))
+            // 判断1件＝帯の中の1まとまり。帯はここが持ち、区切り線は DecisionCard が持つ（帯の中に帯を入れない）。
+            <div className="bg-card rounded-card">
+              {latestDecisions.map((dec, i) => (
+                <DecisionCard
+                  key={dec.symbol + '-' + i}
+                  decision={dec}
+                  held={holdingSymbols.includes(dec.symbol)}
+                />
+              ))}
+            </div>
           )}
+        </section>
 
-          {olderDecisions.length > 0 && (showOlder ? (
-            <div className="space-y-4 pt-2">
-              <div className="flex flex-wrap items-baseline gap-x-3 border-t border-border pt-5">
-                <h3 className="text-ink font-semibold">これより前の判断</h3>
-                <span className="text-sm text-muted tabular-nums">
-                  {Math.min(olderDecisions.length, OLDER_DECISION_LIMIT)}件を表示 / 記録{olderDecisions.length}件
-                </span>
-              </div>
+        {olderDecisions.length > 0 && (showOlder ? (
+          <section className="space-y-2">
+            <div className="flex items-baseline justify-between gap-4 flex-wrap">
+              <h2 className="text-small text-muted">これより前の判断</h2>
+              <span className="text-caption text-muted tabular-nums">
+                {Math.min(olderDecisions.length, OLDER_DECISION_LIMIT)}件を表示 / 記録{olderDecisions.length}件
+              </span>
+            </div>
+            <div className="bg-card rounded-card">
               {olderDecisions.slice(0, OLDER_DECISION_LIMIT).map((dec, i) => (
                 <DecisionCard
                   key={'old-' + dec.symbol + '-' + i}
@@ -568,20 +556,23 @@ export function AISessionClient() {
                 />
               ))}
             </div>
-          ) : (
-            <button
-              onClick={() => setShowOlder(true)}
-              className="w-full border border-border rounded-xl py-3 text-sm text-ink-2 hover:bg-surface transition-colors"
-            >
-              これより前の判断も読む（記録{olderDecisions.length}件）
-            </button>
-          ))}
+          </section>
+        ) : (
+          // 文字ボタン（§6-1）: 枠なし・--brand・ホバーで下線。全幅の枠線の箱にしない。
+          <button
+            type="button"
+            onClick={() => setShowOlder(true)}
+            className="inline-flex min-h-11 items-center rounded-field text-small text-brand hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+          >
+            これより前の判断も読む（記録{olderDecisions.length}件）
+          </button>
+        ))}
 
-          <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
-            ここにあるのは、AIが仮想資金で行った売買判断の記録です。読む人への推奨ではありません。
-            AIの読み筋を教材として読み、自分ならどう考えるかを比べるために使ってください。
-          </p>
-        </section>
+        {/* 免責（§6-11）: small・--ink-2。判断のブロックの直下、位置と文言はそのまま。 */}
+        <p className="text-small text-ink-2 max-w-[42rem]">
+          ここにあるのは、AIが仮想資金で行った売買判断の記録です。読む人への推奨ではありません。
+          AIの読み筋を教材として読み、自分ならどう考えるかを比べるために使ってください。
+        </p>
       </div>
 
       {/* ここから下は補助情報。判断を読み終えた人が «で、結果はどうなったのか» を

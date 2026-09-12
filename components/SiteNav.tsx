@@ -55,10 +55,9 @@ export function SiteNav() {
                       : 'text-muted hover:text-ink-2 hover:bg-surface'
                   }`}
                 >
+                  {/* 「● 運用中」の常時点灯は撤去（DESIGN.md §6-7: 状態表示は実際にその
+                      状態のときだけ出す。自動tickは1日3回までで、常に運用中ではない）。 */}
                   {label}
-                  {href === '/watch' && (
-                    <span className="ml-1 text-emerald-700 text-xs" aria-label="運用中">●</span>
-                  )}
                 </Link>
               )
             })}

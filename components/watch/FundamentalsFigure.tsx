@@ -1,11 +1,18 @@
+'use client'
+
 // /watch S1: ファンダメンタルの図。3層構造。
 //
-//   層1 スタットタイル4枚 … PER / ROE / 売上成長率 / D/E（数字と「何の数字か」の一言）
-//   層2 RangeMeter        … 52週レンジの中での現在地
-//   層3 全項目テーブル    … 折りたたみ。グループ分けして右揃えの数字列
+//   層1 主要4項目の1行の数字 … PER / ROE / 売上成長率 / D/E（数字と「何の数字か」の一言）
+//   層2 RangeMeter           … 52週レンジの中での現在地
+//   層3 全項目テーブル       … 折りたたみ。グループ分けして右揃えの数字列
+//
+// 見た目（2026-09-12 切り分け3b-1・DESIGN.md §6-6）: 層1は以前「枠線＋角丸のタイル4枚の格子」
+//   だったが、同じ大きさの箱の格子は禁止形（§2）なので、表（層3）の上の「1行の数字」にした
+//   （ラベル → 数字 → 意味の3段・枠なし）。層3の開閉も共用の DetailsSection
+//   （components/analyze/*＝切り分け3c の範囲）ではなく、この部品の中の文字ボタンで行う。
 //
 // variant:
-//   'full'（既定） … 層1＋層2 を常時、層3 を DetailsSection の折りたたみで出す
+//   'full'（既定） … 層1＋層2 を常時、層3 を文字ボタン「全項目を見る」の開閉で出す
 //   'inline'       … 層1＋層2 だけ。層3 は呼び出し側（EvidenceMap の行）が `FundamentalsTable` を
 //                     自分の開閉の中に置く（根拠マップの開閉手段を1つに揃えるため）
 //
@@ -15,8 +22,8 @@
 // 原則11: 「割安」「優良」などの評価語はサイト側で書かない。解釈はAIの文だけ。
 // 前期比データが無いので delta / sparkline は出さない。
 
+import { useId, useState } from 'react'
 import type { FundamentalsData } from '@/types'
-import DetailsSection from '@/components/analyze/DetailsSection'
 import RangeMeter, { fmtAmount } from '@/components/watch/RangeMeter'
 import { PARSEABLE_FIELDS, type FundamentalsLegacy } from '@/lib/ai-trader/fundamentals-parse'
 
@@ -117,21 +124,25 @@ function fmtValue(kind: Kind, currency: '$' | '¥', n: number, legacy?: Fundamen
   }
 }
 
-/** 層1のタイル。値が無ければ「未取得」と理由。評価語は書かない。 */
-function StatTile({ label, note, value, caveat }: { label: string; note: string; value?: string; caveat?: string }) {
+// 文字ボタン（§6-1）: 枠なし・--brand の文字・ホバーで下線。押せる範囲は 44px 以上（§8）。
+const TEXT_BUTTON =
+  'inline-flex min-h-11 items-center rounded-field text-small text-brand hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2'
+
+/** 層1の1項目。ラベル → 数字 → 意味の3段（§6-2 の組み方）。値が無ければ「未取得」と理由。評価語は書かない。 */
+function Stat({ label, note, value, caveat }: { label: string; note: string; value?: string; caveat?: string }) {
   return (
-    <div className="bg-surface border border-border rounded-xl px-3 py-2.5 min-w-0">
-      <div className="text-xs text-muted">{label}</div>
+    <div className="min-w-0">
+      <dt className="text-caption text-muted">{label}</dt>
       {value != null ? (
-        <div className="text-2xl font-semibold text-ink leading-tight mt-0.5 break-words">{value}</div>
+        <dd className="text-h3 text-ink tabular-nums break-words">{value}</dd>
       ) : (
-        <div className="text-base font-semibold text-muted leading-tight mt-1">未取得</div>
+        <dd className="text-body font-semibold text-muted">未取得</dd>
       )}
-      <div className="text-[13px] text-ink-2 leading-snug mt-1">
+      <dd className="text-caption text-ink-2">
         {value != null ? note : 'この判断のときは、数字が手に入りませんでした'}
-      </div>
+      </dd>
       {value != null && caveat && (
-        <div className="text-[13px] text-muted leading-snug mt-1">{caveat}</div>
+        <dd className="text-caption text-muted">{caveat}</dd>
       )}
     </div>
   )
@@ -154,7 +165,8 @@ export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS
 
   return (
     <div className="space-y-3">
-      <table className="w-full text-sm">
+      {/* 表（§6-18）: 数字は右揃え・tabular-nums、行の区切りは --border。等幅書体は使わない（§5-2）。 */}
+      <table className="w-full text-small">
         <caption className="sr-only">ファンダメンタルの全項目</caption>
         {GROUPS.map(group => {
           const rows = group.rows.filter(r => saved.has(r.field))
@@ -162,7 +174,7 @@ export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS
           return (
             <tbody key={group.title}>
               <tr>
-                <th scope="rowgroup" colSpan={2} className="text-left text-xs text-muted font-semibold pt-3 pb-1">
+                <th scope="rowgroup" colSpan={2} className="text-left text-caption text-muted font-semibold pt-3 pb-1">
                   {group.title}
                 </th>
               </tr>
@@ -171,7 +183,7 @@ export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS
                 return (
                   <tr key={r.field} className="border-t border-border">
                     <th scope="row" className="text-left font-normal text-ink-2 py-1.5 pr-3">{r.label}</th>
-                    <td className={`text-right py-1.5 font-mono tabular-nums ${n != null ? 'text-ink' : 'text-muted'}`}>
+                    <td className={`text-right py-1.5 tabular-nums ${n != null ? 'text-ink' : 'text-muted'}`}>
                       {n != null ? fmtValue(r.kind, currency, n, legacy) : '未取得'}
                     </td>
                   </tr>
@@ -183,18 +195,18 @@ export function FundamentalsTable({ data, symbol, savedFields = PARSEABLE_FIELDS
       </table>
 
       {legacy?.debtToEquityUnitUnknown && data.debtToEquity != null && (
-        <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+        <p className="text-small text-muted max-w-[42rem]">
           D/E の値は{LEGACY_DE_NOTE}。
         </p>
       )}
 
-      <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+      <p className="text-small text-muted max-w-[42rem]">
         {savedFields.length}項目のうち {missingSaved.length} 項目が未取得
         {missingSaved.length > 0 && '（この判断のときは、数字が手に入りませんでした）'}
       </p>
 
       {unsaved.length > 0 && (
-        <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
+        <p className="text-small text-muted max-w-[42rem]">
           この判断の時点では、以下の{unsaved.length}項目は保存されていません（当時のサイトの実装が記録していなかったもので、取得に失敗したのではありません）:
           {' '}
           {unsaved.map(f => LABEL_OF[f]).join('、')}
@@ -219,6 +231,9 @@ export default function FundamentalsFigure({
   const scopeTitle = unsavedCount > 0
     ? `全項目を見る（この判断に保存されていた範囲・${savedFields.length}項目）`
     : `全項目を見る（${ALL_FIELDS.length}項目）`
+  // 層3（variant 'full'）の開閉。inline では呼び出し側が開閉を持つので使わない。
+  const [tableOpen, setTableOpen] = useState(false)
+  const tableId = useId()
 
   const v = (field: keyof FundamentalsData, kind: Kind) => {
     const n = data[field]
@@ -227,28 +242,41 @@ export default function FundamentalsFigure({
 
   return (
     <div className="space-y-4">
-      {/* 層1: スタットタイル */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <StatTile label="PER"     note="今の株価は1年の利益の何年分か"        value={v('pe', 'x')} />
-        <StatTile label="ROE"     note="株主のお金で年に何%稼いだか"          value={v('roe', 'pct')} />
-        <StatTile label="売上成長率" note="前年から何%伸びたか"               value={v('revenueGrowth', 'pct')} />
+      {/* 層1: 主要4項目の1行の数字（枠なし。同じ大きさの箱の格子にしない・§2） */}
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
+        <Stat label="PER"     note="今の株価は1年の利益の何年分か"        value={v('pe', 'x')} />
+        <Stat label="ROE"     note="株主のお金で年に何%稼いだか"          value={v('roe', 'pct')} />
+        <Stat label="売上成長率" note="前年から何%伸びたか"               value={v('revenueGrowth', 'pct')} />
         {/* D/E: v2 は「78.4%」＋「負債は自己資本の 0.78 倍」。v1（単位不明）は保存値そのまま・単位なし・注記つき */}
-        <StatTile
+        <Stat
           label="D/E"
           note={de != null && !deUnitUnknown ? `負債は自己資本の ${deTimes(de)} 倍` : '自己資本に対して借金がどれだけか'}
           value={de != null ? (deUnitUnknown ? fmtDEUnknown(de) : fmtDE(de)) : undefined}
           caveat={de != null && deUnitUnknown ? LEGACY_DE_NOTE : undefined}
         />
-      </div>
+      </dl>
 
       {/* 層2: 52週レンジ */}
       <RangeMeter low={data.week52Low} high={data.week52High} current={price} currency={currency} />
 
-      {/* 層3: 全項目テーブル（折りたたみ）。inline では呼び出し側が置く */}
+      {/* 層3: 全項目テーブル（文字ボタンで開閉）。inline では呼び出し側が置く */}
       {variant === 'full' && (
-        <DetailsSection title={scopeTitle}>
-          <FundamentalsTable data={data} symbol={symbol} savedFields={savedFields} legacy={legacy} />
-        </DetailsSection>
+        <div>
+          <button
+            type="button"
+            onClick={() => setTableOpen(o => !o)}
+            aria-expanded={tableOpen}
+            aria-controls={tableId}
+            className={TEXT_BUTTON}
+          >
+            {tableOpen ? '全項目を閉じる' : scopeTitle}
+          </button>
+          {tableOpen && (
+            <div id={tableId} className="pt-1">
+              <FundamentalsTable data={data} symbol={symbol} savedFields={savedFields} legacy={legacy} />
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
