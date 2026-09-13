@@ -2,6 +2,21 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-09-12: 分析の過程の再生は純関数 replay-model で組み、今の API で出す（⑤-1）
+- 背景: DESIGN.md §6-19。本番に ticks はまだ無く（9/14 の tick から）、今ある記録は allDecisions の同時刻群・最新回だけの watchlist/holdings/knowledgeShown・既存 chart API の6か月の足
+- 決定: 回は ticks を正とし、無い回は allDecisions の同時刻群。各値に record/recomputed/none の印。株価は chart API の足を判断時刻から3か月に切り、判断日の足は判断価格で置換（終値は判断より後に決まるため）。過去の回で記録に無い値は none
+- 却下: 今 ?fields= を API に足す（/ と /watch の読み口が同時に変わる）→ ticks 12件で圧縮後150KB超なら 4b
+- 実装上の補足: (1) tick と判断群の対応は `decisionIds` でなく startedAt〜finishedAt の窓で取る（DecisionRecord.timestamp は executeTrades の `now`、decidedAt は askClaude の時刻で、数ms ずれる）。finishedAt が無い tick は10分の窓。(2) watchlist/holdings/knowledgeShown を record にするのは「最後に成功した回」（stateRound）だけ。失敗 tick（timeout/error）は watchlist 等を前の値に戻すので飛ばし、empty（返事はあったが判断0件）は tickCount が進むので成功扱い。(3) 第N回は stateRound だけ tickCount から付ける（allDecisions は判断0件の回を含まず逆算できない）。(4) 判断日の足の判定は UTC の暦日。判断時刻より前に始まった同じ暦日の足だけ置き換え、場が開く前の判断は当日の足を作らない。(5) 段3の並び（価格<MA20<MA50）は計算値から作り、記録の文（AI の言い換え含む）から読めた語は fromText に分けて持つ。RSI/MACD の数値は tick が無い限り none。(6) 注目銘柄は「判断のある保有銘柄の先頭」。保有が分からない過去の回は hold の判断を代わりに使う
+- 検査: scripts/check-replay-model.ts 136件 PASS（本番複製 9/11・tick 3種を組んだ複製・再計算・文の読み取り・import の検査）／npx tsc --noEmit exit 0／npm run build は別作業者と衝突するため未実行
+- レビュー後の修正: 判断時点の保有を同じ回の売買から逆算（新規買い＝entryAt が約定と同時刻は除く・売りは足す・買い増しと売りは単価不明で none）／state でない tick 回の保有は heldAdded にある銘柄だけ true で残りは null（engine の heldAdded は候補に入った保有銘柄を含まない）／tick の無い回の「渡した銘柄数」「期待件数（段6 の分母）」は none（watchlist は材料取得に失敗した銘柄も含む）／9/14 以降の複製で偽 FAIL にならないよう ticks なし前提の検査を条件付きに／AiView.headMissing（chart API は6か月なので3か月超前の回は窓の先頭が欠ける）／導出値（fundamentals.ok・損益率）は recomputed／rounds を任意引数で渡せるように／画面向け文言の「注目銘柄」（RULES #8/#15）を「この回で詳しく見る銘柄」に
+- 影響ファイル: lib/ai-trader/replay-model.ts（新）, scripts/check-replay-model.ts（新）
+
+## 2026-09-12: /watch の囲い撤去（3b）は上下2分割し、判断カードは共用の折りたたみをやめてカード内で開閉する（3b-1 実施）
+- 決定: 上半分（3b-1）→ 分析の過程の再生（⑤）→ 下半分（3b-2）。analyze/* は 3c の範囲なので DecisionCard からの読み込みを外すだけ。TickSummary は⑤で置き換えるので触らない。「● 運用中」の常時表示を撤去（§6-7）
+- 3b-1 の結果（rg の数。囲い＝`rounded-*…border`／`border…rounded-*` の行数）: 囲い client.tsx 29→22（上半分 9→2。残り2つは運営者向け開始画面の入力欄と選択チップ＝§6-6 で許される「入力欄・押せる塊」）、DecisionCard 4→0（rg は注釈行を1件拾うが markup は 0）、FundamentalsFigure 1→0、layout.tsx 削除。text-center 上半分 1→0（client.tsx 全体 6→5、残りは下半分）、uppercase page.tsx 1→0（client.tsx の 9 は全部下半分）、rounded-full 上半分 6→0・DecisionCard 2→1（残り1つは §6-5 の方向の札）。ページ上部に貼り付く帯 2→1（SiteNav のみ。3幅で実測 1。表の見出し行 thead の sticky は別で、下半分の取引タブの中に残る）、h1 2→1（3幅で実測 1）。390/1280/1920 で scrollWidth＝幅、ヘッダー下の左右端は #EDF1F6、「根拠を開く」クリックで aria-expanded="true"＋中身表示、コンソールエラー 0
+- 実装上の補足: (1) 地は page.tsx が `shadow-[0_0_0_100vmax_var(--surface)]` で敷き、client.tsx の根から `min-h-screen bg-background` を外した（残すと灰の地に --bg の柱が立つ）。中央 760px は上半分だけに掛けた。下半分（587行以降）の class は従来のまま（byte 単位で不変・diff で確認）だが、layout.tsx の削除で `<main max-w-6xl px-4/6>` の内側に入るため、実幅は main に従い狭くなる（最大幅 1536→1152px。左右余白は main と自前の px-6 の二重で、390px 幅の内容幅 342→310px。3b-2 で解消）。(2) 見出しは client.tsx の PageHeader に一本化（復元中・記録なし・記録ありの3分岐すべてで h1 は1つ）。NavBar が持っていた「損益」「Tick #」は下の「最新の分析」「運用の記録」に同じ値があるので繰り返さない。「分析中...」は tick 中だけ、それ以外は「最終更新」。(3) 判断1件は `mx-4 border-t first:border-t-0` の行で、帯（bg-card rounded-card）は呼び出し側が持つ。EvidenceMap は触れないので、その結論行に渡す cls は `bg-surface border-surface text-ink`（面と同色の見えない枠）にして §6-5 の札に見せた。(4) 復元中のスピナーは完成時と同じ形の薄い帯に（§6-12）。(5) 免責文は位置・文言そのまま、書式だけ §6-11（small・--ink-2）
+- 影響ファイル: app/watch/page.tsx, app/watch/layout.tsx（削除）, app/watch/client.tsx（1〜576行）, components/SiteNav.tsx, components/watch/DecisionCard.tsx, components/watch/FundamentalsFigure.tsx
+
 ## 2026-09-11: 分析の過程は AISession.ticks に別配列で記録する（切り分け4a）
 - 背景: DESIGN.md §6-19 の再生に、走査結果・段の所要時間・テクニカル数値・AI の usage が残っていない。72回中42回は判断の記録が0件で原因が切り分けられない
 - 決定: AISession.ticks: TickRecord[]（直近12件・decisions/trades と同じ新しい順＝ticks[0] が最新）を追加。AIDecision には tickId/decidedAt だけ足し、リッチ項目は ticks 側へ寄せる。プロンプト全文と返事の本文は保存しない。askClaude の失敗も stopReason（timeout/error）付きで tick を保存してから元のエラーを再送出（tickCount/equityHistory/decisions は進めない。watchlist・knowledgeShown も失敗前の値に戻し「失敗 tick が変えるのは ticks と、旧セッションの欠損フィールドの補完（冪等＝何度やっても同じ値）だけ」にする）。返事は来たが救出0件は stopReason='empty'、元の stop_reason は段の note に残す
