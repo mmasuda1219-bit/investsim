@@ -58,9 +58,10 @@ export function MarketOverview() {
   }, [])
 
   // 取れないときは黙って空にせず、取れなかったと出す（原則9）。
+  // 形は A アプリ型の白い帯（DESIGN.md §6-6）。枠線＋角丸の枠で囲わない（切り分け3b-2）。
   if (state === 'error') {
     return (
-      <div className="rounded-xl border border-border bg-panel px-4 py-3 text-sm text-muted">
+      <div className="bg-card rounded-card px-4 py-3 text-small text-muted">
         相場概況を取得できませんでした。
       </div>
     )
@@ -68,7 +69,7 @@ export function MarketOverview() {
 
   if (state === 'loading' || !data) {
     return (
-      <div className="rounded-xl border border-border bg-panel px-4 py-3 text-sm text-muted">
+      <div className="bg-card rounded-card px-4 py-3 text-small text-muted">
         相場概況を読み込み中…
       </div>
     )
@@ -77,9 +78,10 @@ export function MarketOverview() {
   const b = data.buffettIndicator
 
   return (
-    <section className="rounded-xl border border-border bg-panel px-4 py-3">
+    // 白い帯（枠線なし・端だけ角丸）。1行の要約なので「いまの相場」は帯の中の先頭に置いたまま。
+    <section className="bg-card rounded-card px-4 py-3">
       <div className="flex items-center gap-x-5 gap-y-2 flex-wrap">
-        <span className="text-sm font-semibold text-ink-2 shrink-0">いまの相場</span>
+        <span className="text-small font-semibold text-ink-2 shrink-0">いまの相場</span>
 
         {data.indices.slice(0, 5).map(ix => {
           // 騰落は損益なので緑/赤（DESIGN.md §6-4）。正＝+／負＝−／ゼロ＝± を必ず付ける
@@ -88,7 +90,7 @@ export function MarketOverview() {
           const color = flat ? 'text-muted' : up ? 'text-success' : 'text-danger'
           const sign = flat ? '±' : up ? '+' : '−'
           return (
-            <span key={ix.symbol} className="flex items-baseline gap-1.5 text-sm tabular-nums">
+            <span key={ix.symbol} className="flex items-baseline gap-1.5 text-small tabular-nums">
               <span className="text-muted">{ix.name}</span>
               <span className="text-ink tabular-nums font-medium">
                 {ix.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
@@ -102,7 +104,7 @@ export function MarketOverview() {
 
         {b && typeof b.value === 'number' && (
           <span
-            className="ml-auto flex items-baseline gap-1.5 text-sm tabular-nums shrink-0"
+            className="ml-auto flex items-baseline gap-1.5 text-small tabular-nums shrink-0"
             title="株式市場の時価総額をGDPで割った値。市場全体の割高感の目安として使われる"
           >
             <span className="text-muted">市場全体</span>

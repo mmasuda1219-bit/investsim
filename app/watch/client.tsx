@@ -566,275 +566,284 @@ export function AISessionClient() {
       </div>
 
       {/* ここから下は補助情報。判断を読み終えた人が «で、結果はどうなったのか» を
-          追うための面なので、必ず判断より下に置く。 */}
-      <div className="max-w-screen-lg mx-auto px-4 sm:px-6 pt-8">
-        <h2 className="text-ink font-semibold border-t border-border pt-6">運用の記録</h2>
-        <p className="text-sm text-muted leading-relaxed mt-1 max-w-[42rem]">
-          判断の積み重ねが、仮想資金の増減としてどう出たか。銘柄ごとの取引チャートと往復・成績・売買履歴・学んだ教訓。
-        </p>
-      </div>
-
-      <div className="max-w-screen-2xl mx-auto px-6 py-5 grid grid-cols-1 xl:grid-cols-[260px_1fr] gap-5">
-
-        {/* ── Left Sidebar ─────────────────────────────────────────────── */}
-        <div className="space-y-4">
-
-          {/* Portfolio */}
-          <div className="bg-panel rounded-xl border border-border p-4 space-y-3">
-            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest">ポートフォリオ</div>
-            <div className="space-y-2.5">
-              {[
-                { label: '総資産', value: fmtUSD(totalValue, 0), cls: 'font-bold text-ink' },
-                { label: '現金', value: fmtUSD(cash, 0), cls: 'text-ink-2' },
-                { label: '損益', value: `${pnl >= 0 ? '+' : ''}${fmtUSD(pnl)} (${fmtPct(pnlPct)})`, cls: `font-bold ${pnlCls(pnl)}` },
-                { label: '初期資金', value: fmtUSD(capital, 0), cls: 'text-muted' },
-              ].map(({ label, value, cls }) => (
-                <div key={label} className="flex justify-between text-sm">
-                  <span className="text-muted">{label}</span>
-                  <span className={`tabular-nums ${cls}`}>{value}</span>
-                </div>
-              ))}
-            </div>
-            {/* Cash bar */}
-            <div>
-              <div className="flex justify-between text-sm text-muted mb-1">
-                <span>現金比率</span>
-                <span className="tabular-nums">{((cash / totalValue) * 100).toFixed(0)}%</span>
-              </div>
-              <div className="h-1.5 bg-surface rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 rounded-full transition-all"
-                  style={{ width: `${Math.min((cash / totalValue) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Holdings */}
-          <div className="bg-panel rounded-xl border border-border p-4">
-            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest mb-3">
-              保有銘柄 <span className="text-muted tabular-nums">({holdingSymbols.length}/5)</span>
-            </div>
-            {holdingSymbols.length === 0 ? (
-              <p className="text-sm text-muted">ポジションなし</p>
-            ) : (
-              <div className="space-y-2">
-                {holdingSymbols.map(sym => {
-                  const pos = holdings[sym] as Holding
-                  return (
-                    <button
-                      key={sym}
-                      onClick={() => setChartSymbol(sym)}
-                      className={`w-full text-left rounded-lg p-2.5 border transition-colors ${
-                        chartSymbol === sym
-                          ? 'border-emerald-200 bg-emerald-50'
-                          : 'border-border hover:border-accent'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="font-mono font-semibold text-base text-ink">{sym}</span>
-                        <span className="text-sm text-muted tabular-nums">{pos.shares.toFixed(2)}株</span>
-                      </div>
-                      <div className="flex justify-between text-sm mt-0.5 tabular-nums">
-                        {/* W7: 銘柄ごとの金額は銘柄の通貨で（.T は円）。総資産・現金は engine が USD で持つのでそのまま */}
-                        <span className="text-muted">avg {fmtPrice(sym, pos.avgCost)}</span>
-                        <span className="text-ink-2">{fmtPrice(sym, pos.shares * pos.avgCost)}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Learning */}
-          <div className="bg-panel rounded-xl border border-border p-4">
-            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest mb-3">学習状態</div>
-            <div className="space-y-2 text-sm tabular-nums">
-              <div className="flex justify-between">
-                <span className="text-muted">クローズ取引</span>
-                <span className="text-ink-2">{learning.stats.totalTrades}件</span>
-              </div>
-              {learning.stats.totalTrades > 0 && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-muted">勝率</span>
-                    <span className={pnlCls(learning.stats.winRate - 50)}>{learning.stats.winRate}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted">平均利益</span>
-                    <span className="text-emerald-700">+{learning.stats.avgGainPct}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted">平均損失</span>
-                    <span className="text-red-700">{learning.stats.avgLossPct}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted">合計P&L</span>
-                    <span className={`font-semibold ${pnlCls(learning.stats.totalPnl)}`}>
-                      {learning.stats.totalPnl >= 0 ? '+' : ''}{fmtUSD(learning.stats.totalPnl, 0)}
-                    </span>
-                  </div>
-                </>
-              )}
-              <div className="flex justify-between">
-                <span className="text-muted">学習済み教訓</span>
-                <span className="text-ink-2">{learning.lessons.length}件</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Controls — 運営者だけ。
-              AIを1回動かすと13銘柄分の呼び出しが走り、費用はオーナー負担。リセットは
-              サイトの記録そのものを消す。以前はどちらも訪問者が押せる状態だった。
-              隠すのは親切のためで、権限の実体は各APIルート側にある。 */}
-          {isAdmin && (
-          <div className="bg-panel rounded-xl border border-border p-4 space-y-3">
-            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest">Auto Tick</div>
-            <div className="flex items-center justify-between">
-              <select
-                value={interval}
-                onChange={e => setIntervalS(Number(e.target.value))}
-                className="bg-surface border border-border text-sm text-ink-2 px-2 py-1.5 rounded-lg"
-              >
-                <option value={60}>60秒</option>
-                <option value={120}>2分</option>
-                <option value={300}>5分</option>
-                <option value={600}>10分</option>
-              </select>
-              {autoTick && countdown > 0 && (
-                <span className="text-sm font-mono font-bold text-ink-2">{countdown}s</span>
-              )}
-              <button
-                onClick={() => setAutoTick(v => !v)}
-                className={`relative w-9 h-5 rounded-full transition-colors ${autoTick ? 'bg-success' : 'bg-[var(--muted)]'}`}
-              >
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoTick ? 'translate-x-4' : 'translate-x-0.5'}`} />
-              </button>
-            </div>
-            <button
-              onClick={() => runTick()}
-              disabled={ticking}
-              className="w-full bg-brand text-on-brand hover:bg-brand-strong disabled:opacity-40 text-sm font-bold py-2 rounded-lg transition-colors"
-            >
-              {ticking ? '⟳ 分析中...' : '▶ 今すぐ Tick 実行'}
-            </button>
-
-            {/* サーバー側 自動運転（ブラウザを閉じてもcronがtickする）*/}
-            <div className="pt-1 border-t border-border space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-base font-semibold text-ink">自動運転</div>
-                  <div className="text-sm text-muted leading-relaxed">ブラウザを閉じてもサーバーが自動でtick</div>
-                </div>
-                <button
-                  onClick={toggleAutoDrive}
-                  disabled={autoDriveSaving}
-                  className={`relative w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${session.auto?.enabled ? 'bg-success' : 'bg-[var(--muted)]'}`}
-                >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${session.auto?.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                </button>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted">本日の自動tick</span>
-                <span className={`tabular-nums font-mono ${session.auto?.enabled ? 'text-emerald-700' : 'text-muted'}`}>
-                  {autoCountToday(session)}/3
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setSession(null)
-                setAutoTick(false)
-                localStorage.removeItem('ai_session_id')
-                localStorage.removeItem('ai_auto_tick')
-              }}
-              className="w-full border border-border text-muted hover:text-ink-2 text-sm py-1.5 rounded-lg transition-colors"
-            >
-              ✕ セッションをリセット
-            </button>
-          </div>
-          )}
-
-          {/* Data sources */}
-          <div className="bg-panel rounded-xl border border-border p-4">
-            <div className="text-sm font-semibold text-ink-2 uppercase tracking-widest mb-3">データソース</div>
-            <div className="space-y-2 text-sm text-muted">
-              {[
-                { color: 'bg-blue-400',   label: 'Yahoo Finance',        sub: 'リアルタイム株価・10年チャート' },
-                { color: 'bg-emerald-400', label: 'ファンダメンタル分析', sub: 'PER/ROE/ROA/FCF/D&E' },
-                { color: 'bg-yellow-400', label: 'Yahoo Finance News',   sub: '最新ニュースヘッドライン' },
-                { color: 'bg-purple-400', label: 'Claude (Anthropic)', sub: 'AI売買判断エンジン' },
-              ].map(s => (
-                <div key={s.label} className="flex items-start gap-2">
-                  <span className={`w-2 h-2 rounded-full ${s.color} mt-0.5 shrink-0`} />
-                  <div>
-                    <div className="text-ink-2">{s.label}</div>
-                    <div className="text-muted text-sm leading-relaxed">{s.sub}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          追うための面なので、必ず判断より下に置く。
+          切り分け3b-2: 上半分と同じ A アプリ型・中央 760px の1列にした（旧: max-w-screen-2xl の
+          2列 xl:grid-cols-[260px_1fr]。3b-1 で <main> の内側に入り、幅と左右の余白がずれていた）。
+          灰の地は page.tsx が敷いているので、ここでは重ねて敷かない。見出しは帯の外に small/--muted、
+          内容は枠線なしの白い帯（bg-card rounded-card）に載せ、帯の中に帯を入れない（DESIGN.md §6-6）。
+          並び順は旧スマホ幅（1列に落ちたとき）の順のまま。 */}
+      <div className="max-w-[760px] mx-auto mt-12 space-y-6">
+        <div className="border-t border-border pt-6">
+          <h2 className="text-body font-semibold text-ink">運用の記録</h2>
+          <p className="text-small text-muted mt-1 max-w-[42rem]">
+            判断の積み重ねが、仮想資金の増減としてどう出たか。銘柄ごとの取引チャートと往復・成績・売買履歴・学んだ教訓。
+          </p>
         </div>
 
-        {/* ── Right Main Content ───────────────────────────────────────── */}
-        <div className="space-y-5 min-w-0">
+        {/* ポートフォリオ（旧: 左の小箱）。複数の数字は1行の数字にする（§2・/review の「資産」と同じ形）。
+            AI の運用成績を成果として大きく見せない（§1-4）ので、数字は small にとどめる。
+            現金比率の横棒（角丸 999px・既製の緑）は同じ値を文字で出しているので外した（§5-4）。 */}
+        <section className="space-y-2">
+          <h3 className="text-small text-muted">ポートフォリオ</h3>
+          <dl className="bg-card rounded-card px-4 py-3 min-h-14 flex flex-wrap items-center gap-x-6 gap-y-1">
+            {[
+              { label: '総資産', value: fmtUSD(totalValue, 0), cls: 'font-semibold text-ink' },
+              { label: '現金', value: fmtUSD(cash, 0), cls: 'text-ink-2' },
+              { label: '損益', value: `${pnl >= 0 ? '+' : ''}${fmtUSD(pnl)} (${fmtPct(pnlPct)})`, cls: `font-semibold ${pnlCls(pnl)}` },
+              { label: '初期資金', value: fmtUSD(capital, 0), cls: 'text-ink-2' },
+              { label: '現金比率', value: `${((cash / totalValue) * 100).toFixed(0)}%`, cls: 'text-ink-2' },
+            ].map(({ label, value, cls }) => (
+              <div key={label} className="flex items-baseline gap-2">
+                <dt className="text-small text-muted">{label}</dt>
+                <dd className={`text-small tabular-nums ${cls}`}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
-          {/* 銘柄ごとの取引を追う面。銘柄タブ（図の外・上）→ 取引チャート → 往復表。
-              買い/売りの方向は色で運ばない（AITradeChart / TradeLog のコメント参照）。
-              タブの選択も色相ではなく、枠線の濃さと文字の太さで示す。 */}
-          {logSymbols.length === 0 ? (
-            <div className="bg-panel rounded-xl border border-border px-5 py-8">
-              <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
-                まだ売買の記録がありません。AIが最初の売買を行うと、銘柄ごとの取引チャートと往復の記録がここに並びます。
-              </p>
-            </div>
+        {/* 保有銘柄（旧: 左の小箱）。1銘柄＝帯の中の1行で、行全体が押せる範囲（§6-6）。押すと下の
+            チャートと往復表がその銘柄に切り替わる。選択中は --brand-tint の下地（§5-1「選択中の下地」）と
+            aria-pressed で示す。行の区切りは文字の左端から始まる線（内側の div が持つ）。 */}
+        <section className="space-y-2">
+          <h3 className="text-small text-muted">
+            保有銘柄 <span className="tabular-nums">({holdingSymbols.length}/5)</span>
+          </h3>
+          {holdingSymbols.length === 0 ? (
+            <p className="bg-card rounded-card px-4 py-4 text-small text-muted">ポジションなし</p>
           ) : (
-            <>
-              <div className="bg-panel rounded-xl border border-border px-5 py-3 flex flex-wrap items-center gap-2">
-                <span className="text-sm text-muted">銘柄</span>
-                <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="取引記録の銘柄">
+            <ul className="bg-card rounded-card overflow-hidden">
+              {holdingSymbols.map(sym => {
+                const pos = holdings[sym] as Holding
+                const selected = chartSymbol === sym
+                return (
+                  <li key={sym} className="group">
+                    <button
+                      type="button"
+                      onClick={() => setChartSymbol(sym)}
+                      aria-pressed={selected}
+                      className={`block w-full px-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:-outline-offset-2 ${
+                        selected ? 'bg-brand-tint' : 'hover:bg-surface'
+                      }`}
+                    >
+                      <span className="min-h-14 py-2 flex items-center justify-between gap-3 border-t border-border group-first:border-t-0">
+                        <span className="min-w-0">
+                          <span className="block text-body font-semibold text-ink">{sym}</span>
+                          <span className="block text-small text-muted tabular-nums">{pos.shares.toFixed(2)}株</span>
+                        </span>
+                        {/* W7: 銘柄ごとの金額は銘柄の通貨で（.T は円）。総資産・現金は engine が USD で持つのでそのまま */}
+                        <span className="text-right tabular-nums">
+                          <span className="block text-small text-ink">{fmtPrice(sym, pos.shares * pos.avgCost)}</span>
+                          <span className="block text-small text-muted">avg {fmtPrice(sym, pos.avgCost)}</span>
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+
+        {/* 学習状態（旧: 左の小箱）。1行の数字にする（§2）。勝率は損益ではないので緑/赤を付けない
+            （§5-1: 緑/赤は損益だけ。§1-4: 勝率を成果として強調しない）。 */}
+        <section className="space-y-2">
+          <h3 className="text-small text-muted">学習状態</h3>
+          <dl className="bg-card rounded-card px-4 py-3 min-h-14 flex flex-wrap items-center gap-x-6 gap-y-1 text-small tabular-nums">
+            <div className="flex items-baseline gap-2">
+              <dt className="text-muted">クローズ取引</dt>
+              <dd className="text-ink-2">{learning.stats.totalTrades}件</dd>
+            </div>
+            {learning.stats.totalTrades > 0 && (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <dt className="text-muted">勝率</dt>
+                  <dd className="text-ink-2">{learning.stats.winRate}%</dd>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <dt className="text-muted">平均利益</dt>
+                  <dd className="text-emerald-700">+{learning.stats.avgGainPct}%</dd>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <dt className="text-muted">平均損失</dt>
+                  <dd className="text-red-700">{learning.stats.avgLossPct}%</dd>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <dt className="text-muted">合計P&L</dt>
+                  <dd className={`font-semibold ${pnlCls(learning.stats.totalPnl)}`}>
+                    {learning.stats.totalPnl >= 0 ? '+' : ''}{fmtUSD(learning.stats.totalPnl, 0)}
+                  </dd>
+                </div>
+              </>
+            )}
+            <div className="flex items-baseline gap-2">
+              <dt className="text-muted">学習済み教訓</dt>
+              <dd className="text-ink-2">{learning.lessons.length}件</dd>
+            </div>
+          </dl>
+        </section>
+
+        {/* 運営者の操作 — 運営者だけ。
+            AIを1回動かすと13銘柄分の呼び出しが走り、費用はオーナー負担。リセットは
+            サイトの記録そのものを消す。以前はどちらも訪問者が押せる状態だった。
+            隠すのは親切のためで、権限の実体は各APIルート側にある。
+            3b-2: 英字の小見出し「Auto Tick」を日本語の small/--muted に。名前の無い丸いスイッチ
+            （角丸 999px）は、文字で状態が読める切り替えボタン（role="switch"・選択チップの形 §6-18）にした。 */}
+        {isAdmin && (
+          <section className="space-y-2">
+            <h3 className="text-small text-muted">自動 Tick</h3>
+            <div className="bg-card rounded-card">
+              <div className="mx-4 py-3 flex flex-wrap items-center gap-3">
+                <select
+                  value={interval}
+                  onChange={e => setIntervalS(Number(e.target.value))}
+                  aria-label="自動 Tick の間隔"
+                  className="min-h-11 rounded-field border border-border-input bg-card px-3 text-body text-ink focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+                >
+                  <option value={60}>60秒</option>
+                  <option value={120}>2分</option>
+                  <option value={300}>5分</option>
+                  <option value={600}>10分</option>
+                </select>
+                {autoTick && countdown > 0 && (
+                  <span className="text-small font-semibold text-ink-2 tabular-nums">{countdown}s</span>
+                )}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={autoTick}
+                  aria-label="自動 Tick"
+                  onClick={() => setAutoTick(v => !v)}
+                  className={`ml-auto min-h-11 rounded-field border px-3 text-small font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2 ${autoTick ? 'border-brand bg-brand-tint text-brand' : 'border-border-input bg-card text-ink hover:bg-surface'}`}
+                >
+                  {autoTick ? 'オン' : 'オフ'}
+                </button>
+              </div>
+              <div className="mx-4 border-t border-border py-3">
+                <button
+                  type="button"
+                  onClick={() => runTick()}
+                  disabled={ticking}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-card bg-brand px-4 text-small font-semibold text-on-brand transition-colors hover:bg-brand-strong disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+                >
+                  {ticking ? '⟳ 分析中...' : '▶ 今すぐ Tick 実行'}
+                </button>
+              </div>
+
+              {/* サーバー側 自動運転（ブラウザを閉じてもcronがtickする）*/}
+              <div className="mx-4 border-t border-border py-3 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-body font-semibold text-ink">自動運転</p>
+                    <p className="text-small text-muted">ブラウザを閉じてもサーバーが自動でtick</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!!session.auto?.enabled}
+                    aria-label="自動運転"
+                    onClick={toggleAutoDrive}
+                    disabled={autoDriveSaving}
+                    className={`shrink-0 min-h-11 rounded-field border px-3 text-small font-semibold transition-colors disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2 ${session.auto?.enabled ? 'border-brand bg-brand-tint text-brand' : 'border-border-input bg-card text-ink hover:bg-surface'}`}
+                  >
+                    {session.auto?.enabled ? 'オン' : 'オフ'}
+                  </button>
+                </div>
+                <div className="flex justify-between text-small">
+                  <span className="text-muted">本日の自動tick</span>
+                  <span className={`tabular-nums ${session.auto?.enabled ? 'text-ink' : 'text-muted'}`}>
+                    {autoCountToday(session)}/3
+                  </span>
+                </div>
+              </div>
+              <div className="mx-4 border-t border-border py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSession(null)
+                    setAutoTick(false)
+                    localStorage.removeItem('ai_session_id')
+                    localStorage.removeItem('ai_auto_tick')
+                  }}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-card border border-border-input bg-card px-4 text-small text-ink-2 transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+                >
+                  ✕ セッションをリセット
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* データソース（旧: 左の小箱）。色の丸印（既製色）は意味を運ばない飾りなので外し、文字の行に。 */}
+        <section className="space-y-2">
+          <h3 className="text-small text-muted">データソース</h3>
+          <ul className="bg-card rounded-card">
+            {[
+              { label: 'Yahoo Finance',        sub: 'リアルタイム株価・10年チャート' },
+              { label: 'ファンダメンタル分析', sub: 'PER/ROE/ROA/FCF/D&E' },
+              { label: 'Yahoo Finance News',   sub: '最新ニュースヘッドライン' },
+              { label: 'Claude (Anthropic)', sub: 'AI売買判断エンジン' },
+            ].map(s => (
+              <li key={s.label} className="mx-4 border-t border-border first:border-t-0 py-3">
+                <p className="text-small text-ink-2">{s.label}</p>
+                <p className="text-small text-muted">{s.sub}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* 銘柄ごとの取引を追う面。銘柄タブ（図の外・上）→ 取引チャート → 往復表。
+            買い/売りの方向は色で運ばない（AITradeChart / TradeLog のコメント参照）。
+            銘柄の選択は選択チップ（§6-18: 角丸 6px、選択中は --brand-tint の下地＋--brand の枠）。
+            チャートと往復表はそれぞれ白い帯1本。帯の中に帯・枠を入れない（§6-6）。 */}
+        {logSymbols.length === 0 ? (
+          <p className="bg-card rounded-card px-4 py-5 text-body text-ink-2">
+            まだ売買の記録がありません。AIが最初の売買を行うと、銘柄ごとの取引チャートと往復の記録がここに並びます。
+          </p>
+        ) : (
+          <>
+            <section className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-small text-muted">銘柄</span>
+                <div className="flex flex-wrap gap-2" role="tablist" aria-label="取引記録の銘柄">
                   {logSymbols.map(sym => {
                     const held = holdingSymbols.includes(sym)
                     const selected = chartSymbol === sym
                     return (
                       <button
                         key={sym}
+                        type="button"
                         role="tab"
                         aria-selected={selected}
                         onClick={() => setChartSymbol(sym)}
-                        className={`text-sm px-2.5 py-1 rounded border font-mono transition-colors ${
-                          selected
-                            ? 'bg-surface border-[var(--ink)] text-ink font-semibold'
-                            : 'bg-panel border-border text-ink-2 hover:border-[var(--muted)]'
-                        }`}
+                        className={`min-h-11 rounded-field border px-3 text-small font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2 ${selected ? 'border-brand bg-brand-tint text-brand' : 'border-border-input bg-card text-ink hover:bg-surface'}`}
                       >
                         {sym}
-                        {held && <span className="ml-1.5 text-xs font-sans font-normal text-ink-2">●保有中</span>}
+                        {held && <span className="ml-1.5 text-caption font-normal text-muted">●保有中</span>}
                       </button>
                     )
                   })}
                 </div>
               </div>
 
-              <div className="bg-panel rounded-xl border border-border p-5">
+              <div className="bg-card rounded-card px-4 py-4">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-3">
-                  <span className="font-mono font-semibold text-ink">{chartSymbol}</span>
-                  {chartName && <span className="text-sm text-ink-2">{chartName}</span>}
-                  <span className="text-xs text-muted ml-auto">直近6か月・日足</span>
+                  <span className="text-body font-semibold text-ink">{chartSymbol}</span>
+                  {chartName && <span className="text-small text-ink-2">{chartName}</span>}
+                  <span className="text-caption text-muted ml-auto">直近6か月・日足</span>
                 </div>
                 {chartError && !chartReady ? (
-                  <div className="h-[380px] flex items-center justify-center text-sm text-muted border border-border rounded-lg px-4 text-center">
+                  // 取得できなかったことは --warning-ink の文字で。枠で囲わず、図と同じ高さに左揃え（§5-1・§6-12）
+                  <p className="h-[380px] flex items-center text-small text-warning-ink">
                     価格データを取得できませんでした（{chartError}）
-                  </div>
+                  </p>
                 ) : chartData ? (
                   <div className="relative">
-                    {/* 再取得に失敗しても前回の描画は残す。ただし「最新」に見せない */}
+                    {/* 再取得に失敗しても前回の描画は残す。ただし「最新」に見せない。
+                        図の上に浮く注意の札（§6-5 注意: --warning-tint の面＋--warning-ink の文字） */}
                     {chartError && chartReady && (
-                      <div className="absolute top-2 left-2 z-10 text-xs text-ink-2 bg-panel/90 border border-border rounded px-2 py-1">
+                      <p className="absolute top-2 left-2 z-10 rounded-field bg-warning-tint px-2 py-1 text-caption text-warning-ink">
                         最新の取得に失敗しました。前回の表示です
-                      </div>
+                      </p>
                     )}
                     <div className={chartLoading ? 'opacity-50 transition-opacity' : 'transition-opacity'}>
                       <AITradeChart
@@ -845,239 +854,257 @@ export function AISessionClient() {
                       />
                     </div>
                     {chartReady && chartData.outOfRangeTrades > 0 && (
-                      <p className="mt-2 text-xs text-muted">
+                      <p className="mt-2 text-caption text-muted">
                         表示期間より前の取引 {chartData.outOfRangeTrades} 件はチャートに描いていません（下の往復表には載っています）
                       </p>
                     )}
                   </div>
                 ) : (
-                  <div className="h-[380px] flex items-center justify-center text-sm text-muted bg-panel rounded-lg">
+                  <p className="h-[380px] flex items-center text-small text-muted">
                     チャート読込中...
-                  </div>
+                  </p>
                 )}
               </div>
+            </section>
 
-              <div className="bg-panel rounded-xl border border-border p-5">
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
-                  <h3 className="text-ink font-semibold">この銘柄の往復</h3>
-                  <span className="text-sm text-muted tabular-nums">{roundTripCount}件</span>
-                  <span className="text-xs text-muted ml-auto">買い→売りの1対＝1行。未決済も1行として出す</span>
-                </div>
+            <section className="space-y-2">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h3 className="text-small text-muted">この銘柄の往復</h3>
+                <span className="text-caption text-muted tabular-nums">{roundTripCount}件</span>
+                <span className="text-caption text-muted ml-auto">買い→売りの1対＝1行。未決済も1行として出す</span>
+              </div>
+              {/* 表の帯。横スクロールは TradeLog の中（帯の内側）だけで起きる（§6-18） */}
+              <div className="bg-card rounded-card overflow-hidden">
                 <TradeLog symbol={chartSymbol} rows={roundTrips} />
               </div>
-            </>
-          )}
+            </section>
+          </>
+        )}
 
-          {/* Tabs */}
-          <div className="bg-panel rounded-xl border border-border overflow-hidden">
-            <div className="flex border-b border-border overflow-x-auto">
-              {([
-                { key: 'performance', label: '運用成績' },
-                { key: 'trades',      label: '売買履歴',    count: trades.length },
-                { key: 'learning',    label: '学習・教訓',  count: learning.lessons.length },
-              ] as const).map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key)}
-                  className={`px-5 py-3 text-sm font-semibold whitespace-nowrap transition-colors ${
-                    tab === t.key
-                      ? 'text-ink border-b-2 border-emerald-400 bg-emerald-50'
-                      : 'text-muted hover:text-ink'
-                  }`}
-                >
-                  {t.label}
-                  {'count' in t && t.count > 0 && (
-                    <span className="ml-1.5 bg-surface text-ink-2 text-xs tabular-nums px-1.5 py-0.5 rounded-full">
-                      {t.count}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+        {/* 運用成績・売買履歴・学習・教訓のタブ（旧: タブと中身をまとめて囲った箱）。
+            タブの行は灰の地の上に置き、現在のタブは --ink/600＋下に 2px の --brand の線（§6-8）。
+            件数はピル型の札（角丸 999px）ではなく文字で（§2「札は状態にだけ」）。中身はそれぞれ白い帯に載せる。 */}
+        <section className="space-y-4">
+          <div className="flex overflow-x-auto border-b border-border" role="tablist" aria-label="運用の記録の表示">
+            {([
+              { key: 'performance', label: '運用成績' },
+              { key: 'trades',      label: '売買履歴',    count: trades.length },
+              { key: 'learning',    label: '学習・教訓',  count: learning.lessons.length },
+            ] as const).map(t => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`min-h-11 px-4 border-b-2 text-small whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:-outline-offset-2 ${
+                  tab === t.key
+                    ? 'border-brand text-ink font-semibold'
+                    : 'border-transparent text-muted hover:text-ink'
+                }`}
+              >
+                {t.label}
+                {'count' in t && t.count > 0 && (
+                  <span className="ml-1.5 text-caption font-normal text-muted tabular-nums">
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
 
-            <div className="p-5">
-
-              {/* Performance tab */}
-              {tab === 'performance' && (() => {
-                const s = session.stats ?? {}
-                const eq = session.equityHistory ?? []
-                const latest = eq[eq.length - 1]
-                const benchPct = latest?.benchmarkPct
-                const spyValue = benchPct != null ? capital * (1 + benchPct / 100) : null
-                const alpha = spyValue != null ? totalValue - spyValue : null
-                return (
-                  <div className="space-y-5">
-                    <div>
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="text-sm text-ink-2 font-semibold uppercase tracking-wider">エクイティカーブ</span>
-                        <span className="flex items-center gap-1 text-sm text-emerald-700"><span className="w-3 h-0.5 bg-emerald-400 inline-block"/>AI</span>
-                        <span className="flex items-center gap-1 text-sm text-muted"><span className="w-3 h-0.5 bg-[var(--muted)] inline-block"/>SPY</span>
-                      </div>
-                      <EquityChart history={eq} capital={capital} height={220} />
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {[
-                        { label: '運用日数',        value: `${s.daysRunning ?? 0}日` },
-                        { label: '年率換算リターン', value: `${(s.annualizedReturnPct ?? 0) >= 0 ? '+' : ''}${(s.annualizedReturnPct ?? 0).toFixed(1)}%`, cls: pnlCls(s.annualizedReturnPct ?? 0) },
-                        { label: '最大ドローダウン', value: `-${(s.maxDrawdownPct ?? 0).toFixed(1)}%`, cls: 'text-red-700' },
-                        { label: 'シャープレシオ',  value: (s.sharpeRatio ?? 0).toFixed(2), cls: (s.sharpeRatio ?? 0) > 1 ? 'text-emerald-700' : 'text-ink-2' },
-                        { label: 'AI総リターン',    value: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`, cls: pnlCls(pnlPct) },
-                        { label: 'SPYリターン',     value: benchPct != null ? `${benchPct >= 0 ? '+' : ''}${benchPct.toFixed(2)}%` : 'N/A', cls: pnlCls(benchPct ?? 0) },
-                        { label: 'アルファ',        value: alpha != null ? `${alpha >= 0 ? '+' : ''}$${Math.abs(alpha).toFixed(0)}` : 'N/A', cls: pnlCls(alpha ?? 0) },
-                        { label: '勝率',            value: `${(s.winRate ?? 0).toFixed(0)}%`, cls: (s.winRate ?? 0) >= 50 ? 'text-emerald-700' : 'text-red-700' },
-                      ].map(({ label, value, cls }) => (
-                        <div key={label} className="bg-background border border-border rounded-xl p-3">
-                          <div className="text-sm text-muted mb-1">{label}</div>
-                          <div className={`text-base font-bold tabular-nums ${cls ?? 'text-ink'}`}>{value}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="text-sm text-muted text-center tabular-nums">
-                      {eq.length} ポイント記録済み · 総取引 {s.totalTradeCount ?? 0}件 · Tick #{tickCount} · {ago(lastTickAt)}
-                    </div>
+          {/* Performance tab */}
+          {tab === 'performance' && (() => {
+            const s = session.stats ?? {}
+            const eq = session.equityHistory ?? []
+            const latest = eq[eq.length - 1]
+            const benchPct = latest?.benchmarkPct
+            const spyValue = benchPct != null ? capital * (1 + benchPct / 100) : null
+            const alpha = spyValue != null ? totalValue - spyValue : null
+            return (
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <h3 className="text-small text-muted">エクイティカーブ</h3>
+                    <span className="flex items-center gap-1 text-small text-emerald-700"><span className="w-3 h-0.5 bg-emerald-400 inline-block"/>AI</span>
+                    <span className="flex items-center gap-1 text-small text-muted"><span className="w-3 h-0.5 bg-[var(--muted)] inline-block"/>SPY</span>
                   </div>
-                )
-              })()}
-
-              {/* Trades tab */}
-              {tab === 'trades' && (
-                trades.length === 0 ? (
-                  <div className="text-muted text-base py-10 text-center">取引履歴なし</div>
-                ) : (
-                  <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
-                    <table className="w-full text-sm min-w-[700px]">
-                      <thead className="sticky top-0 bg-panel">
-                        <tr className="text-muted border-b border-border">
-                          <th className="text-left py-2 pr-4 font-medium">時刻</th>
-                          <th className="text-left py-2 pr-4 font-medium">銘柄</th>
-                          <th className="text-left py-2 pr-4 font-medium">売買</th>
-                          <th className="text-right py-2 pr-4 font-medium">株数</th>
-                          <th className="text-right py-2 pr-4 font-medium">価格</th>
-                          <th className="text-right py-2 pr-4 font-medium">合計</th>
-                          <th className="text-left py-2 font-medium">判断根拠</th>
-                        </tr>
-                      </thead>
+                  <div className="bg-card rounded-card px-4 py-4">
+                    <EquityChart history={eq} capital={capital} height={220} />
+                  </div>
+                </div>
+                {/* 運用成績: 数字タイル8枚の格子 → 表1つ（§2・§6-6「数字タイルの格子は作らない」）。
+                    項目と文言は変えない（残すか消すかは DESIGN.md §11-2 の法務の未決。ここは見せ方だけ控えめにする）。
+                    AI の成績を成果として大きく見せない（§1-4・RULES #14）: 大きな太字をやめ、small・右揃え・tabular-nums。
+                    緑/赤は損益（リターン・アルファ・ドローダウン）だけに残し、勝率とシャープレシオの良し悪しの色は外した（§5-1）。 */}
+                <div className="space-y-2">
+                  <div className="bg-card rounded-card overflow-hidden">
+                    <table className="w-full text-small">
                       <tbody>
-                        {trades.map((t: AITrade, i) => (
-                          <tr key={i} className="border-b border-border hover:bg-surface transition-colors">
-                            <td className="py-2.5 pr-4 text-muted tabular-nums">{ago(t.timestamp)}</td>
-                            <td className="py-2.5 pr-4">
-                              <button
-                                onClick={() => setChartSymbol(t.symbol)}
-                                className="font-mono font-semibold text-ink hover:text-accent transition-colors"
-                              >
-                                {t.symbol}
-                              </button>
-                            </td>
-                            <td className="py-2.5 pr-4">
-                              {/* 方向の札は無彩色＋記号（DESIGN.md §6-5・DECISIONS 2026-09-10） */}
-                              <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface text-ink">
-                                {t.action === 'buy' ? '▲ 買い' : '▼ 売り'}
-                              </span>
-                            </td>
-                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono text-ink-2">{t.shares.toFixed(3)}</td>
-                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono">{fmtPrice(t.symbol, t.price)}</td>
-                            <td className="py-2.5 pr-4 text-right tabular-nums font-mono font-semibold">{fmtTradeTotal(t.symbol, t.total)}</td>
-                            <td className="py-2.5 text-ink-2 max-w-xs">
-                              <div className="truncate">{t.reason}</div>
-                              {t.technicals && <div className="text-muted truncate text-sm">{t.technicals}</div>}
-                            </td>
+                        {[
+                          { label: '運用日数',        value: `${s.daysRunning ?? 0}日` },
+                          { label: '年率換算リターン', value: `${(s.annualizedReturnPct ?? 0) >= 0 ? '+' : ''}${(s.annualizedReturnPct ?? 0).toFixed(1)}%`, cls: pnlCls(s.annualizedReturnPct ?? 0) },
+                          { label: '最大ドローダウン', value: `-${(s.maxDrawdownPct ?? 0).toFixed(1)}%`, cls: 'text-red-700' },
+                          { label: 'シャープレシオ',  value: (s.sharpeRatio ?? 0).toFixed(2) },
+                          { label: 'AI総リターン',    value: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`, cls: pnlCls(pnlPct) },
+                          { label: 'SPYリターン',     value: benchPct != null ? `${benchPct >= 0 ? '+' : ''}${benchPct.toFixed(2)}%` : 'N/A', cls: pnlCls(benchPct ?? 0) },
+                          { label: 'アルファ',        value: alpha != null ? `${alpha > 0 ? '+' : alpha < 0 ? '−' : '±'}$${Math.abs(alpha).toFixed(0)}` : 'N/A', cls: pnlCls(alpha ?? 0) }, // 符号は §5-2（負は U+2212・ゼロは ±。pnlCls と同じ3分岐）
+                          { label: '勝率',            value: `${(s.winRate ?? 0).toFixed(0)}%` },
+                        ].map(({ label, value, cls }: { label: string; value: string; cls?: string }) => (
+                          <tr key={label} className="border-t border-border first:border-t-0">
+                            <th scope="row" className="px-4 py-3 text-left font-normal text-muted">{label}</th>
+                            <td className={`px-4 py-3 text-right tabular-nums whitespace-nowrap ${cls ?? 'text-ink'}`}>{value}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                )
-              )}
+                  <p className="text-caption text-muted tabular-nums">
+                    {eq.length} ポイント記録済み · 総取引 {s.totalTradeCount ?? 0}件 · Tick #{tickCount} · {ago(lastTickAt)}
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
 
-              {/* Learning tab */}
-              {tab === 'learning' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-sm text-ink-2 font-semibold uppercase tracking-wider mb-3">
-                      Claude が学んだ教訓
-                      {learning.lessons.length === 0 && (
-                        <span className="ml-2 text-muted normal-case font-normal">(取引を積むと自動生成されます)</span>
-                      )}
-                    </div>
-                    {learning.lessons.length > 0 ? (
-                      <div className="space-y-2">
-                        {learning.lessons.map((lesson, i) => (
-                          <div key={i} className="flex items-start gap-3 bg-background rounded-lg p-3 border border-border">
-                            <span className="text-emerald-700 font-bold text-sm mt-0.5 shrink-0 font-mono tabular-nums">{i + 1}</span>
-                            <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">{lesson}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-muted text-base py-6 text-center bg-background rounded-xl border border-border">
-                        3 Tick実行後、クローズした取引があれば教訓が自動生成されます
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="text-sm text-ink-2 font-semibold uppercase tracking-wider mb-3">
-                      今回提示した原則 <span className="text-muted tabular-nums">({session.knowledgeShown?.length ?? 0}件)</span>
-                    </div>
-                    {session.knowledgeShown && session.knowledgeShown.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {session.knowledgeShown.map((k) => (
-                          <span
-                            key={k.id}
-                            className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full"
-                          >
-                            {k.title}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-muted text-base leading-relaxed py-6 px-4 text-center bg-background rounded-xl border border-border">
-                        知識ベース未接続（supabase/migrations/0003_knowledge_items.sql の実行と scripts/sync-knowledge.ts の同期が必要）
-                      </div>
-                    )}
-                  </div>
-
-                  {learning.closedTrades && learning.closedTrades.length > 0 && (
-                    <div>
-                      <div className="text-sm text-ink-2 font-semibold uppercase tracking-wider mb-3">クローズ済み取引</div>
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {(learning.closedTrades as ClosedTrade[]).slice(0, 15).map((t, i) => (
-                          <div key={i} className={`flex items-start gap-3 rounded-lg p-3 border ${
-                            t.outcome === 'profit'
-                              ? 'border-emerald-200 bg-emerald-50'
-                              : 'border-red-200 bg-red-50'
-                          }`}>
-                            <span className={`text-base font-bold ${t.outcome === 'profit' ? 'text-emerald-700' : 'text-red-700'}`}>
-                              {t.outcome === 'profit' ? '✓' : '✗'}
+          {/* Trades tab */}
+          {tab === 'trades' && (
+            trades.length === 0 ? (
+              <p className="bg-card rounded-card px-4 py-5 text-body text-ink-2">取引履歴なし</p>
+            ) : (
+              // 表（§6-18）: 見出し行は small/--muted を --surface の上に、数字は右揃え、行の区切りは --border。
+              // 横・縦のスクロールは帯の内側だけ。thead の sticky はこのスクロール枠の中でだけ効く（ページ上部には貼り付かない）。
+              <div className="bg-card rounded-card overflow-hidden">
+                <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
+                  <table className="w-full text-small min-w-[700px]">
+                    <thead className="sticky top-0 bg-surface">
+                      <tr className="text-muted">
+                        <th className="text-left px-4 py-2 font-normal whitespace-nowrap">時刻</th>
+                        <th className="text-left px-4 py-2 font-normal whitespace-nowrap">銘柄</th>
+                        <th className="text-left px-4 py-2 font-normal whitespace-nowrap">売買</th>
+                        <th className="text-right px-4 py-2 font-normal whitespace-nowrap">株数</th>
+                        <th className="text-right px-4 py-2 font-normal whitespace-nowrap">価格</th>
+                        <th className="text-right px-4 py-2 font-normal whitespace-nowrap">合計</th>
+                        <th className="text-left px-4 py-2 font-normal whitespace-nowrap">判断根拠</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trades.map((t: AITrade, i) => (
+                        <tr key={i} className="border-t border-border">
+                          <td className="px-4 py-3 text-muted tabular-nums whitespace-nowrap">{ago(t.timestamp)}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => setChartSymbol(t.symbol)}
+                              className="font-mono font-semibold text-ink hover:text-accent transition-colors"
+                            >
+                              {t.symbol}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            {/* 方向の札は無彩色＋記号のピル型（DESIGN.md §6-5・DECISIONS 2026-09-10）。
+                                行のホバーの塗り（bg-surface）は札と同じ色で札が消えるので外した */}
+                            <span className="rounded-full bg-surface px-2.5 text-small font-semibold text-ink whitespace-nowrap">
+                              {t.action === 'buy' ? '▲ 買い' : '▼ 売り'}
                             </span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="font-mono font-bold text-ink">{t.symbol}</span>
-                                <span className={`font-bold tabular-nums ${pnlCls(t.pnlPct)}`}>
-                                  {t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(2)}%
-                                </span>
-                                <span className={`tabular-nums ${pnlCls(t.pnl)}`}>
-                                  ({/* W7: 同じページの往復表と通貨を揃える（.T は円） */fmtMoneySigned(t.symbol, t.pnl)})
-                                </span>
-                                <span className="text-muted tabular-nums">保有{t.holdingHours}h</span>
-                              </div>
-                              <p className="text-sm text-ink-2 leading-relaxed mt-1 truncate">{t.entryReasoning}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums font-mono text-ink-2">{t.shares.toFixed(3)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums font-mono">{fmtPrice(t.symbol, t.price)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums font-mono font-semibold">{fmtTradeTotal(t.symbol, t.total)}</td>
+                          <td className="px-4 py-3 text-ink-2 max-w-xs">
+                            <div className="truncate">{t.reason}</div>
+                            {t.technicals && <div className="text-muted truncate text-small">{t.technicals}</div>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          )}
+
+          {/* Learning tab — 小見出しは日本語の small/--muted（旧: 英字風の大文字＋字間を広げた小見出し）。
+              教訓・原則・クローズ済み取引は、それぞれ白い帯1本の中の行（旧: 1件ずつ枠線の小箱・中央揃えの空箱）。 */}
+          {tab === 'learning' && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-small text-muted">
+                  Claude が学んだ教訓
+                  {learning.lessons.length === 0 && (
+                    <span className="ml-2">(取引を積むと自動生成されます)</span>
                   )}
+                </h3>
+                {learning.lessons.length > 0 ? (
+                  <ol className="bg-card rounded-card">
+                    {learning.lessons.map((lesson, i) => (
+                      <li key={i} className="mx-4 border-t border-border first:border-t-0 py-3 flex items-start gap-3">
+                        <span className="text-small text-muted tabular-nums shrink-0 pt-0.5">{i + 1}</span>
+                        <p className="text-body text-ink-2 max-w-[42rem]">{lesson}</p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="bg-card rounded-card px-4 py-5 text-small text-muted">
+                    3 Tick実行後、クローズした取引があれば教訓が自動生成されます
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-small text-muted">
+                  今回提示した原則 <span className="tabular-nums">({session.knowledgeShown?.length ?? 0}件)</span>
+                </h3>
+                {session.knowledgeShown && session.knowledgeShown.length > 0 ? (
+                  // 旧: ピル型の札（角丸 999px・既製の緑）。札は状態にだけ使う（§2）ので、帯の中の文字の行に。
+                  <ul className="bg-card rounded-card">
+                    {session.knowledgeShown.map((k) => (
+                      <li key={k.id} className="mx-4 border-t border-border first:border-t-0 py-3 text-small text-ink-2">
+                        {k.title}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="bg-card rounded-card px-4 py-5 text-small text-muted">
+                    知識ベース未接続（supabase/migrations/0003_knowledge_items.sql の実行と scripts/sync-knowledge.ts の同期が必要）
+                  </p>
+                )}
+              </div>
+
+              {learning.closedTrades && learning.closedTrades.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-small text-muted">クローズ済み取引</h3>
+                  {/* 旧: 1件ずつ緑/赤の面＋枠線の小箱。帯1本の中の行にし、結果は ✓/✗＋符号付きの数字の色だけで示す（§6-4） */}
+                  <ul className="bg-card rounded-card max-h-64 overflow-y-auto">
+                    {(learning.closedTrades as ClosedTrade[]).slice(0, 15).map((t, i) => (
+                      <li key={i} className="mx-4 border-t border-border first:border-t-0 py-3 flex items-start gap-3">
+                        <span className={`text-body font-semibold ${t.outcome === 'profit' ? 'text-emerald-700' : 'text-red-700'}`}>
+                          {t.outcome === 'profit' ? '✓' : '✗'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 text-small">
+                            <span className="font-semibold text-ink">{t.symbol}</span>
+                            <span className={`font-semibold tabular-nums ${pnlCls(t.pnlPct)}`}>
+                              {t.pnlPct >= 0 ? '+' : ''}{t.pnlPct.toFixed(2)}%
+                            </span>
+                            <span className={`tabular-nums ${pnlCls(t.pnl)}`}>
+                              ({/* W7: 同じページの往復表と通貨を揃える（.T は円） */fmtMoneySigned(t.symbol, t.pnl)})
+                            </span>
+                            <span className="text-muted tabular-nums">保有{t.holdingHours}h</span>
+                          </div>
+                          <p className="text-small text-ink-2 mt-1 truncate">{t.entryReasoning}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </div>
+          )}
+        </section>
 
-      {/* 名人のシグナル。「見る」＝AIと名人の判断を読む面なので、AIの下に並べる */}
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-10">
+        {/* 名人のシグナル。「見る」＝AIと名人の判断を読む面なので、AIの下に並べる。
+            旧: max-w-screen-2xl の別の包み。いまは運用の記録と同じ中央 760px の列の中に置く。 */}
         <MasterSignals initialSymbol={chartSymbol || undefined} />
       </div>
     </div>

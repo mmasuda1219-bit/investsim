@@ -272,23 +272,25 @@ interface Props {
 }
 
 export default function TradeLog({ symbol, rows }: Props) {
+  // 白い帯（bg-card rounded-card）は呼び出し側（app/watch/client.tsx）が持つ。ここで帯や枠を作らない。
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-muted py-6 text-center">
+      <p className="px-4 py-5 text-small text-muted">
         この銘柄では、まだ売買の記録がありません
       </p>
     )
   }
 
-  const th = 'py-2 px-3 font-medium text-muted text-xs whitespace-nowrap'
+  // 表（DESIGN.md §6-18）: 見出し行は small/--muted を --surface の上に、行の区切りは --border。
+  const th = 'py-2 px-3 font-normal whitespace-nowrap'
   const num = 'font-mono tabular-nums text-right whitespace-nowrap'
 
   return (
-    // 横に伸びるのはこの表だけ。ページ本体を横スクロールさせない。
+    // 横に伸びるのはこの表だけ。ページ本体を横スクロールさせない（スマホでも帯の中だけで横に動く）。
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[880px] text-sm border-collapse">
+      <table className="w-full min-w-[880px] text-small border-collapse">
         <thead>
-          <tr className="border-b border-border">
+          <tr className="bg-surface text-muted">
             <th className={`${th} text-left`}>結果</th>
             <th className={`${th} text-right`}>損益%</th>
             <th className={`${th} text-left`}>買った日・値</th>
@@ -309,7 +311,7 @@ export default function TradeLog({ symbol, rows }: Props) {
               ? (r.pnl! > 0 ? 'text-[var(--success)]' : r.pnl! < 0 ? 'text-[var(--danger)]' : 'text-ink-2')
               : 'text-muted'
             return (
-              <tr key={`${r.buyAt ?? 'nobuy'}-${r.sellAt ?? 'open'}-${i}`} className="border-b border-border align-top">
+              <tr key={`${r.buyAt ?? 'nobuy'}-${r.sellAt ?? 'open'}-${i}`} className="border-t border-border align-top">
                 {/* 左端2pxのステータス罫。背景は塗らない */}
                 <td className={`py-2.5 px-3 border-l-2 ${s.rule} whitespace-nowrap`}>
                   <span className={`font-semibold ${s.text}`}>
