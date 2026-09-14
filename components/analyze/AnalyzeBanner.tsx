@@ -1,7 +1,10 @@
 'use client'
 
-// /analyze S-B2 — ヘッダ（段階ラベル＋<h1>＋説明文）と恒久免責を横並びにする。
-// デスクトップでは左にヘッダ・右に免責の2カラム、モバイルでは縦積み。
+// /analyze S-B2 — ヘッダ（段階ラベル＋<h1>＋説明文）と恒久免責。
+//
+// 3c-1（2026-09-14）: 左右2カラムと免責の箱をやめ、見出しの下に1列で積む
+// （DESIGN.md §6-6 A アプリ型）。字間を広げた大文字風の段階ラベルは §2 の
+// 禁止形なので、/watch・/review と同じ small/muted の日本語ラベルにした。
 //
 // 免責の文言は app/learn/page.tsx から移設したもので、内容は一切変更していない
 // （消さない・弱めない — builder作業指示・法務由来の禁止事項）。表示ロジックのみで
@@ -9,25 +12,26 @@
 
 export default function AnalyzeBanner() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+    <header className="space-y-3">
       {/* 段階ラベルと見出しは SiteNav の定義（'まねる' / '名人の条件を過去に当てる'）
           をそのまま使う。/trade・/review と同じ書式に揃えていないと、4段階の
           どこにいるのかが画面から読み取れない。 */}
       <div>
-        <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">02 まねる</p>
-        <h1 className="text-2xl font-bold text-ink mt-1">名人の条件を過去に当てる</h1>
-        <p className="text-muted text-sm mt-1">
+        <p className="text-small text-muted">02 まねる</p>
+        <h1 className="text-h1 text-ink text-balance">名人の条件を過去に当てる</h1>
+        <p className="mt-1 text-body text-ink-2 max-w-[42rem]">
           クイックモードはニーズ軸プリセットで実データの数字プレビュー（無料・純計算）を確認し、
           同じ条件でAIレポート（現状分析・根拠つき未来予想）を生成します。
           プロモードはテクニカル・ファンダメンタル・決算トレンド条件を自分で組み合わせて検証できます。
         </p>
       </div>
 
-      {/* 恒久ディスクレーマ（免責）— 設定中・プレビュー中・ストリーミング中も常に表示 */}
-      <p className="text-sm text-amber-700/90 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+      {/* 恒久ディスクレーマ（免責）— 設定中・プレビュー中・ストリーミング中も常に表示。
+          箱で囲わず文字で置く（§6-6 囲いは押せる塊・浮いているもの・入力欄だけ）。 */}
+      <p className="text-small text-ink-2 max-w-[42rem]">
         本ページのAIレポートは投資助言ではありません。プロの投資アナリストが実データをもとにどう分析プロセスを
         組み立てるかを、実データに基づき再現したものです。投資判断はご自身の責任で行ってください。
       </p>
-    </div>
+    </header>
   )
 }

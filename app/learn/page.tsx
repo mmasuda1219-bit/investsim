@@ -74,6 +74,28 @@ export const ANALYZE_SCOPE_OPTIONS: { id: AnalyzeScope; label: string; disabled?
   { id: 'no-symbol',   label: '銘柄指定なし（自動スクリーニング）' },
 ]
 
+// ── 3c-1（2026-09-14）: 設定部分の見た目（DESIGN.md §6-1 / §6-6 / §6-18）。──────────
+// 説明の付く選択肢は「帯の中の押せる行」（区切り線は文字の左端から・行全体が押せる）、
+// 名前だけの選択肢は「選択チップ」。どちらも radio の name / checked / onChange は不変。
+// 行の外側（li 相当）に SETTINGS_ROW_WRAP、押せる label に settingsRowClass を付け、
+// 帯（bg-card rounded-card overflow-hidden）で包む。
+const SETTINGS_ROW_WRAP = 'mx-4 border-t border-border first:border-t-0'
+const settingsRowClass = (selected: boolean) =>
+  `-mx-4 flex min-h-14 cursor-pointer items-start gap-3 px-4 py-3 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus has-[:focus-visible]:-outline-offset-2 ${
+    selected ? 'bg-brand-tint' : 'hover:bg-surface'
+  }`
+const settingsChipClass = (selected: boolean) =>
+  `relative inline-flex min-h-11 items-center rounded-field border px-3 py-2 text-small font-semibold cursor-pointer transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus has-[:focus-visible]:outline-offset-2 ${
+    selected ? 'border-brand bg-brand-tint text-brand' : 'border-border-input bg-card text-ink hover:bg-surface'
+  }`
+// 主ボタンは「押す順番が来た1つ」だけ紺青の塗り（§6-1 主ボタンは1画面に1つ）。
+// 押せないときは §6-1 の --surface の面＋--muted の文字だが、灰の地の上では面が溶けるので輪郭を付ける。
+const BUTTON_BASE =
+  'inline-flex min-h-12 w-full sm:w-auto items-center justify-center rounded-card px-5 py-2 text-body font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2'
+const BUTTON_PRIMARY = `${BUTTON_BASE} bg-brand text-on-brand hover:bg-brand-strong`
+const BUTTON_SECONDARY = `${BUTTON_BASE} border border-border-input bg-card text-ink hover:bg-surface`
+const BUTTON_DISABLED = `${BUTTON_BASE} border border-border bg-surface text-muted cursor-not-allowed`
+
 // ── S-B2: MetricStrip（Tier1「結論」）の「この数字の意味」注記。無料プレビュー・
 // AIレポート実行結果の両方の5指標グリッドで共有する（同じ性質の数字のため文面も
 // 共通）。将来 S-C/S-D/S-E で計5箇所に増える前提で InsightNote 側は汎用化済み —
@@ -618,9 +640,11 @@ export default function AnalyzePage() {
     .filter((v): v is string => Boolean(v && v.trim() !== ''))
 
   return (
-    // このページだけ max-w が無く、大画面で本文が1行90文字まで流れていた。
-    // layout の max-w-6xl に加え、読み物の面としてもう一段絞る。
-    <div className="space-y-6 max-w-5xl">
+    // 3c-1（2026-09-14）: DESIGN.md §6-6 A アプリ型。灰の地（--surface）に枠線の無い白い帯を
+    // 載せ、内容は中央 760px の1列（大画面で1行が伸びすぎるのもこれで防ぐ）。地は / ・/review・
+    // /watch と同じく影を 100vmax 広げて画面の端まで塗る。幅の絞りと地の塗りを1要素で兼ねる
+    // （影は横スクロールを生まない）ので、ページ末尾の閉じタグは変えていない。
+    <div className="bg-surface shadow-[0_0_0_100vmax_var(--surface)] max-w-[760px] mx-auto space-y-6 pt-1 pb-4 md:pb-5">
       {/* Header + 恒久ディスクレーマ（免責）— S-B2でAnalyzeBannerに集約（横並び）。
           免責は設定中・プレビュー中・ストリーミング中も常に表示（内容は無改変）。 */}
       <AnalyzeBanner />
@@ -635,8 +659,9 @@ export default function AnalyzePage() {
         <ConditionSummaryBar items={summaryItems} onEdit={() => setConfigForceOpen(true)} />
       )}
 
-      {/* Config */}
-      <div className={configCollapsed ? 'hidden' : 'bg-panel border border-border rounded-xl p-5 space-y-5'}>
+      {/* Config — 3c-1: 設定箱の枠をやめ、中の節を灰の地に直接並べる（入れ子の1段目を解く）。
+          configCollapsed で hidden にして畳む仕掛けは不変。 */}
+      <div className={configCollapsed ? 'hidden' : 'space-y-6'}>
         {/* Mode tabs + Scope toggle（S-B2: ModeScopeBarへ統合・デスクトップは1行）。
             resetDownstream（fetch競合ガード・requestIdインクリメント）はここで従来どおり
             トリガーする — ModeScopeBar自体は選択肢のdisabled/同値ガードのみ担当し、
@@ -667,17 +692,18 @@ export default function AnalyzePage() {
             すると「銘柄指定なし」へ切替→戻す で入力が全部消えてしまう。モード
             切替（下のpro/investorパネル）と同じ hidden 方式に統一し、「切替で
             入力を失わない」保証を範囲切替にも適用する。 */}
-        <div className={scope === 'with-symbol' ? 'space-y-5' : 'hidden'}>
-        {/* 銘柄シンボル/初期資金（クイック・プロ共通・対象範囲=銘柄指定ありのみ機能） */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className={scope === 'with-symbol' ? 'space-y-6' : 'hidden'}>
+        {/* 銘柄シンボル/初期資金（クイック・プロ共通・対象範囲=銘柄指定ありのみ機能）
+            3c-1: 入力2つを枠線の無い白い帯に載せる（入力欄そのものの輪郭は §6-18 どおり残す） */}
+        <div className="bg-card rounded-card px-4 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm text-ink-2 mb-2">銘柄シンボル</label>
+            <label className="block text-small text-ink-2 mb-2">銘柄シンボル</label>
             <input
               value={symbol}
               onChange={e => { setSymbol(e.target.value.toUpperCase()); resetDownstream() }}
               placeholder="AAPL / MSFT"
               list="us-universe"
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-base font-mono focus:outline-none focus:border-blue-200"
+              className="w-full rounded-field border border-border-input bg-card px-3 py-2 text-body text-ink font-mono focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
             />
             <datalist id="us-universe">
               {US_UNIVERSE.map(s => (
@@ -688,19 +714,19 @@ export default function AnalyzePage() {
             {symbol.trim() && (
               <Link
                 href={`/trade?symbol=${encodeURIComponent(symbol.trim())}`}
-                className="inline-block mt-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
+                className="inline-block mt-2 text-small font-semibold text-brand hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
               >
                 {symbol.trim()} で自分も判断してみる →
               </Link>
             )}
           </div>
           <div>
-            <label className="block text-sm text-ink-2 mb-2">初期資金（仮想）</label>
+            <label className="block text-small text-ink-2 mb-2">初期資金（仮想）</label>
             <input
               type="number" min="1000" step="1000"
               value={capital}
               onChange={e => { setCapital(e.target.value); resetDownstream() }}
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-base font-mono focus:outline-none focus:border-blue-200"
+              className="w-full rounded-field border border-border-input bg-card px-3 py-2 text-body text-ink font-mono focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
             />
           </div>
         </div>
@@ -726,55 +752,54 @@ export default function AnalyzePage() {
         {/* ── Quick panel（銘柄指定あり・ニーズ軸プリセット）── S-B1: 他モードへの
             切替時はDOMごとアンマウントする（presetIdは親stateのため安全）。 ── */}
         {mode === 'quick' && (
-        <div className="border border-border rounded-lg p-4 space-y-4">
+        <section className="space-y-2">
           <div>
-            <p className="text-sm text-ink font-medium mb-2">ニーズ軸で選ぶ（5年・銘柄の参加条件つき）</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* 3c-1: 3列の選択肢カード（同形の箱の格子・§2 の禁止形）→ 見出しは帯の外、
+                説明の付く選択肢は帯の中の押せる行 */}
+            <h2 id="needs-preset-heading" className="text-small text-muted mb-2">ニーズ軸で選ぶ（5年・銘柄の参加条件つき）</h2>
+            <div role="radiogroup" aria-labelledby="needs-preset-heading" className="bg-card rounded-card overflow-hidden">
               {NEEDS_PRESET_IDS.map(id => {
                 const p = NEEDS_PRESETS[id]
                 const selected = presetId === id
                 return (
-                  <label
-                    key={id}
-                    className={`block rounded-lg border p-3 cursor-pointer transition-colors ${
-                      selected ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50 hover:border-blue-400'
-                    }`}
-                  >
-                    <span className="flex items-start gap-2">
+                  <div key={id} className={SETTINGS_ROW_WRAP}>
+                  <label className={settingsRowClass(selected)}>
                       <input
                         type="radio"
                         name="needs-preset"
                         value={id}
                         checked={presetId === id}
                         onChange={() => { setPresetId(id); resetDownstream() }}
-                        className="mt-1 accent-blue-500"
+                        className="mt-1.5 shrink-0 accent-brand"
                       />
-                      <span>
-                        <span className="block text-base text-ink font-medium">{p.label}</span>
-                        <span className="block text-sm text-ink-2 mt-1 leading-relaxed">「{p.description}」</span>
+                      <span className="min-w-0">
+                        <span className="block text-body font-semibold text-ink">{p.label}</span>
+                        <span className="block text-small text-ink-2">「{p.description}」</span>
                       </span>
-                    </span>
                   </label>
+                  </div>
                 )
               })}
             </div>
             {nonUsWarning && (
-              <p className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+              <p className="mt-2 text-small text-warning-ink max-w-[42rem]">
                 ニーズ軸プリセットは米国株（USD建て）想定です。日本株（.T）では時価総額閾値の目安が実態とずれる可能性があります（実行は可能）。
               </p>
             )}
           </div>
 
+          {/* 主ボタンは押す順番が来た1つだけ（§6-1）: プレビュー結果が出たら、次に押すのは
+              結果の下の「AIレポート生成」なので、こちらは副ボタンに下げる（disabled 条件は不変）。 */}
           <button
             onClick={runPreview}
             disabled={busyPreview}
-            className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
-              busyPreview ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+            className={`mt-2 ${
+              busyPreview ? BUTTON_DISABLED : previewRes && previewPhase === 'done' ? BUTTON_SECONDARY : BUTTON_PRIMARY
             }`}
           >
             {busyPreview ? '無料プレビュー実行中...' : '無料プレビューを実行（純計算・AIは使いません）'}
           </button>
-        </div>
+        </section>
         )}
 
         {/* ── Pro panel（S2: 分析タイプ軸で条件ピッカーを出し分け・銘柄指定ありのみ）
@@ -786,11 +811,11 @@ export default function AnalyzePage() {
             （マウントは維持＝内部stateは保持される）。プレビュー/AIレポート生成
             ボタンは reviewer指摘により Config ラッパーの外（クイックと同じ位置）
             に移設した — 詳細は下の「Pro/Investor 2-stage buttons」ブロックを参照。 ── */}
-        <div className={mode === 'pro' ? 'border border-border rounded-lg p-4 space-y-4' : 'hidden'}>
+        <div className={mode === 'pro' ? 'space-y-6' : 'hidden'}>
           <ProConditionPicker onConditionChange={handleProConditionChange} />
 
           {'error' in proCondition && (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+            <p className="text-small text-danger max-w-[42rem]">
               {proCondition.error}
             </p>
           )}
@@ -803,7 +828,7 @@ export default function AnalyzePage() {
             プレビュー/AIレポート生成ボタンは reviewer指摘により Config ラッパー
             の外（クイックと同じ位置）に移設した — 詳細は下の「Pro/Investor
             2-stage buttons」ブロックを参照。 ── */}
-        <div className={mode === 'investor' ? 'border border-border rounded-lg p-4 space-y-4' : 'hidden'}>
+        <div className={mode === 'investor' ? 'space-y-6' : 'hidden'}>
           <InvestorModelPicker onConditionChange={handleInvestorConditionChange} />
         </div>
         </div>
@@ -814,74 +839,65 @@ export default function AnalyzePage() {
             条件）は非対応 — 導出規約（先頭フィルタで第2キーを決める）と汎用
             カスタム条件は相性が悪いため対象外にし、その旨をメッセージで明示する。 */}
         {scope === 'no-symbol' && (
-          <div className="border border-border rounded-lg p-4 space-y-4">
+          <section className="space-y-2">
+            {/* 3c-1: 外枠と注意の箱をやめる。プロ非対応の知らせは §6-12 の「空」と同じく白い帯に文字で、
+                スクリーニングの見出しと説明は帯の外（§6-6）。 */}
             {mode === 'pro' ? (
-              <p className="text-base text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 leading-relaxed">
+              <p className="bg-card rounded-card px-4 py-5 text-body text-ink-2">
                 銘柄指定なし（自動スクリーニング）はプロ（カスタム条件）に対応していません。
                 クイックまたは投資家モデルのタブに切り替えてご利用ください。
               </p>
             ) : (
               <>
                 <div>
-                  <p className="text-xl text-ink font-semibold mb-1">
+                  <h2 id="screen-preset-heading" className="text-small text-muted">
                     {mode === 'quick' ? 'ニーズ軸プリセットで適合銘柄を探す' : '投資家モデルで適合銘柄を探す'}
-                  </p>
-                  <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
+                  </h2>
+                  <p className="text-small text-ink-2 max-w-[42rem]">
                     事前計算済みキャッシュ（現在値ファンダメンタル）にのみ条件を適用します。ライブ取得・バックテスト・決算派生の評価はここでは行いません。
                   </p>
                 </div>
 
                 {mode === 'quick' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div role="radiogroup" aria-labelledby="screen-preset-heading" className="bg-card rounded-card overflow-hidden">
                     {NEEDS_PRESET_IDS.map(id => {
                       const p = NEEDS_PRESETS[id]
                       const selected = screenNeedsPresetId === id
                       return (
-                        <label
-                          key={id}
-                          className={`block rounded-lg border p-3 cursor-pointer transition-colors ${
-                            selected ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50 hover:border-blue-400'
-                          }`}
-                        >
-                          <span className="flex items-start gap-2">
+                        <div key={id} className={SETTINGS_ROW_WRAP}>
+                        <label className={settingsRowClass(selected)}>
                             <input
                               type="radio"
                               name="screen-needs-preset"
                               checked={selected}
                               onChange={() => { setScreenNeedsPresetId(id); resetDownstream() }}
-                              className="mt-1 accent-blue-500"
+                              className="mt-1.5 shrink-0 accent-brand"
                             />
-                            <span>
-                              <span className="block text-base text-ink font-medium">{p.label}</span>
-                              <span className="block text-sm text-ink-2 mt-1 leading-relaxed">「{p.description}」</span>
+                            <span className="min-w-0">
+                              <span className="block text-body font-semibold text-ink">{p.label}</span>
+                              <span className="block text-small text-ink-2">「{p.description}」</span>
                             </span>
-                          </span>
                         </label>
+                        </div>
                       )
                     })}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  // 名前だけの選択肢なので選択チップ（§6-18）。radio は sr-only で残す
+                  <div role="radiogroup" aria-labelledby="screen-preset-heading" className="flex flex-wrap gap-2">
                     {INVESTOR_PRESET_IDS.map(id => {
                       const p = INVESTOR_PRESETS[id]
                       const selected = screenInvestorId === id
                       return (
-                        <label
-                          key={id}
-                          className={`block rounded-lg border p-3 cursor-pointer transition-colors ${
-                            selected ? 'border-blue-200 bg-blue-50' : 'border-border bg-surface/50 hover:border-blue-400'
-                          }`}
-                        >
-                          <span className="flex items-start gap-2">
-                            <input
-                              type="radio"
-                              name="screen-investor-preset"
-                              checked={selected}
-                              onChange={() => { setScreenInvestorId(id); resetDownstream() }}
-                              className="mt-1 accent-blue-500"
-                            />
-                            <span className="block text-sm text-ink font-medium">{p.label}</span>
-                          </span>
+                        <label key={id} className={settingsChipClass(selected)}>
+                          <input
+                            type="radio"
+                            name="screen-investor-preset"
+                            checked={selected}
+                            onChange={() => { setScreenInvestorId(id); resetDownstream() }}
+                            className="sr-only"
+                          />
+                          {p.label}
                         </label>
                       )
                     })}
@@ -891,15 +907,13 @@ export default function AnalyzePage() {
                 <button
                   onClick={runScreen}
                   disabled={screenPhase === 'loading'}
-                  className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
-                    screenPhase === 'loading' ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
-                  }`}
+                  className={`mt-2 ${screenPhase === 'loading' ? BUTTON_DISABLED : BUTTON_PRIMARY}`}
                 >
                   {screenPhase === 'loading' ? 'スクリーニング実行中...' : 'スクリーニング実行（キャッシュのみ・AIは使いません）'}
                 </button>
               </>
             )}
-          </div>
+          </section>
         )}
       </div>
 
@@ -913,29 +927,27 @@ export default function AnalyzePage() {
           外側分岐（mode === 'pro' / 'investor'）で常に偽になる mode 条件は
           disabled/className から削除した（死んだ条件の掃除・挙動は不変）。 */}
       {mode === 'pro' && scope === 'with-symbol' && (
-        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
+        <div className="space-y-2">
+          {/* 3c-1: ボタンを包むだけの箱をやめる。紺青の塗りは押す順番が来た1つだけ
+              （プレビュー前＝プレビュー実行、プレビュー後＝AIレポート生成）。disabled 条件は不変。 */}
           <div className="flex flex-wrap gap-3">
             <button
               onClick={runProPreview}
               disabled={busyReport}
-              className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
-                busyReport ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
-              }`}
+              className={busyReport ? BUTTON_DISABLED : reportPhase === 'prepared' ? BUTTON_SECONDARY : BUTTON_PRIMARY}
             >
               {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
             </button>
             <button
               onClick={runProGenerate}
               disabled={busyReport || reportPhase !== 'prepared'}
-              className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
-                busyReport || reportPhase !== 'prepared' ? 'bg-surface text-muted cursor-not-allowed' : 'bg-accent text-on-accent'
-              }`}
+              className={busyReport || reportPhase !== 'prepared' ? BUTTON_DISABLED : BUTTON_PRIMARY}
             >
               {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
             </button>
           </div>
           {reportPhase === 'prepared' && (
-            <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
+            <p className="text-small text-ink-2 max-w-[42rem]">
               プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます。
             </p>
           )}
@@ -943,29 +955,26 @@ export default function AnalyzePage() {
       )}
 
       {mode === 'investor' && scope === 'with-symbol' && (
-        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
+        <div className="space-y-2">
+          {/* 3c-1: プロと同じ（箱をやめ、紺青の塗りは押す順番が来た1つだけ。disabled 条件は不変） */}
           <div className="flex flex-wrap gap-3">
             <button
               onClick={runProPreview}
               disabled={busyReport}
-              className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
-                busyReport ? 'bg-surface cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
-              }`}
+              className={busyReport ? BUTTON_DISABLED : reportPhase === 'prepared' ? BUTTON_SECONDARY : BUTTON_PRIMARY}
             >
               {reportPhase === 'preparing' ? '準備中...' : 'プレビュー実行（実データ・AIは使いません）'}
             </button>
             <button
               onClick={runProGenerate}
               disabled={busyReport || reportPhase !== 'prepared'}
-              className={`px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
-                busyReport || reportPhase !== 'prepared' ? 'bg-surface text-muted cursor-not-allowed' : 'bg-accent text-on-accent'
-              }`}
+              className={busyReport || reportPhase !== 'prepared' ? BUTTON_DISABLED : BUTTON_PRIMARY}
             >
               {reportPhase === 'generating' ? 'レポート生成中...' : 'この条件でAIレポート生成'}
             </button>
           </div>
           {reportPhase === 'prepared' && (
-            <p className="text-sm text-ink-2 leading-relaxed max-w-[42rem]">
+            <p className="text-small text-ink-2 max-w-[42rem]">
               プレビュー完了。内容を確認のうえ「AIレポート生成」でOpusによる分析を実行できます（投資家名はAIへは伝えません）。
             </p>
           )}

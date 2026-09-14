@@ -4,6 +4,9 @@
 // 銘柄・初期資金入力／各モードパネル／読者プロファイル）を1行のサマリー帯に
 // 圧縮するための表示専用コンポーネント。
 //
+// 3c-1（2026-09-14）: 枠線をやめ、灰の地に載る白い帯（DESIGN.md §6-6 A アプリ型）に
+// した。「条件を編集」は枠付きボタンから §6-1 の文字ボタンへ。
+//
 // このコンポーネント自体はロジックを持たない（何を表示するか・どの項目を
 // 省略するかは呼び出し側 app/learn/page.tsx が判断し、フォーマット済みの
 // 文字列配列として渡す — 表示できない項目を捏造しないため、値を持たない
@@ -21,8 +24,8 @@ export interface ConditionSummaryBarProps {
 
 export default function ConditionSummaryBar({ items, onEdit }: ConditionSummaryBarProps) {
   return (
-    <div className="bg-panel border border-border rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-ink-2 leading-relaxed min-w-0">
+    <div className="bg-card rounded-card px-4 py-2 min-h-14 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <p className="text-small text-ink-2 min-w-0">
         {items.map((item, i) => (
           <span key={i}>
             {i > 0 && <span className="text-muted mx-1.5">・</span>}
@@ -33,7 +36,7 @@ export default function ConditionSummaryBar({ items, onEdit }: ConditionSummaryB
       <button
         type="button"
         onClick={onEdit}
-        className="shrink-0 text-sm px-3 py-1.5 rounded-lg border border-border text-ink-2 hover:border-blue-400 hover:text-ink transition-colors"
+        className="shrink-0 min-h-11 text-small font-semibold text-brand hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
       >
         条件を編集 ▸
       </button>

@@ -2,6 +2,23 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-09-14: /learn の囲い撤去（3c）は設定→結果→実測カードの3本に分け、選択肢の格子は行とチップにする（3c-1 実施）
+- 背景: page.tsx 約1300行・囲い約60行・3段の入れ子で、1本ではレビューできない
+- 決定: 3c-1 設定→3c-2 結果（MetricStrip・InsightNote・DetailsSection）→3c-3 ExecutionPlanCard。hidden の3か所・ラジオの name/onChange・resetDownstream・export・文言は変えない。AI レポート生成は検証でも押さない（Opus の費用。日次上限はある）
+- 3c-1 の結果: rg の数 前→後（page の設定部分＝summaryItems〜Screening の手前／部品6つ）: 囲い 15→2・27→6（残りは入力欄と、選択チップ・削除ボタンの class 定義＝§6-6 で許される囲いだけ。page 全体 32→20 の残りは結果側）、text-center 0→0・0→0、uppercase 0→0・1→0、rounded-full 0→0・0→0、旧色 15→0・27→0（page 全体 28→13 の残りは結果側）。押す順番（390・1280 とも）: (1) AAPL＋クイック2つ目「コツコツ配当」→無料プレビュー PASS（参加条件不成立なので設定は畳まれない＝S6 の仕様どおり）(2) 条件の内訳の開閉 PASS。「条件を編集」は畳まれる経路を通すため1つ目「安定重視」でもプレビュー→条件の帯→戻ると選択と AAPL が残る PASS (3) ハイブリッドで条件1つ（PER≤30）→投資家モデル2人目→プロに戻ると条件・値・ハイブリッドが残る PASS (4) 銘柄指定なしのスクリーニング候補10件→NVDA を押すと銘柄指定あり＋銘柄欄 NVDA PASS。tsc 0・build 成功・check-analyze s1/s3/s4/pro/sc 全 PASS・scripts/verify-learn-3c1.mjs 110 PASS / 0 FAIL / 0 SKIP（390/1280/1920 で横はみ出し0・ヘッダー下の左右端 #EDF1F6・紺青の塗りは1つまで・console error 0）。hidden は実際には4か所（設定全体・銘柄指定あり・プロ・投資家）あり、4つとも hidden のまま
+- 判断: 紺青の塗りは「押す順番が来た1つ」だけ（クイックのプレビューは結果が出たら副に下げ、プロ/投資家は prepared で「AIレポート生成」へ塗りを移す。className だけで disabled は不変）。押せないボタンは §6-1 の --surface＋--muted だと灰の地に溶けるので --border の輪郭を足した。幅の絞り（760px）と灰の地は1要素で兼ね、結果側（3c-2）の閉じタグに触れない
+- レビュー後の修正: 開示の注記を text-warning-ink＋見出し語 semibold に（InvestorModelPicker の「近似についての注記（信念と実装のギャップ）」の見出しと行、ProConditionPicker の ※ 注記3つ＝基準トリガー・ファンダ条件・決算データ。枠・面は付けず帯の中の帯にしない・文言は不変）。コントラスト --warning-ink は --card 上 6.33（投資家の注記の行）・--surface 上 5.58（※ 注記と注記の見出し）。再検証: tsc 0・build 成功・verify-learn-3c1 110 PASS / 0 FAIL・注記の色と太さの実測 9 PASS（根拠・条件の行は --ink-2 のまま＝色で見分けられる）
+- 影響ファイル: app/learn/page.tsx（設定部分と設定用の class 定数）、components/analyze/AnalyzeBanner.tsx・ModeScopeBar.tsx・ConditionSummaryBar.tsx・ReaderProfilePanel.tsx・InvestorModelPicker.tsx・ProConditionPicker.tsx、scripts/verify-learn-3c1.mjs（新規）
+
+## 2026-09-14: 「いまの相場」は取得に失敗したら固定値を出さず「取得できませんでした」、変化率は前日の終値と比べる
+- 背景: 本番の `/api/markets` は Yahoo の取得に失敗すると `FALLBACKS`（S&P 500 5428・NASDAQ 17397・ダウ 39308・VIX 18.5・10年債 4.28、変化0）を印なしで返し、/watch の「いまの相場」に架空の値が実データのように出ていた（原則9違反。本番の Vercel のサーバーからは取得に失敗し続け、開発版では同時刻に本物が取れていた＝2026-09-14 MC 確認）。バフェット指標は `^W5000` の固定値 56200 と直書きの GDP 29200 から計算され、本番でも開発版でも常に 192.5%「著しく割高」。さらに builder が、変化率の基準 `chartPreviousClose` が range=5d の期間の始まりの前の終値（約5営業日前）だったことを発見（S&P 500: 画面 −1.17%／実際のその日の変化 +0.86%、向きが逆）
+- 決定（オーナー承認「取れない時は『取得できず』と出す」）: 固定値を削除し、失敗した指数は `ok:false`・値 null、成功は `ok:true`＋`asOf`。画面は失敗なら「取得できませんでした」、成功値に「◯時点・遅れている場合があります」。バフェット指標は本物の時価総額・GDP を取る仕組みが無いので応答と画面から外す。変化率は「最新の取引日より前の最後の有効な終値」と比べ、決められなければ `ok:false`（0 にしない）。失敗を含む応答は `s-maxage=60`
+- 却下: 帯ごと消す（取れている時の情報も失う）／本番でも取れるように取得方法を変える（調査に時間がかかりその間も架空値が出続ける＝後回し）
+- 不変条件: 取得失敗を固定値・0・前回値で埋めない／成功時の数字の色は +/−/± の3分岐
+- 未解決（別スライス）: `lib/market/providers/yahoodirect.ts:108-113`・`yahoo2.ts:108-115` も `chartPreviousClose` を前日比の基準にしていて同じ約5営業日のずれの疑い（個別銘柄の前日比、AI の候補選び「当日の値動きが大きい4銘柄」の材料に影響しうる）。`yahoodirect` は価格なしを `?? 0`、基準なしを `?? price` で埋めている
+- 検証: `scripts/check-markets.ts` 80件 PASS、製品コードに固定値 0件（rg）。画面とビルドの確認は MC がまとめて行う
+- 影響ファイル: app/api/markets/route.ts, components/MarketOverview.tsx, app/markets/page.tsx, scripts/check-markets.ts（新）
+
 ## 2026-09-14: 名人のシグナルが常に「判定なし」だった不具合を直す（変更前から）
 - 背景: /api/signals/[symbol] は {symbol, signals:{buffett,…}} を返すが、MasterSignals は応答全体を state に入れて signals[m.id] をトップレベルで引いていたため、5人とも常に undefined＝「判定なし」。本番（38bef85）でも同じ表示で、API は 200 で判定を返していた（2026-09-14 MC が本番と開発版で確認）
 - 決定: setSignals(d.signals)。応答が不正なら従来どおり判定なし（signals が無い・null・配列なら空。1人分の action が buy/sell/hold 以外か reasons が配列でなければ、その人だけ判定なし＝描画で落とさない）。判定の文言・方向の札（§6-5）・免責文は不変

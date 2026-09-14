@@ -18,7 +18,7 @@
 // buildProCondition() は純関数として分離・export し、React state を経由しない
 // スモークテスト（scripts/check-analyze-pro.ts）から直接検証できるようにする。
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type {
   CompositeCondition,
   FundamentalFilter,
@@ -255,7 +255,26 @@ export interface ProConditionPickerProps {
   onConditionChange: (condition: CompositeCondition | { error: string }) => void
 }
 
+// 3c-1（2026-09-14）: DESIGN.md §6-6 / §6-18。囲ってよいのは押せる塊（選択肢・ボタン）と
+// 入力欄だけ。選択肢は選択チップ（角丸6px・選択中は --brand-tint の下地＋--brand の枠）。
+// radio は sr-only で残す（name / checked / onChange は不変）ので、キーボード操作時の枠は
+// チップ側（has-[:focus-visible]）に出す。
+const chipClass = (selected: boolean) =>
+  `relative inline-flex min-h-11 items-center rounded-field border px-3 py-2 text-small font-semibold cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus has-[:focus-visible]:outline-offset-2 ${
+    selected ? 'border-brand bg-brand-tint text-brand' : 'border-border-input bg-card text-ink hover:bg-surface'
+  }`
+// 入力欄（数字は16px・§6-18）
+const fieldClass =
+  'rounded-field border border-border-input bg-card px-3 py-2 text-body text-ink tabular-nums focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2'
+// §6-1 文字ボタン（条件の追加＝補助の操作）
+const textButtonClass =
+  'min-h-11 shrink-0 text-small font-semibold text-brand hover:underline disabled:cursor-not-allowed disabled:text-muted disabled:no-underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2'
+// §6-1 取り消し（副の形で文字が --danger）
+const removeButtonClass =
+  'min-h-11 rounded-field border border-border-input bg-card px-3 text-small font-semibold text-danger transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2'
+
 export default function ProConditionPicker({ onConditionChange }: ProConditionPickerProps) {
+  const uid = useId()
   const [analysisType, setAnalysisType] = useState<AnalysisType>('fundamental')
 
   // ── Technical rule picker（technical / hybrid で使用） ──────────────────
@@ -313,159 +332,146 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
   const showFundamentalPickers = analysisType === 'fundamental' || analysisType === 'hybrid'
 
   return (
-    <div className="space-y-5">
-      {/* 分析タイプ軸 */}
-      <div>
-        <p className="text-sm text-muted mb-2">分析タイプ</p>
-        <div className="inline-flex rounded-lg border border-border overflow-hidden">
+    <div className="space-y-6">
+      {/* 分析タイプ軸 — 3c-1: 枠付きの切り替えボタン群 → 選択チップ（§6-18） */}
+      <section className="space-y-2">
+        <h2 id={`${uid}-type`} className="text-small text-muted">分析タイプ</h2>
+        <div role="group" aria-labelledby={`${uid}-type`} className="flex flex-wrap gap-2">
           {ANALYSIS_TYPE_TABS.map(tab => (
             <button
               key={tab.id}
               type="button"
+              aria-pressed={analysisType === tab.id}
               onClick={() => setAnalysisType(tab.id)}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                analysisType === tab.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-surface text-ink-2 hover:text-ink'
-              }`}
+              className={chipClass(analysisType === tab.id)}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <p className="text-sm text-muted mt-1.5 leading-relaxed">
+        <p className="text-small text-muted max-w-[42rem]">
           {ANALYSIS_TYPE_TABS.find(t => t.id === analysisType)!.hint}
         </p>
-      </div>
+      </section>
 
-      {/* S-B1: テクニカル条件系（左）とファンダ/決算条件系（右）を2カラムに
-          並べ、非表示時に無駄な縦幅を取らないようにする（JSX構造のみの変更・
+      {/* S-B1 ではテクニカル条件系（左）とファンダ/決算条件系（右）の2カラムだったが、
+          3c-1 で 760px の1列に収めるため縦積みにした（JSX構造と見た目のみの変更・
           ロジック/state/export関数は無改修）。 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <div className="space-y-5">
           {/* テクニカル条件（technical / hybrid） */}
           {showTechnicalPicker && (
-            <div>
-              <label className="block text-sm text-muted mb-2">テクニカル条件（1つ選択・売買タイミングの判定）</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <section className="space-y-2">
+              <h2 id={`${uid}-rule`} className="text-small text-muted">テクニカル条件（1つ選択・売買タイミングの判定）</h2>
+              <div className="bg-card rounded-card px-4 py-4 space-y-4">
+              <div role="radiogroup" aria-labelledby={`${uid}-rule`} className="flex flex-wrap gap-2">
                 {RULES.map(rule => (
-                  <label
-                    key={rule.id}
-                    className={`flex items-center gap-2 text-sm rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
-                      indicator === rule.id
-                        ? 'border-blue-200 bg-blue-50 text-ink'
-                        : 'border-border bg-surface text-ink-2 hover:border-accent'
-                    }`}
-                  >
+                  <label key={rule.id} className={chipClass(indicator === rule.id)}>
                     <input
                       type="radio"
                       name="pro-rule"
                       checked={indicator === rule.id}
                       onChange={() => setIndicator(rule.id)}
-                      className="accent-blue-500"
+                      className="sr-only"
                     />
                     {rule.label}
                   </label>
                 ))}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-end gap-4">
+              <div className="flex flex-wrap items-end gap-4">
                 {selectedRule.params === 'period' && (
                   <div>
-                    <label className="block text-sm text-muted mb-1">期間（日）</label>
+                    <label className="block text-small text-ink-2 mb-1">期間（日）</label>
                     <input
                       type="number" min="2" max="200" step="1"
                       value={periods[indicator]}
                       onChange={e => setPeriods(prev => ({ ...prev, [indicator]: e.target.value }))}
-                      className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
+                      className={`w-28 ${fieldClass}`}
                     />
                   </div>
                 )}
                 {selectedRule.params === 'dual' && (
                   <>
                     <div>
-                      <label className="block text-sm text-muted mb-1">短期MA（日）</label>
+                      <label className="block text-small text-ink-2 mb-1">短期MA（日）</label>
                       <input
                         type="number" min="2" max="199" step="1"
                         value={shortPeriod}
                         onChange={e => setShortPeriod(e.target.value)}
-                        className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
+                        className={`w-28 ${fieldClass}`}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-muted mb-1">長期MA（日）</label>
+                      <label className="block text-small text-ink-2 mb-1">長期MA（日）</label>
                       <input
                         type="number" min="3" max="200" step="1"
                         value={longPeriod}
                         onChange={e => setLongPeriod(e.target.value)}
-                        className="w-28 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
+                        className={`w-28 ${fieldClass}`}
                       />
                     </div>
                   </>
                 )}
                 {selectedRule.params === 'none' && (
-                  <p className="text-sm text-muted">このルールにパラメータはありません（12,26,9固定）</p>
+                  <p className="text-small text-muted">このルールにパラメータはありません（12,26,9固定）</p>
                 )}
               </div>
-            </div>
+              </div>
+            </section>
           )}
 
           {/* ベースライントリガー（fundamental のみ） */}
           {analysisType === 'fundamental' && (
-            <div>
-              <label className="block text-sm text-muted mb-2">
+            <section className="space-y-2">
+              <h2 id={`${uid}-baseline`} className="text-small text-muted">
                 評価用の売買基準（ベースライントリガー）— 下のファンダ条件は参加可否の判定のみに使われるため、
                 バックテストの売買タイミングにはこの基準を使います
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              </h2>
+              <div className="bg-card rounded-card px-4 py-4 space-y-3">
+              <div role="radiogroup" aria-labelledby={`${uid}-baseline`} className="flex flex-wrap gap-2">
                 {BASELINE_TRIGGERS.map(t => (
-                  <label
-                    key={t.id}
-                    className={`flex items-center gap-2 text-sm rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
-                      baselineTrigger === t.id
-                        ? 'border-blue-200 bg-blue-50 text-ink'
-                        : 'border-border bg-surface text-ink-2 hover:border-accent'
-                    }`}
-                  >
+                  <label key={t.id} className={chipClass(baselineTrigger === t.id)}>
                     <input
                       type="radio"
                       name="baseline-trigger"
                       checked={baselineTrigger === t.id}
                       onChange={() => setBaselineTrigger(t.id)}
-                      className="accent-blue-500"
+                      className="sr-only"
                     />
                     {t.label}
                   </label>
                 ))}
               </div>
-              <p className="text-sm text-muted mt-1.5">
+              <p className="text-small text-muted">
                 {BASELINE_TRIGGERS.find(t => t.id === baselineTrigger)!.note}
               </p>
-              <p className="text-sm text-amber-700/90 mt-1 leading-relaxed">
-                ※ ファンダメンタル条件だけでは売買日を決められないため、上記の基準トリガーで過去5年をバックテストします。
+              </div>
+              {/* 原則9の開示の注記（3c-1 レビュー後）: 枠・面は付けず、文字色 --warning-ink＋先頭の「※」を
+                  semibold にして、説明文と見分けられるようにする。下のファンダ条件・決算データの ※ も同じ。 */}
+              <p className="text-small text-warning-ink max-w-[42rem]">
+                <span className="font-semibold">※</span> ファンダメンタル条件だけでは売買日を決められないため、上記の基準トリガーで過去5年をバックテストします。
                 ファンダ条件そのものは「参加できるか（現在値の静的判定）」にのみ使われ、売買判定には使われません。
               </p>
-            </div>
+            </section>
           )}
-        </div>
 
-        <div className="space-y-5">
           {/* ファンダメンタル条件（fundamental / hybrid） */}
           {showFundamentalPickers && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm text-muted">ファンダメンタル条件（任意・AND結合）</label>
+            <>
+            <section className="space-y-2">
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-small text-muted">ファンダメンタル条件（任意・AND結合）</h2>
                 <button
                   type="button"
                   onClick={addFilter}
                   disabled={filters.length >= 10}
-                  className="text-sm px-3 py-1 rounded-lg border border-border text-ink-2 hover:border-blue-400 hover:text-ink transition-colors disabled:opacity-40"
+                  className={textButtonClass}
                 >
                   ＋ 条件を追加
                 </button>
               </div>
+              <div className="bg-card rounded-card">
               {filters.length === 0 && (
-                <p className="text-sm text-muted">
+                <p className="px-4 py-4 text-small text-muted">
                   条件なし（
                   {analysisType === 'fundamental'
                     ? '評価用の売買基準のみでバックテストします'
@@ -473,13 +479,12 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                   ）
                 </p>
               )}
-              <div className="space-y-2">
                 {filters.map(row => (
-                  <div key={row.key} className="flex flex-wrap items-center gap-2">
+                  <div key={row.key} className="mx-4 flex flex-wrap items-center gap-2 border-t border-border py-3 first:border-t-0">
                     <select
                       value={row.metric}
                       onChange={e => updateFilter(row.key, { metric: e.target.value as FundamentalMetric })}
-                      className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm focus:outline-none focus:border-blue-200"
+                      className={fieldClass}
                     >
                       {FUNDAMENTAL_METRICS.map(mId => (
                         <option key={mId} value={mId}>{METRIC_INFO[mId].label}</option>
@@ -488,7 +493,7 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                     <select
                       value={row.operator}
                       onChange={e => updateFilter(row.key, { operator: e.target.value as FundamentalFilter['operator'] })}
-                      className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
+                      className={fieldClass}
                     >
                       {OPERATORS.map(op => (
                         <option key={op} value={op}>{OPERATOR_LABEL[op]}</option>
@@ -499,48 +504,49 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                       value={row.value}
                       onChange={e => updateFilter(row.key, { value: e.target.value })}
                       placeholder={METRIC_INFO[row.metric].hint}
-                      className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
+                      className={`w-48 ${fieldClass}`}
                     />
-                    <span className="text-sm text-muted">{METRIC_INFO[row.metric].hint}</span>
+                    <span className="text-small text-muted">{METRIC_INFO[row.metric].hint}</span>
                     <button
                       type="button"
                       onClick={() => removeFilter(row.key)}
-                      className="text-sm px-2 py-1.5 rounded-lg border border-border text-red-700 hover:border-red-400 transition-colors"
+                      className={removeButtonClass}
                     >
                       削除
                     </button>
                   </div>
                 ))}
               </div>
-              <p className="text-sm text-amber-700/90 mt-2">
-                ※ ファンダ条件は現在値による静的フィルタで、過去5年には遡及しません（過去の各時点のファンダメンタルは取得できないため）。
+              <p className="text-small text-warning-ink max-w-[42rem]">
+                <span className="font-semibold">※</span> ファンダ条件は現在値による静的フィルタで、過去5年には遡及しません（過去の各時点のファンダメンタルは取得できないため）。
               </p>
+            </section>
 
               {/* 決算トレンド条件（fundamental / hybrid） */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm text-muted">
+              <section className="space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-small text-muted">
                     決算トレンド条件（任意・AND結合／損益計算書など年次決算の複数期推移から算出）
-                  </label>
+                  </h2>
                   <button
                     type="button"
                     onClick={addDFilter}
                     disabled={dFilters.length >= 10}
-                    className="text-sm px-3 py-1 rounded-lg border border-border text-ink-2 hover:border-blue-400 hover:text-ink transition-colors disabled:opacity-40"
+                    className={textButtonClass}
                   >
                     ＋ 決算条件を追加
                   </button>
                 </div>
+                <div className="bg-card rounded-card">
                 {dFilters.length === 0 && (
-                  <p className="text-sm text-muted">条件なし（例: 売上高CAGR(3年) ≥ 10%、営業利益率の連続上昇期数 ≥ 2）</p>
+                  <p className="px-4 py-4 text-small text-muted">条件なし（例: 売上高CAGR(3年) ≥ 10%、営業利益率の連続上昇期数 ≥ 2）</p>
                 )}
-                <div className="space-y-2">
                   {dFilters.map(row => (
-                    <div key={row.key} className="flex flex-wrap items-center gap-2">
+                    <div key={row.key} className="mx-4 flex flex-wrap items-center gap-2 border-t border-border py-3 first:border-t-0">
                       <select
                         value={row.metric}
                         onChange={e => updateDFilter(row.key, { metric: e.target.value as DerivedMetric })}
-                        className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm focus:outline-none focus:border-blue-200"
+                        className={fieldClass}
                       >
                         {DERIVED_METRICS.map(mId => (
                           <option key={mId} value={mId}>{DERIVED_METRIC_INFO[mId].label}</option>
@@ -549,7 +555,7 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                       <select
                         value={row.operator}
                         onChange={e => updateDFilter(row.key, { operator: e.target.value as DerivedFilter['operator'] })}
-                        className="bg-surface border border-border rounded-lg px-2 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
+                        className={fieldClass}
                       >
                         {OPERATORS.map(op => (
                           <option key={op} value={op}>{OPERATOR_LABEL[op]}</option>
@@ -560,27 +566,25 @@ export default function ProConditionPicker({ onConditionChange }: ProConditionPi
                         value={row.value}
                         onChange={e => updateDFilter(row.key, { value: e.target.value })}
                         placeholder={DERIVED_METRIC_INFO[row.metric].hint}
-                        className="w-48 bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
+                        className={`w-48 ${fieldClass}`}
                       />
-                      <span className="text-sm text-muted">{DERIVED_METRIC_INFO[row.metric].hint}</span>
+                      <span className="text-small text-muted">{DERIVED_METRIC_INFO[row.metric].hint}</span>
                       <button
                         type="button"
                         onClick={() => removeDFilter(row.key)}
-                        className="text-sm px-2 py-1.5 rounded-lg border border-border text-red-700 hover:border-red-400 transition-colors"
+                        className={removeButtonClass}
                       >
                         削除
                       </button>
                     </div>
                   ))}
                 </div>
-                <p className="text-sm text-amber-700/90 mt-2">
-                  ※ 決算データは年次の実績（最新約5期）。トレンド指標は直近数期から計算し、データ不足の場合は「判定不能（不成立扱い）」になります。
+                <p className="text-small text-warning-ink max-w-[42rem]">
+                  <span className="font-semibold">※</span> 決算データは年次の実績（最新約5期）。トレンド指標は直近数期から計算し、データ不足の場合は「判定不能（不成立扱い）」になります。
                 </p>
-              </div>
-            </div>
+              </section>
+            </>
           )}
-        </div>
-      </div>
     </div>
   )
 }
