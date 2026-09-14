@@ -96,6 +96,29 @@ const BUTTON_PRIMARY = `${BUTTON_BASE} bg-brand text-on-brand hover:bg-brand-str
 const BUTTON_SECONDARY = `${BUTTON_BASE} border border-border-input bg-card text-ink hover:bg-surface`
 const BUTTON_DISABLED = `${BUTTON_BASE} border border-border bg-surface text-muted cursor-not-allowed`
 
+// ── 3c-2（2026-09-14）: 結果部分の見た目。──────────────────────────────────────────
+// 読み込み中は中央揃えの大箱＋回転する輪をやめ、左揃えの文＋完成時と同じ形の薄い帯（§6-12）。
+// 帯の行は /review の SkeletonBand と同じ形（左に名前・右に値）。
+function ResultSkeleton({ rows, status }: { rows: number; status: string }) {
+  return (
+    <div className="space-y-2" aria-busy="true">
+      <p role="status" className="text-small text-ink-2">{status}</p>
+      <ul className="bg-card rounded-card motion-safe:animate-pulse" aria-hidden="true" data-skeleton="result">
+        {Array.from({ length: rows }, (_, i) => (
+          <li key={i} className="mx-4 flex min-h-12 items-center justify-between gap-3 border-t border-border py-3 first:border-t-0">
+            <div className="h-4 w-32 rounded-field bg-surface" />
+            <div className="h-4 w-20 rounded-field bg-surface" />
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+// 結果の誤り（§6-12・/watch と同じ形）: 枠線は付けず、薄い赤の面の帯に誤りの文字。
+const RESULT_ERROR = 'bg-danger-tint rounded-card px-4 py-3 text-small text-danger'
+// 結果の中の小見出し（帯の外・灰の地の上。§6-6）
+const RESULT_LABEL = 'text-small text-muted'
+
 // ── S-B2: MetricStrip（Tier1「結論」）の「この数字の意味」注記。無料プレビュー・
 // AIレポート実行結果の両方の5指標グリッドで共有する（同じ性質の数字のため文面も
 // 共通）。将来 S-C/S-D/S-E で計5箇所に増える前提で InsightNote 側は汎用化済み —
@@ -983,21 +1006,19 @@ export default function AnalyzePage() {
 
       {/* Screening: error / loading（S5a・銘柄指定なし） */}
       {scope === 'no-symbol' && screenError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+        <div role="alert" className={RESULT_ERROR}>
           {screenError}
         </div>
       )}
       {scope === 'no-symbol' && screenPhase === 'loading' && (
-        <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-border border-t-blue-500 rounded-full animate-spin mx-auto" />
-          <p className="text-muted text-base">キャッシュ済みユニバースを評価中...</p>
-        </div>
+        <ResultSkeleton rows={5} status="キャッシュ済みユニバースを評価中..." />
       )}
 
       {/* Screening: ranking result（S5a） */}
       {scope === 'no-symbol' && screenRes && screenPhase === 'done' && (
-        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
-          <h2 className="text-ink font-semibold text-xl">
+        // 3c-2: 枠線の箱をやめ、見出しと件数は灰の地の上、候補は枠線の無い白い帯の中の押せる行（§6-6）
+        <div className="space-y-2">
+          <h2 className="text-body font-semibold text-ink">
             「{screenRes.presetLabel}」の適合度ランキング（キャッシュ評価・現在値）
           </h2>
           <p className="text-sm text-muted leading-relaxed tabular-nums max-w-[42rem]">
@@ -1008,39 +1029,42 @@ export default function AnalyzePage() {
             （鮮度閾値: {screenRes.staleDaysThreshold}日）
           </p>
 
+          {/* 候補は1つの白い帯の中の押せる行（行全体が押せる・区切り線は文字の左端から）。
+              成立件数は緑/琥珀の札で良し悪しを色分けしていたのをやめ、無彩色の文字にする（§5-1）。
+              押すと銘柄が入る動作（pickCandidateSymbol）は不変。 */}
           {screenRes.candidates.length === 0 ? (
-            <p className="text-base text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 leading-relaxed">
+            <p className="bg-card rounded-card px-4 py-5 text-body text-ink-2">
               条件に適合する銘柄が見つかりませんでした（評価対象が0件、または該当銘柄が無い可能性があります）。
             </p>
           ) : (
-            <div className="space-y-2">
+            <ul className="bg-card rounded-card overflow-hidden">
               {screenRes.candidates.map((c, i) => (
-                <button
-                  key={c.symbol}
-                  onClick={() => pickCandidateSymbol(c.symbol)}
-                  className="w-full text-left bg-surface/50 hover:bg-surface border border-border hover:border-blue-400 rounded-lg px-3 py-2.5 transition-colors"
-                >
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-sm font-mono text-muted w-5 shrink-0 tabular-nums">{i + 1}</span>
-                    <span className="text-base font-mono font-semibold text-ink">{c.symbol}</span>
-                    <span className={`text-xs font-bold tabular-nums px-2 py-0.5 rounded shrink-0 ${
-                      c.allPassed ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-                    }`}>
-                      {c.passedCount}/{c.totalFilters}件成立
+                <li key={c.symbol} className={SETTINGS_ROW_WRAP}>
+                  <button
+                    type="button"
+                    onClick={() => pickCandidateSymbol(c.symbol)}
+                    className="-mx-4 block w-[calc(100%+2rem)] min-h-14 px-4 py-3 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus focus-visible:-outline-offset-2"
+                  >
+                    <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className="w-5 shrink-0 text-small font-mono text-muted tabular-nums">{i + 1}</span>
+                      <span className="text-body font-mono font-semibold text-ink">{c.symbol}</span>
+                      <span className="text-small text-ink-2 tabular-nums">
+                        {c.passedCount}/{c.totalFilters}件成立
+                      </span>
+                      <span className="ml-auto shrink-0 text-caption text-muted tabular-nums">
+                        取得: {new Date(c.fetchedAt).toLocaleDateString('ja-JP')}（{c.source}）
+                      </span>
                     </span>
-                    <span className="text-sm text-muted ml-auto shrink-0 tabular-nums">
-                      取得: {new Date(c.fetchedAt).toLocaleDateString('ja-JP')}（{c.source}）
-                    </span>
-                  </div>
-                  <p className="text-sm text-ink-2 leading-relaxed mt-1 pl-8">{c.reason}</p>
-                </button>
+                    <span className="mt-1 block pl-8 text-small text-ink-2">{c.reason}</span>
+                  </button>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
 
-          <div className="pt-1 border-t border-border/60">
-            <p className="text-sm text-muted mb-1.5 mt-2">このプリセットの実際の条件:</p>
-            <ul className="text-sm text-ink-2 space-y-1 list-disc list-inside leading-relaxed max-w-[42rem]">
+          <div className="space-y-2 pt-2">
+            <p className={RESULT_LABEL}>このプリセットの実際の条件:</p>
+            <ul className="bg-card rounded-card px-4 py-3 text-small text-ink-2 space-y-1 list-disc list-inside">
               {screenRes.conditionNotes.map((note, i) => <li key={i}>{note}</li>)}
             </ul>
           </div>
@@ -1053,16 +1077,11 @@ export default function AnalyzePage() {
 
       {/* Preview: error / loading */}
       {previewError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+        <div role="alert" className={RESULT_ERROR}>
           {previewError}
         </div>
       )}
-      {busyPreview && (
-        <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-border border-t-blue-500 rounded-full animate-spin mx-auto" />
-          <p className="text-muted text-sm">実データを取得して計算中...</p>
-        </div>
-      )}
+      {busyPreview && <ResultSkeleton rows={5} status="実データを取得して計算中..." />}
 
       {/* Preview: gate result + backtest summary（Tier1・S-B2: MetricStripへ統合） */}
       {previewRes && previewPhase === 'done' && (
@@ -1072,13 +1091,13 @@ export default function AnalyzePage() {
           metrics={previewMetricItems}
           gateBreakdown={previewGateBreakdown}
           insightLines={previewMetricItems.length > 0 ? METRIC_INSIGHT_LINES : undefined}
-          emphasizeFailure
         >
+          {/* 3c-2: 不成立の強調は橙の面の箱（emphasizeFailure）をやめ、札（MetricStrip 側）と注意の文字色で示す */}
           {!previewRes.gatePassed && previewRes.gateFailReason && (
-            <p className="text-amber-700 text-sm leading-relaxed">
+            <p className="text-small text-warning-ink max-w-[42rem]">
               {previewRes.gateFailReason}
               <br />
-              <span className="text-amber-700/90 text-sm">
+              <span>
                 参加条件不成立のためプレビューのバックテストは実行していません（AIレポートは不成立の理由も分析します）。
               </span>
             </p>
@@ -1089,26 +1108,25 @@ export default function AnalyzePage() {
       {/* Preview: このプリセットの実際の条件（Tier1のまま・MetricStripの外・DetailsSection対象外
           — previewRes段階ではbundleが無くDetailsSectionの4項目に該当しないため） */}
       {previewRes && previewPhase === 'done' && (
-        <div className="bg-panel/60 border border-border/60 rounded-xl px-4 py-3">
-          <p className="text-sm text-muted mb-1.5">このプリセットの実際の条件:</p>
-          <ul className="text-sm text-ink-2 space-y-1 list-disc list-inside leading-relaxed max-w-[42rem]">
+        <div className="space-y-2">
+          <p className={RESULT_LABEL}>このプリセットの実際の条件:</p>
+          <ul className="bg-card rounded-card px-4 py-3 text-small text-ink-2 space-y-1 list-disc list-inside">
             {previewRes.conditionNotes.map((note, i) => <li key={i}>{note}</li>)}
           </ul>
         </div>
       )}
 
-      {/* AIレポート生成ボタン（無料プレビュー完了後のみ・同じプリセット条件を流用・クイックモード専用） */}
+      {/* AIレポート生成ボタン（無料プレビュー完了後のみ・同じプリセット条件を流用・クイックモード専用）
+          3c-2: 枠線の箱 → 枠線の無い白い帯。ボタンは設定部分と同じ主/押せないの形（disabled 条件は不変） */}
       {mode === 'quick' && previewRes && previewPhase === 'done' && (
-        <div className="bg-panel border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-          <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
+        <div className="bg-card rounded-card px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <p className="text-body text-ink-2 max-w-[42rem]">
             この条件（プリセット「{preset.label}」・{symbol}）でAIがレポート（現状分析・AIトレーダー実績・根拠つき未来予想）を執筆します。
           </p>
           <button
             onClick={runReport}
             disabled={busyReport}
-            className={`shrink-0 px-6 py-2.5 text-ink text-sm font-medium rounded-lg transition-colors ${
-              busyReport ? 'bg-surface text-muted cursor-not-allowed' : 'bg-accent text-on-accent'
-            }`}
+            className={`shrink-0 ${busyReport ? BUTTON_DISABLED : BUTTON_PRIMARY}`}
           >
             {reportPhase === 'preparing' ? '実データを準備中...'
               : reportPhase === 'generating' ? 'レポート生成中...'
@@ -1119,25 +1137,28 @@ export default function AnalyzePage() {
 
       {/* Report: error / progress */}
       {reportError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+        <div role="alert" className={RESULT_ERROR}>
           {reportError}
         </div>
       )}
-      {busyReport && (
-        <div className="bg-panel border border-border rounded-xl p-5 space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-border border-t-blue-500 rounded-full animate-spin" />
-            <div className="text-sm text-ink-2">
-              {reportPhase === 'preparing'
-                ? (mode === 'pro' || mode === 'investor'
-                    ? '条件を検証し、Yahoo Financeの過去5年実データでバックテスト中（プレビュー）...'
-                    : 'ステップ1/2: 条件を検証し、Yahoo Financeの過去5年実データでバックテスト中...')
-                : (mode === 'pro' || mode === 'investor'
-                    ? 'Opusがレポートを執筆中（少しずつ表示されます）...'
-                    : 'ステップ2/2: Opusがレポートを執筆中（少しずつ表示されます）...')}
-            </div>
-          </div>
-        </div>
+      {/* 3c-2: 回る輪つきの箱をやめる。準備中は完成時（実行結果の表）と同じ形の薄い帯＋左揃えの文、
+          執筆中は本文が少しずつ下に出るので文だけ（§6-12・§6-16）。文言は不変。 */}
+      {busyReport && reportPhase === 'preparing' && (
+        <ResultSkeleton
+          rows={5}
+          status={
+            mode === 'pro' || mode === 'investor'
+              ? '条件を検証し、Yahoo Financeの過去5年実データでバックテスト中（プレビュー）...'
+              : 'ステップ1/2: 条件を検証し、Yahoo Financeの過去5年実データでバックテスト中...'
+          }
+        />
+      )}
+      {busyReport && reportPhase !== 'preparing' && (
+        <p role="status" className="text-small text-ink-2">
+          {mode === 'pro' || mode === 'investor'
+            ? 'Opusがレポートを執筆中（少しずつ表示されます）...'
+            : 'ステップ2/2: Opusがレポートを執筆中（少しずつ表示されます）...'}
+        </p>
       )}
 
       {/* Report: prepared bundle summary（Tier1・S-B2: MetricStripへ統合）。
@@ -1166,19 +1187,19 @@ export default function AnalyzePage() {
           AIレポート本文だけは絶対にDetailsSectionで包まない（生成直後は常に展開表示）。 */}
       {bundle && (
         <DetailsSection title="実行した条件・ゲート内訳の詳細版">
-          <div className="bg-surface/50 border border-blue-200 rounded-lg p-3 space-y-1">
-            <p className="text-sm text-blue-700 font-medium">実行した条件</p>
-            <p className="text-base text-ink font-medium leading-relaxed">
+          {/* 3c-2: 帯の中の小箱（青・緑/琥珀の枠）をやめ、小見出し＋文字と1本の区切り線にする。
+              判定は緑/琥珀の文字色をやめ、不成立だけ §6-5 の注意の札（文言は不変） */}
+          <div className="space-y-1">
+            <p className="text-small text-muted">実行した条件</p>
+            <p className="text-body text-ink font-medium">
               {describeCompositeCondition(bundle.request.condition)}
             </p>
           </div>
 
           {gate && gate.evaluations.length > 0 && (
-            <div className={`rounded-lg p-3 space-y-1 border ${
-              gate.passed ? 'bg-surface/50 border-green-200' : 'bg-surface/50 border-amber-200'
-            }`}>
-              <p className={`text-sm font-medium ${gate.passed ? 'text-green-700' : 'text-amber-700'}`}>
-                ファンダメンタル・ゲート判定（現在値）: {gate.passed ? '成立' : '不成立'}
+            <div className="space-y-1 border-t border-border pt-3">
+              <p className="text-small font-medium text-ink">
+                ファンダメンタル・ゲート判定（現在値）: {gate.passed ? '成立' : <span className="rounded-full bg-warning-tint px-2.5 font-semibold text-warning-ink">不成立</span>}
               </p>
               <ul className="space-y-0.5">
                 {gate.evaluations.map((ev, i) => (
@@ -1192,7 +1213,7 @@ export default function AnalyzePage() {
                 ))}
               </ul>
               {!gate.passed && (
-                <p className="text-sm text-amber-700/90 leading-relaxed max-w-[42rem]">
+                <p className="text-small text-warning-ink max-w-[42rem]">
                   条件不成立のためバックテストはスキップされました。レポートは「不成立の理由と成立に必要な変化」を分析します。
                 </p>
               )}
@@ -1218,7 +1239,8 @@ export default function AnalyzePage() {
           {transparency.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {transparency.tags.map((tag, i) => (
-                <span key={i} className="text-xs font-mono px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700">
+                // 3c-2: 青い枠のピル型をやめ、枠の無い無彩色の小さな面（押せる選択チップと見分けるため枠は付けない）
+                <span key={i} className="rounded-field bg-surface px-2 py-0.5 text-caption font-mono text-ink-2">
                   {tag}
                 </span>
               ))}
@@ -1229,7 +1251,7 @@ export default function AnalyzePage() {
             <ul className="space-y-1">
               {transparency.reasons.map((reason, i) => (
                 <li key={i} className="flex gap-2 text-sm text-ink-2 leading-relaxed max-w-[42rem]">
-                  <span className="text-green-700 shrink-0">✓</span>
+                  <span className="text-muted shrink-0">✓</span>
                   <span>{reason}</span>
                 </li>
               ))}
@@ -1237,9 +1259,9 @@ export default function AnalyzePage() {
           )}
 
           {transparency.caveats.length > 0 && (
-            <ul className="space-y-1 pt-1 border-t border-border/60">
+            <ul className="space-y-1 border-t border-border pt-3">
               {transparency.caveats.map((caveat, i) => (
-                <li key={i} className="flex gap-2 text-sm text-amber-700/90 leading-relaxed max-w-[42rem]">
+                <li key={i} className="flex gap-2 text-small text-warning-ink max-w-[42rem]">
                   <span className="shrink-0">※</span>
                   <span>{caveat}</span>
                 </li>
@@ -1258,7 +1280,7 @@ export default function AnalyzePage() {
               <ul className="space-y-1">
                 {bundle.learningUsage.usedLessons.map((lesson, i) => (
                   <li key={i} className="flex gap-2 text-sm text-ink-2 leading-relaxed max-w-[42rem]">
-                    <span className="text-blue-700 shrink-0">•</span>
+                    <span className="text-muted shrink-0">•</span>
                     <span>{lesson}</span>
                   </li>
                 ))}
@@ -1279,10 +1301,11 @@ export default function AnalyzePage() {
 
       {/* Report body (streamed) — DetailsSectionで包まない。生成直後は常に展開表示のまま。 */}
       {report && (
-        <div className="bg-panel border border-border rounded-xl p-6">
+        // 3c-2: 枠線の箱 → 枠線の無い白い帯（本文は常に展開のまま・DetailsSection で包まない）
+        <div className="bg-card rounded-card px-4 py-5 sm:px-6">
           <MarkdownView text={report} />
           {reportPhase === 'generating' && (
-            <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-1 align-text-bottom" />
+            <span className="inline-block w-2 h-4 bg-muted motion-safe:animate-pulse ml-1 align-text-bottom" />
           )}
         </div>
       )}
@@ -1295,7 +1318,7 @@ export default function AnalyzePage() {
               <li key={s.id} className="text-sm text-ink-2 leading-relaxed">
                 <span className="text-muted font-mono tabular-nums">[{s.id}]</span>{' '}
                 {s.url
-                  ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800 underline break-all">{s.label}</a>
+                  ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-strong underline break-all">{s.label}</a>
                   : <span>{s.label}</span>}
                 <span className="text-muted"> — {s.usedFor}</span>
               </li>

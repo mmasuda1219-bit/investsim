@@ -23,19 +23,22 @@ export default function DetailsSection({ title, children, defaultOpen = false }:
   const contentId = useId()
 
   return (
-    <div className="bg-panel border border-border rounded-xl overflow-hidden">
+    // 3c-2（2026-09-14）: 枠線の箱をやめ、枠線の無い白い帯にする（DESIGN.md §6-6 A アプリ型）。
+    // 開閉の行（行全体が押せる・aria-expanded）と右端の文字ボタン（§6-1 の文字ボタン＝紺青の文字）は残す。
+    // 開いた中身の上の区切り線は文字の左端から始める（§6-6）。
+    <div className="bg-card rounded-card overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
         aria-expanded={open}
         aria-controls={contentId}
-        className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-surface/40 transition-colors"
+        className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus focus-visible:-outline-offset-2"
       >
-        <span className="text-ink font-semibold text-sm">{title}</span>
-        <span className="text-sm text-muted shrink-0">{open ? '閉じる ▾' : '詳細を見る ▸'}</span>
+        <span className="text-body font-semibold text-ink">{title}</span>
+        <span className="shrink-0 text-small font-semibold text-brand">{open ? '閉じる ▾' : '詳細を見る ▸'}</span>
       </button>
 
-      {open && <div id={contentId} className="px-5 pb-5 pt-1 border-t border-border space-y-3">{children}</div>}
+      {open && <div id={contentId} className="mx-4 space-y-3 border-t border-border pb-5 pt-4">{children}</div>}
     </div>
   )
 }

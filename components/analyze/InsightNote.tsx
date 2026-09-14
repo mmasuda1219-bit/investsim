@@ -6,6 +6,8 @@
 // **常時表示**（クリックで開く形にしない）— 金融数値の注記を隠す設計は
 // 法務上避ける（builder作業指示・S-B2）。文面は呼び出し側から渡す（このコンポーネント
 // 自体は文言を持たない）。将来 S-C/S-D/S-E で計5箇所に増える前提の作り。
+// 3c-2（2026-09-14）: 箱（面・枠線・角丸）を外し、文字だけにした（DESIGN.md §2「囲わない」・
+// §6-6 帯の中に帯を入れない）。常時表示なのは変えていない。
 
 export interface InsightNoteProps {
   /** 見出し（【】内の文字列）。省略時は「この数字の意味」。 */
@@ -17,8 +19,8 @@ export interface InsightNoteProps {
 export default function InsightNote({ heading = 'この数字の意味', lines }: InsightNoteProps) {
   if (lines.length === 0) return null
   return (
-    <div className="text-sm text-ink-2 bg-surface/40 border border-border/60 rounded-lg px-3 py-2.5 leading-relaxed space-y-0.5">
-      <p className="text-ink-2 font-semibold">【{heading}】</p>
+    <div className="text-small text-ink-2 space-y-0.5 max-w-[42rem]">
+      <p className="font-semibold">【{heading}】</p>
       {lines.map((line, i) => (
         <p key={i}>{line}</p>
       ))}
