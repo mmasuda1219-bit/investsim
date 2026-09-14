@@ -2,6 +2,13 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-09-13: 分析の過程の再生を /watch の「最新の分析」と置き換える（⑤-2）
+- 決定: TickSummary を削除し components/watch/replay/ の4部品に。初回は静止した完成状態、押したら約15秒（3倍・飛ばす・Esc）、reduce-motion では再生しない。印は色＋形（塗り／橙／輪郭）。回は select で切り替え、既定は判断のある最新の回。足は chart API を銘柄ごとに1回。丸印の脈打ちは §5-6 のループ禁止に触れるため見本から外した
+- 実測（`scripts/shoot-replay.mjs`・`next start -p 3128`・msedge・390/768/1280 × 初回静止／再生中（段2・段5）／飛ばした後／reduce-motion＝15枚、60項目すべて PASS）: ふつうの再生 14.3 秒（第74回は知識0件で段4の 0.8 秒を待たないため 15.0−0.8）、3倍 4.9 秒。横スクロール 0（3幅）、12px 未満の文字 0、格子の札・線の端の名前の切れ 0、囲い（角丸＋枠線・押せる塊と入力欄以外）0、console error 0、aria-live は「再生開始／段の開始／終了要約」だけ（3倍は開始と終了の2件）。tick ありの回（段7・記録からの数値・失敗 tick）は本番複製に検査用 TickRecord を足して静的描画で文言を確認（19項目 PASS・scratchpad の check-replay-ui.tsx）
+- 実装上の補足: (1) 時計は rAF で `{stage, step, progress}` を刻み、所要 0ms の手順（0件の段・足の無い回の線）は待たない。再生時間は段の中身で 15.0 秒から短くなる（「計算しているふり」をしない）。(2) 外側の格子の `1fr` 列は `minmax(0,1fr)` にする（グリッド項目の `min-width:auto` が中身の最小幅まで列を広げ、390px で横にはみ出した）。区切りの「・」は `whitespace-nowrap` の外に置く。(3) 設定値（35秒・2,500トークン）は新設 `lib/ai-trader/ai-config.ts` に置き、engine.ts もそこから読む。(4) 旧 TickSummary の当日変化率（AIDecision.change・allDecisions に無い）は、40銘柄の走査が記録に無い回だけ「判断の記録にある当日変化率（順位は記録なし）」として段1に出す。(5) 免責は §6-11 どおり再生の直下にも置くので、判断一覧の直下と合わせてページに2つ並ぶ
+- 影響ファイル: components/watch/replay/{ProcessReplay,ReplayStages,ReplayChart}.tsx・useReplayClock.ts（新）, app/watch/client.tsx（TickSummary の置換と未使用の入力の削除）, components/watch/TickSummary.tsx（削除）, components/watch/EvidenceMap.tsx（結論行の札）, components/watch/DecisionCard.tsx（border-surface を外す）, lib/ai-trader/ai-config.ts（新）, lib/ai-trader/engine.ts（定数を ai-config から）, scripts/shoot-replay.mjs（新）
+- レビュー後の修正: 再生中の reduce-motion 切替で停止・足の取得に AbortController・チャート文字の白縁取り・段1/3/5 の『記録なし』の重複をまとめた（段5は見出しの印が言う項目を繰り返さず「トークンと終わり方も記録なし」だけ）・段5の銘柄の札は再生中だけ消し、静止した完成状態では見せたまま残す（記録なしの出現 16→11（1280・390 とも・第74回）、390 の高さ 11402→11214px。再生中に reduce へ切り替えると約100ms で完成状態（修正前は止まらず）、shoot-replay 60項目 PASS のまま）
+
 ## 2026-09-12: 分析の過程の再生は純関数 replay-model で組み、今の API で出す（⑤-1）
 - 背景: DESIGN.md §6-19。本番に ticks はまだ無く（9/14 の tick から）、今ある記録は allDecisions の同時刻群・最新回だけの watchlist/holdings/knowledgeShown・既存 chart API の6か月の足
 - 決定: 回は ticks を正とし、無い回は allDecisions の同時刻群。各値に record/recomputed/none の印。株価は chart API の足を判断時刻から3か月に切り、判断日の足は判断価格で置換（終値は判断より後に決まるため）。過去の回で記録に無い値は none

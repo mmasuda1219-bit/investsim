@@ -279,7 +279,8 @@ export default function EvidenceMap({ decision, action, confidenceLabel }: Evide
         <Node kind="conclusion" />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-sm font-semibold text-ink">この判断</span>
-          <span className={`text-sm font-semibold border rounded-lg px-2.5 py-0.5 ${action.cls}`}>
+          {/* 方向の札（§6-5）: --surface の面・--ink の文字・ピル型・枠なし。cls は面と文字だけ */}
+          <span className={`rounded-full bg-surface px-2.5 text-small font-semibold text-ink whitespace-nowrap ${action.cls}`}>
             {action.label}
           </span>
           <span className="text-sm text-muted whitespace-nowrap">

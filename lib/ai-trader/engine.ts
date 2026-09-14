@@ -21,6 +21,7 @@ import type { KnowledgeItem, KnowledgeKind } from '@/lib/knowledge/types'
 // 監視母集団は lib/ai-trader/universe.ts（純データ・副作用なし）に置き、クライアント側の
 // 画面(/watch)が「AIは何銘柄を監視しているのか」を同じ定義から読めるようにしている。
 import { UNIVERSE, TICK_CANDIDATE_COUNT } from './universe'
+import { CLAUDE_TIMEOUT_MS, DECISION_MAX_TOKENS } from './ai-config'
 // 4a(2026-09-11): tick ごとの過程の記録（DESIGN.md §6-19 の材料）。型と組み立ては純関数側に置く。
 import {
   emptyTickRecord, makeStage, pushTick, decisionIdFor,
@@ -102,12 +103,12 @@ class AskClaudeError extends Error {
 // 「データ取得+後処理(約10秒) + 判断35秒」で見積もる。
 // 学習(2026-07-31にcron/learnへ分離)は専用エンドポイントの60秒枠を単独で使えるため、
 // tickのhot pathに遠慮する必要がなくなった。20秒では生成が終わらず空振りしていたので広げる。
-const CLAUDE_TIMEOUT_MS = 35_000
+// CLAUDE_TIMEOUT_MS（35秒）は ./ai-config.ts に置く（画面が「今の設定」として同じ値を読むため）
 const CLAUDE_LEARN_TIMEOUT_MS = 40_000
 // 生成時間はほぼ出力トークン数に比例するため、判断側は4096から絞る。ただし絞りすぎると
 // JSONが途中で切れて閉じフェンスが無くなり、呼び出し側の正規表現が無マッチ＝静かに空判断に
 // なる（銘柄数×1オブジェクトぶんの余裕を必ず残す）。学習側は6配列×5件で嵩むため据え置く。
-const DECISION_MAX_TOKENS = 2500
+// DECISION_MAX_TOKENS（2500）も ./ai-config.ts に置く（同上）
 const LEARN_MAX_TOKENS = 4096
 
 async function callClaudeApi(prompt: string, opts: CallClaudeOpts = {}): Promise<ClaudeReply> {

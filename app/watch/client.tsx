@@ -10,7 +10,7 @@ import type { TradeMarker } from '@/components/AITradeChart'
 import TradeLog, { pairRoundTrips, fmtPrice, fmtMoneySigned, isJPSymbol } from '@/components/watch/TradeLog'
 import { MasterSignals } from '@/components/MasterSignals'
 import { MarketOverview } from '@/components/MarketOverview'
-import TickSummary from '@/components/watch/TickSummary'
+import ProcessReplay from '@/components/watch/replay/ProcessReplay'
 import DecisionCard from '@/components/watch/DecisionCard'
 
 // 銘柄ごとの取引チャート（終値＋MA20/50＋買▲/売▼）。lightweight-charts は SSR 不可。
@@ -459,12 +459,7 @@ export function AISessionClient() {
     watchlist.length > 0 &&
     latestDecisions.length > 0 &&
     latestDecisions.every(d => watchSet.has(d.symbol))
-  const analyzedSymbols = watchlist.length > 0 ? watchlist : latestDecisions.map(d => d.symbol)
-  // 当日変化率は判断に載っている実測値だけを使う。判断が無い銘柄の数値は作らない。
-  const changeBySymbol: Record<string, number | undefined> = {}
-  if (decisionsFromLatestTick || watchlist.length === 0) {
-    for (const d of latestDecisions) changeBySymbol[d.symbol] = d.change
-  }
+  // 分析対象の一覧と当日変化率（旧 TickSummary の入力）は ProcessReplay が session から自分で組む。
   // 表示中の銘柄の名前・現在値（チャートの最終終値＝実データ）・往復件数
   const chartHolding = holdings[chartSymbol] as Holding | undefined
   const chartName =
@@ -496,19 +491,14 @@ export function AISessionClient() {
 
         <MarketOverview />
 
-        {/* ── 主役: 最新tickの判断 ───────────────────────────────────────
+        {/* ── 主役: 分析の過程の再生（DESIGN.md §6-19・切り分け⑤-2） ──────────
             «AIがいつ・なぜその銘柄を選び・何をどう判断したか» をページの最初に置く。
             以前はタブの中の max-h-[560px] の枠に押し込まれ、開いた人が最初に見るのは
             運用成績（＝結果の数字）だった。読ませたい順に並べ替える。
-            TickSummary は切り分け⑤（分析の過程の再生）で置き換えるので、ここでは触らない。 */}
-        <TickSummary
-          lastTickAt={lastTickAt}
-          tickCount={tickCount}
-          analyzedSymbols={analyzedSymbols}
-          holdingSymbols={holdingSymbols}
-          changeBySymbol={changeBySymbol}
-          decisionsRecorded={decisionsFromLatestTick || watchlist.length === 0}
-        />
+            TickSummary（最新の分析の要約）が持っていた情報（Tick 番号・時刻・監視→候補→保有→分析対象の
+            件数・分析対象の銘柄と当日変化率・判断が記録されなかった回の注記）は ProcessReplay の
+            見出し行と段1・段6に含まれる。回の選択と足の取得は ProcessReplay が自分で持つ。 */}
+        <ProcessReplay session={session} />
 
         <section className="space-y-2">
           {/* 見出しは帯の外（灰の上）に small/--muted（§6-6） */}

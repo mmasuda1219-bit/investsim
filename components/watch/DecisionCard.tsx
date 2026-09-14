@@ -41,13 +41,13 @@ const fmtPrice = (symbol: string, n: number) =>
 // 方向の札は無彩色（--surface の面・--ink の文字・ピル型。DESIGN.md §6-5）で、方向は記号の形で運ぶ。
 // 買い＝緑／売り＝赤にすると、同じページの「利益＝緑」と混ざって「AIが買った＝良いこと」と
 // 誤読させる（原則11。AITradeChart / TradeLog と同じ規則）。
-// EvidenceMap の結論行は `border rounded-lg px-2.5 py-0.5 ${cls}` を自分で足すので、
-// cls 側は面・文字と「見えない枠（border-surface＝面と同色）」だけを持つ。ここを変えれば追従する。
+// EvidenceMap の結論行は `rounded-full bg-surface px-2.5 text-small font-semibold text-ink ${cls}`
+// （§6-5 の札・枠なし）を自分で足すので、cls 側は面・文字だけを持つ。ここを変えれば追従する。
 const ACTION: Record<AIDecision['action'], { label: string; cls: string }> = {
-  buy:   { label: '▲ 買い',     cls: 'bg-surface border-surface text-ink' },
-  sell:  { label: '▼ 売り',     cls: 'bg-surface border-surface text-ink' },
-  hold:  { label: '＝ 保有継続', cls: 'bg-surface border-surface text-ink' },
-  watch: { label: '◇ 様子見',   cls: 'bg-surface border-surface text-ink' },
+  buy:   { label: '▲ 買い',     cls: 'bg-surface text-ink' },
+  sell:  { label: '▼ 売り',     cls: 'bg-surface text-ink' },
+  hold:  { label: '＝ 保有継続', cls: 'bg-surface text-ink' },
+  watch: { label: '◇ 様子見',   cls: 'bg-surface text-ink' },
 }
 
 const CONFIDENCE: Record<AIDecision['confidence'], string> = {
