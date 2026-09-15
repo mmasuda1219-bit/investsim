@@ -84,7 +84,8 @@ async function checkLayout(page, helper, vp, label) {
   record(vp.name, `${label}: 紺青の塗りのボタンは1つまで`, m.primary.length <= 1, { primary: m.primary })
 }
 
-const errorBox = page => page.locator('main div.bg-red-50')
+// 3c-2 でエラーの表示が赤い箱（div.bg-red-50）から role="alert" の薄い帯に変わったため、役割で探す（検査の意味は同じ）
+const errorBox = page => page.locator('main [role="alert"]')
 
 async function runQuickPreview(page) {
   await page.getByRole('button', { name: PREVIEW_BUTTON, exact: true }).click()

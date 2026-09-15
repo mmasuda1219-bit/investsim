@@ -154,10 +154,10 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       }
       const md = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/)
       if (md) {
-        return <a key={key} href={md[2]} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline hover:text-blue-800 break-all">{md[1]}</a>
+        return <a key={key} href={md[2]} target="_blank" rel="noopener noreferrer" className="text-brand underline hover:text-brand-strong break-all">{md[1]}</a>
       }
       if (/^https?:\/\//.test(part)) {
-        return <a key={key} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline hover:text-blue-800 break-all">{part}</a>
+        return <a key={key} href={part} target="_blank" rel="noopener noreferrer" className="text-brand underline hover:text-brand-strong break-all">{part}</a>
       }
       return <span key={key}>{part}</span>
     })
@@ -569,11 +569,11 @@ export default function AnalyzePage() {
           {
             label: '総リターン（5年）',
             value: `${returnPositive ? '+' : ''}${m.totalReturnPct.toFixed(2)}%`,
-            valueClassName: returnPositive ? 'text-green-700' : 'text-red-700',
+            valueClassName: returnPositive ? 'text-success' : 'text-danger',
             sub: formatMoney(previewRes.result.finalValue, previewRes.result.currency),
           },
           { label: '勝率', value: `${m.winRate.toFixed(0)}%` },
-          { label: '最大DD', value: `-${m.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-red-700' },
+          { label: '最大DD', value: `-${m.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-danger' },
           { label: 'シャープレシオ', value: m.sharpeRatio.toFixed(2) },
           { label: '取引数', value: `${m.tradeCount}件` },
         ]
@@ -598,15 +598,15 @@ export default function AnalyzePage() {
           {
             label: '総リターン（5年）',
             value: `${bm.totalReturnPct >= 0 ? '+' : ''}${bm.totalReturnPct.toFixed(2)}%`,
-            valueClassName: bm.totalReturnPct >= 0 ? 'text-green-700' : 'text-red-700',
+            valueClassName: bm.totalReturnPct >= 0 ? 'text-success' : 'text-danger',
           },
           {
             label: 'バイ&ホールド',
             value: `${bundle.backtest.buyHoldReturnPct >= 0 ? '+' : ''}${bundle.backtest.buyHoldReturnPct.toFixed(2)}%`,
-            valueClassName: bundle.backtest.buyHoldReturnPct >= 0 ? 'text-green-700' : 'text-red-700',
+            valueClassName: bundle.backtest.buyHoldReturnPct >= 0 ? 'text-success' : 'text-danger',
           },
           { label: '勝率', value: `${bm.winRate.toFixed(0)}%` },
-          { label: '最大DD', value: `-${bm.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-red-700' },
+          { label: '最大DD', value: `-${bm.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-danger' },
           { label: '取引数', value: `${bm.tradeCount}件` },
         ]
       : []
