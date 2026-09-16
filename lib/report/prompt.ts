@@ -302,7 +302,7 @@ ${fmtGate(fundamentalGate)}
 ${backtestBlock}
 
 【現在の状況（リアルタイム実データ）】
-- ${q.symbol} ${q.name}: 現在値 ${q.price.toFixed(2)} ${q.currency}（前日比 ${q.change >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}%・出来高 ${q.volume.toLocaleString()}）
+- ${q.symbol} ${q.name}: 現在値 ${q.price.toFixed(2)} ${q.currency}（前日比 ${q.changePercent == null ? '取得できず' : `${q.changePercent >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}%`}・出来高 ${q.volume.toLocaleString()}）
 - テクニカル（直近3ヶ月日足から算出した実数値）: ${current.technicals}
 - ファンダメンタル（取得できた全指標・現在値スナップショット）:
 ${fmtFundamentals(current.fundamentals)}

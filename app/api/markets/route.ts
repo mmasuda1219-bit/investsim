@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { barsFromChartArrays, changeFromPrevClose, previousCloseFromBars } from '@/lib/market/previous-close'
 
 /**
  * GET /api/markets — 主要指数の要約（/watch の「いまの相場」が読む）。
@@ -9,7 +10,8 @@ import { NextResponse } from 'next/server'
  * サーバーから取得に失敗し続けた結果、本物のように見える固定値が表示されていた。
  *
  * 変化・変化率は前日の終値との比較（その取引日の1日の変化）。基準の決め方は
- * previousClose() を参照。以前は meta.chartPreviousClose を基準にしていたが、range=5d では
+ * lib/market/previous-close.ts の previousCloseFromBars()（個別銘柄の取得元と共通）を参照。
+ * 以前は meta.chartPreviousClose を基準にしていたが、range=5d では
  * それが期間の始まる前（約5営業日前）の終値なので、5日分の変化を1日の変化のように
  * 出していた（2026-09-14 修正。S&P 500 が前日比 +0.86% の日に −1.17% と表示されていた）。
  *
@@ -71,40 +73,8 @@ const INDEX_NAMES: Record<string, string> = {
 const CACHE_ALL_OK = 'public, s-maxage=300, stale-while-revalidate=60'
 const CACHE_WITH_FAILURE = 'public, s-maxage=60'
 
-const DAY_SEC = 24 * 60 * 60
-
 function isNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
-}
-
-/**
- * 前日の終値（変化の基準）。日足から「最新の取引日より前で、最後の有効な終値」を返す。
- * - 最新の取引日＝取得元の最終取引時刻（regularMarketTime）の日。時刻が無ければ最後の足の日。
- *   場中なら当日、場が閉まっていれば直近の取引日になるので、どちらでもその取引日の1日の変化になる。
- * - 日付は取引所の時差（meta.gmtoffset・秒）で数える。場中の足が同じ日の別の行で返るときも、
- *   寄り付き前に当日の空の足（終値 null）が付くときも、前日の終値を基準にできる。
- * - 終値が null の足は飛ばす。決められなければ null を返す（変化を 0 で埋めない）。
- * - meta.chartPreviousClose は使わない（range=5d では期間の始まる前＝約5営業日前の終値のため）。
- */
-function previousClose(result: ChartResult, marketTime: number | null): number | null {
-  const ts = result.timestamp
-  const closes = result.indicators?.quote?.[0]?.close
-  if (!Array.isArray(ts) || !Array.isArray(closes)) return null
-  const n = Math.min(ts.length, closes.length)
-  if (n === 0) return null
-  const g = result.meta?.gmtoffset
-  const offset = isNum(g) ? g : 0
-  const dayOf = (t: number) => Math.floor((t + offset) / DAY_SEC)
-  const lastTs: unknown = ts[n - 1]
-  const latest = marketTime ?? (isNum(lastTs) ? lastTs : null)
-  if (latest === null) return null
-  const latestDay = dayOf(latest)
-  for (let i = n - 1; i >= 0; i--) {
-    const t: unknown = ts[i]
-    const c: unknown = closes[i]
-    if (isNum(t) && dayOf(t) < latestDay && isNum(c) && c > 0) return c
-  }
-  return null
 }
 
 function failed(symbol: string, reason: string): IndexQuote {
@@ -126,11 +96,18 @@ async function fetchIndex(symbol: string): Promise<IndexQuote> {
     if (!isNum(price)) return failed(symbol, 'regularMarketPrice が無い')
     const t = meta.regularMarketTime
     const marketTime = isNum(t) ? t : null
-    // 比較の基準（前日の終値）が決められなければ、変化を 0 で埋めずに「取得できず」とする
-    const prevClose = previousClose(result, marketTime)
-    if (prevClose === null) return failed(symbol, '前日の終値を日足から決められない')
-    const change = parseFloat((price - prevClose).toFixed(2))
-    const changePercent = parseFloat(((change / prevClose) * 100).toFixed(2))
+    // 比較の基準（前日の終値）が決められなければ、変化を 0 で埋めずに「取得できず」とする。
+    // 基準の決め方は個別銘柄の取得元と共通（lib/market/previous-close.ts）
+    const g = meta.gmtoffset
+    const prevClose = previousCloseFromBars(
+      barsFromChartArrays(result.timestamp, result.indicators?.quote?.[0]?.close),
+      marketTime,
+      isNum(g) ? g : null,
+    )
+    const { change, changePercent } = changeFromPrevClose(price, prevClose, 2)
+    if (prevClose === null || change === null || changePercent === null) {
+      return failed(symbol, '前日の終値を日足から決められない')
+    }
     const asOfDate = marketTime !== null ? new Date(marketTime * 1000) : null
     return {
       symbol,

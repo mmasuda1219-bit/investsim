@@ -24,8 +24,8 @@ import { UNIVERSE, TICK_CANDIDATE_COUNT } from './universe'
 import { CLAUDE_TIMEOUT_MS, DECISION_MAX_TOKENS } from './ai-config'
 // 4a(2026-09-11): tick ごとの過程の記録（DESIGN.md §6-19 の材料）。型と組み立ては純関数側に置く。
 import {
-  emptyTickRecord, makeStage, pushTick, decisionIdFor,
-  type TickRecord, type TickAI, type TickUniverseRow, type TickContext,
+  emptyTickRecord, makeStage, pushTick, decisionIdFor, rankUniverse, candidatesNote, CHANGE_BASIS,
+  type TickRecord, type TickAI, type TickUniverseRow, type TickContext, type ChangeBasis,
 } from './tick-record'
 
 // AIモデルID（環境変数で上書き可）。tickは頻繁・高速・低コストが要件なので Haiku を既定に。
@@ -192,7 +192,8 @@ export interface AIDecision {
   name:         string
   action:       'buy' | 'sell' | 'hold' | 'watch'
   price:        number
-  change:       number
+  /** 前日比（%）。前日の終値が決められない・取得できなかったときは null（0 で埋めない。原則9） */
+  change:       number | null
   reasoning:    string
   newsInfluence: string
   news:         string[]
@@ -209,6 +210,9 @@ export interface AIDecision {
   // ここには参照だけを持つ（判断ごとに走査結果を複製しない）。
   tickId?: string
   decidedAt?: string
+  // 2026-09-14: change の基準の印。'prev-close-v1' ＝ 前日の終値と比べた変化。任意フィールド（これより前の
+  // 判断には無く、取得元によっては数営業日前の終値との比較だった。保存済みの判断は書き換えない）。
+  changeBasis?: ChangeBasis
 }
 
 export interface Holding {
@@ -280,46 +284,33 @@ export { getSession, listSessions } from './store'
 import { getSession, upsertSession } from './store'
 
 /**
- * 値動き（|前日比%|）の大きい順に n 銘柄を選ぶ。`candidates` の中身・順序は従来の戻り値と同じ。
- * 4a: 走査した40銘柄の結果を `universe`（UNIVERSE の並び順・順位つき）としても返す。
- * quote 取得に失敗した行は ok:false・changePercent/rank は null（0 で埋めない）。
+ * 値動き（|前日比%|）の大きい順に n 銘柄を選ぶ。走査した40銘柄の結果は `universe`（UNIVERSE の並び順・
+ * 順位つき）としても返す。並べ方と行の作り方は tick-record.ts の rankUniverse（純関数・検査あり）。
+ * 2026-09-14（オーナー決定）: 取得元がすべて失敗した銘柄に模擬データ（乱数の変化率）を使わない（allowMock:false）。
+ * 前日比が取れなかった銘柄は順位から外し、行は ok:false・changePercent/rank は null（0 で埋めない）。
+ * 取れた銘柄が n 未満なら取れた分だけ、0件なら候補は []（runTick が保有銘柄だけを分析する）。
  */
 async function selectCandidates(n = 8): Promise<{ candidates: string[]; universe: TickUniverseRow[] }> {
   const chunks = [UNIVERSE.slice(0, 20), UNIVERSE.slice(20)]
-  const results: Array<{ symbol: string; changeAbs: number; changePercent: number | null }> = []
+  const scanned: Array<{ symbol: string; changePercent: number | null }> = []
 
   // 2チャンクを逐次awaitせず並列に走らせる（Vercelの関数タイムアウト対策で待ち時間短縮）。
   const chunkResults = await Promise.all(
     chunks.map((chunk) =>
       Promise.allSettled(
         chunk.map(async (sym) => {
-          const q = await getQuote(sym)
-          return {
-            symbol: sym,
-            changeAbs: Math.abs(q.changePercent),
-            // 記録用。数値でない（NaN 等）場合は null にする（順位の計算は従来どおり changeAbs で行う）。
-            changePercent: Number.isFinite(q.changePercent) ? q.changePercent : null,
-          }
+          const q = await getQuote(sym, { allowMock: false })
+          return { symbol: sym, changePercent: q.changePercent }
         })
       )
     )
   )
   for (const quotes of chunkResults) {
     for (const r of quotes) {
-      if (r.status === 'fulfilled') results.push(r.value)
+      if (r.status === 'fulfilled') scanned.push(r.value)
     }
   }
-
-  results.sort((a, b) => b.changeAbs - a.changeAbs)
-  const rankBySymbol = new Map(results.map((r, i) => [r.symbol, i + 1]))
-  const rowBySymbol = new Map(results.map(r => [r.symbol, r]))
-  const universe: TickUniverseRow[] = UNIVERSE.map(symbol => {
-    const row = rowBySymbol.get(symbol)
-    return row
-      ? { symbol, changePercent: row.changePercent, ok: true, rank: rankBySymbol.get(symbol) ?? null }
-      : { symbol, changePercent: null, ok: false, rank: null }
-  })
-  return { candidates: results.slice(0, n).map(r => r.symbol), universe }
+  return rankUniverse(UNIVERSE, scanned, n)
 }
 
 export interface StockContext {
@@ -339,10 +330,12 @@ export interface StockContext {
 }
 
 async function buildStockContext(symbol: string): Promise<StockContext> {
+  // 2026-09-14: 取得元がすべて失敗しても模擬データ（乱数の株価・日足）を AI に渡さない（原則9）。
+  // quote・日足が取れなければこの銘柄は分析対象から外れる（runTick の allSettled）。ファンダは {}（データなし）。
   const [quote, history, fundamentals, news] = await Promise.all([
-    getQuote(symbol),
-    getHistory(symbol, '3mo'),
-    getFundamentals(symbol),
+    getQuote(symbol, { allowMock: false }),
+    getHistory(symbol, '3mo', { allowMock: false }),
+    getFundamentals(symbol, { allowMock: false }),
     fetchNews(symbol, 5),
   ])
 
@@ -546,7 +539,7 @@ async function askClaude(
 
   const stocksText = stockData.map(({ symbol, quote, fundamentals, technicals, news }) => `
 【${symbol}】${quote.name}
-• 現在値: ${quote.price.toFixed(2)} ${quote.currency}  前日比: ${quote.change >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%
+• 現在値: ${quote.price.toFixed(2)} ${quote.currency}  前日比: ${quote.changePercent == null ? '取得できず' : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`}
 • テクニカル: ${technicals}
 • ファンダメンタル(バフェットコード): ${fmtFundamentals(fundamentals, quote.currency)}
 • ニュース: ${news.length > 0 ? news.slice(0, 3).join(' / ') : 'なし'}`
@@ -649,10 +642,16 @@ knowledgeRefsは実際に依拠した【投資の原則（知識ベース）】�
   }
 
   const decisions: AIDecision[] = (() => { try {
-    return raw.map(r => {
+    // 分析対象（stockData）に無い銘柄の判断は、価格も前日比も無いので捨てる（0 で埋めない。原則9）。
+    // 以前は price 0・change 0 の判断として残り、保有銘柄なら価格 0 で売却されうる形だった。
+    const unknownSymbols = raw.filter(r => !stockData.some(s => s.symbol === r.symbol)).map(r => String(r.symbol))
+    if (unknownSymbols.length > 0) {
+      console.warn(`[ai-trader] 分析対象に無い銘柄の判断を捨てた: ${unknownSymbols.join(', ')}`)
+    }
+    return raw.flatMap(r => {
       const sd = stockData.find(s => s.symbol === r.symbol)
-      const f = sd?.fundamentals
-      const fundStr = f ? fmtFundamentals(f, sd?.quote.currency) : '-'
+      if (!sd) return []
+      const fundStr = fmtFundamentals(sd.fundamentals, sd.quote.currency)
       const sources = [
         'Yahoo Finance (株価・チャート)',
         'Yahoo Finance News',
@@ -664,21 +663,22 @@ knowledgeRefsは実際に依拠した【投資の原則（知識ベース）】�
       const knowledgeRefs = filterKnowledgeRefs(r.knowledgeRefs, allowedKnowledgeIds)
         .slice(0, 2)
         .map(id => ({ id, title: knowledgeTitleById.get(id) ?? id }))
-      return {
+      return [{
         symbol:        r.symbol,
-        name:          sd?.quote.name ?? r.symbol,
+        name:          sd.quote.name ?? r.symbol,
         action:        r.action ?? 'watch',
-        price:         sd?.quote.price ?? 0,
-        change:        sd?.quote.changePercent ?? 0,
+        price:         sd.quote.price,
+        change:        sd.quote.changePercent,
+        changeBasis:   CHANGE_BASIS,
         reasoning:     r.reasoning ?? '',
         newsInfluence: r.newsInfluence ?? '',
-        news:          sd?.news.slice(0, 2) ?? [],
-        technicals:    r.techSignal ?? sd?.technicals ?? '',
+        news:          sd.news.slice(0, 2),
+        technicals:    r.techSignal ?? sd.technicals,
         fundamentals:  r.fundSignal ? `${r.fundSignal} | ${fundStr}` : fundStr,
         confidence:    r.confidence ?? 'medium',
         sources,
         knowledgeRefs,
-      } satisfies AIDecision
+      } satisfies AIDecision]
     })
   } catch {
     return []
@@ -750,8 +750,8 @@ export async function generateFullLearning(memory: LearningMemory, session: AISe
   // （closedText/decisionTextと同じ「防御的スライス」の考え方に揃えた）。
   const openText = Object.entries(sessionHoldings).slice(0, 10).map(([sym, pos]) => {
     const px = latestPrice.get(sym)
-    // price===0は「実データ取得不可」のセンチネル（askClaudeのprice: sd?.quote.price ?? 0、
-    // 買いガードのdec.price <= 0と同じ約束事）。よってここのtruthy判定で価格0を「不明」扱いに
+    // price===0は「実データ取得不可」のセンチネル（2026-09-14より前の判断に残る。当時のaskClaudeは価格を
+    // 取れない判断をprice 0で残していた。今は捨てる。買いガードのdec.price <= 0と同じ約束事）。よってここのtruthy判定で価格0を「不明」扱いに
     // するのは意図どおり（px !== undefinedに変えると価格0で誤った-100%等の含み損益が出る）。
     const pnl = px ? ((px - pos.avgCost) / pos.avgCost) * 100 : null
     const hrs = Math.round((Date.now() - new Date(pos.entryAt).getTime()) / 3600000)
@@ -1016,6 +1016,8 @@ export async function runTick(sessionId: string): Promise<AISession> {
   // stages に積む。組み立ては計算だけで、記録のための外部呼び出しは一切足していない（cron の50秒枠）。
   const startedAtMs = Date.now()
   const record = emptyTickRecord(startedAtMs)
+  // 2026-09-14: この回の前日比は前日の終値と比べた値（lib/market/previous-close.ts）。これより前の記録には印が無い。
+  record.changeBasis = CHANGE_BASIS
 
   const session = await getSession(sessionId)
   if (!session) throw new Error('Session not found')
@@ -1047,8 +1049,9 @@ export async function runTick(sessionId: string): Promise<AISession> {
     record.universe = universe
     record.selected = candidates
     record.heldAdded = combined.filter(s => !candidates.includes(s))
+    // 前日比を取れた銘柄が無い回は候補なし・保有銘柄だけを分析する（2026-09-14 オーナー決定）。その旨を note に残す。
     record.stages.push(makeStage('candidates', candStartMs, Date.now(), candidates.length > 0,
-      `${okRows}/${universe.length}銘柄の株価を取得・候補${candidates.length}件・保有から${record.heldAdded.length}件`))
+      candidatesNote(okRows, universe.length, candidates.length, record.heldAdded.length)))
   }
 
   // 銘柄ごとの材料集め。失敗した銘柄は従来どおり分析対象から外す（記録には error 付きの行を残す）。

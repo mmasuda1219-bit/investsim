@@ -1,5 +1,6 @@
 // Yahoo Finance v8 Chart API — no API key required, works for US + Japan stocks
 import type { StockQuote, HistoricalBar, FundamentalsData, SearchResult } from '@/types'
+import { barsFromChartArrays, changeFromPrevClose, previousCloseFromBars, toFiniteNumber } from '@/lib/market/previous-close'
 
 const CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart'
 const SEARCH_BASE = 'https://query2.finance.yahoo.com/v1/finance/search'
@@ -106,13 +107,20 @@ async function yfFetch(url: string): Promise<any> {
 
 export async function yfDirectGetQuote(symbol: string): Promise<StockQuote> {
   const result = await yfFetch(`${CHART_BASE}/${encodeURIComponent(symbol)}?range=5d&interval=1d`)
-  const meta = result.meta
+  const meta = result.meta ?? {}
 
+  // 価格が取れなければ 0 や古い終値で埋めず失敗にする（lib/market/index.ts が次の取得元へ回す。原則9）
+  const price = toFiniteNumber(meta.regularMarketPrice)
+  if (price === null || price <= 0) throw new Error(`Yahoo Finance: no price for ${symbol}`)
   const currency: string = meta.currency ?? (symbol.endsWith('.T') ? 'JPY' : 'USD')
-  const price: number = meta.regularMarketPrice ?? meta.chartPreviousClose ?? 0
-  const prevClose: number = meta.chartPreviousClose ?? meta.previousClose ?? price
-  const change = parseFloat((price - prevClose).toFixed(currency === 'JPY' ? 1 : 2))
-  const changePercent = parseFloat(((change / prevClose) * 100).toFixed(2))
+  // 前日比の基準は前日の終値（lib/market/previous-close.ts）。meta.chartPreviousClose は range=5d の
+  // 期間が始まる前（約5営業日前）の終値なので使わない。決められなければ change/changePercent は null。
+  const prevClose = previousCloseFromBars(
+    barsFromChartArrays(result.timestamp, result.indicators?.quote?.[0]?.close),
+    toFiniteNumber(meta.regularMarketTime),
+    toFiniteNumber(meta.gmtoffset),
+  )
+  const { change, changePercent } = changeFromPrevClose(price, prevClose, currency === 'JPY' ? 1 : 2)
 
   return {
     symbol,

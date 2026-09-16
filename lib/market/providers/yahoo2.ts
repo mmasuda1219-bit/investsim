@@ -15,6 +15,7 @@
 
 import type { StockQuote, HistoricalBar, FundamentalsData, SearchResult } from '@/types'
 import type { StatementsData, PeriodStatement } from '@/lib/statements/types'
+import { changeFromPrevClose, epochSeconds, previousCloseFromBars, roundTo } from '@/lib/market/previous-close'
 
 // ── Singleton library instance (reuses cookie/crumb session) ───────────────
 // Typed loosely on purpose: yahoo-finance2 v3 ships its own types but we only
@@ -101,21 +102,30 @@ function toIso(t: unknown): string {
  * Derive a StockQuote from the chart() endpoint's `meta` block. The v8 chart
  * endpoint is far less aggressively blocked than the v7 quote endpoint (which
  * Yahoo 429s hardest from data-center / Vercel IPs), so this is the resilient
- * fallback when quote() fails. Uses a 1-month window to keep the payload tiny.
+ * fallback when quote() fails. Uses a 14-day window of daily bars to keep the payload tiny.
+ * 実データの突き合わせ（前日比の検証）から直接呼ぶため export している。
  */
-async function yf2QuoteFromChartMeta(symbol: string): Promise<StockQuote> {
+export async function yf2QuoteFromChartMeta(symbol: string): Promise<StockQuote> {
   const client = await yf()
-  const period1 = new Date(Date.now() - 7 * 86_400_000)
+  // 14日: 連休（年末年始・ゴールデンウィーク等）を挟んでも、前日の足が取得期間に入るように
+  const period1 = new Date(Date.now() - 14 * 86_400_000)
   const c: any = await client.chart(symbol, { period1, interval: '1d' })
   const meta = c?.meta
   const price = num(meta?.regularMarketPrice)
-  if (!meta || price === undefined) throw new Error(`yahoo-finance2: no chart meta for ${symbol}`)
+  // 価格が取れなければ 0 で埋めず失敗にする（lib/market/index.ts が次の取得元へ回す。原則9）
+  if (!meta || price === undefined || price <= 0) throw new Error(`yahoo-finance2: no chart meta for ${symbol}`)
 
   const currency: string = meta.currency ?? (symbol.endsWith('.T') ? 'JPY' : 'USD')
-  const prevClose = num(meta.chartPreviousClose) ?? num(meta.previousClose) ?? price
-  const dec = currency === 'JPY' ? 1 : 2
-  const change = parseFloat((price - prevClose).toFixed(dec))
-  const changePercent = parseFloat((prevClose ? (change / prevClose) * 100 : 0).toFixed(2))
+  // 前日比の基準は前日の終値（lib/market/previous-close.ts）。meta.chartPreviousClose は取得期間が
+  // 始まる前（ここでは約2週間前）の終値なので使わない。yahoo-finance2 は時刻を Date で返すので秒に直す。
+  // 決められなければ change/changePercent は null。
+  const rows: any[] = Array.isArray(c?.quotes) ? c.quotes : []
+  const prevClose = previousCloseFromBars(
+    rows.map(r => ({ time: epochSeconds(r?.date) ?? Number.NaN, close: num(r?.close) ?? null })),
+    epochSeconds(meta.regularMarketTime),
+    num(meta.gmtoffset) ?? null,
+  )
+  const { change, changePercent } = changeFromPrevClose(price, prevClose, currency === 'JPY' ? 1 : 2)
 
   return {
     symbol,
@@ -143,17 +153,20 @@ export async function yf2GetQuote(symbol: string): Promise<StockQuote> {
   try {
     const client = await yf()
     const q: any = await client.quote(symbol)
-    if (!q || num(q.regularMarketPrice) === undefined) {
+    const price = num(q?.regularMarketPrice)
+    // 価格が取れなければ 0 で埋めず、下の chart の経路へ回す（原則9）
+    if (!q || price === undefined || price <= 0) {
       throw new Error(`yahoo-finance2: no quote for ${symbol}`)
     }
     const currency: string = q.currency ?? (symbol.endsWith('.T') ? 'JPY' : 'USD')
-    const price = num(q.regularMarketPrice) ?? num(q.postMarketPrice) ?? num(q.preMarketPrice) ?? 0
-    const prevClose = num(q.regularMarketPreviousClose) ?? price
     const dec = currency === 'JPY' ? 1 : 2
-    const change = parseFloat((num(q.regularMarketChange) ?? price - prevClose).toFixed(dec))
-    const changePercent = parseFloat(
-      (num(q.regularMarketChangePercent) ?? (prevClose ? (change / prevClose) * 100 : 0)).toFixed(2),
-    )
+    // 前日比: 取得元の値（前日の終値との比較）→ 無ければ regularMarketPreviousClose から計算
+    // → それも無ければ null（価格や 0 で埋めない）
+    const rawChange = num(q.regularMarketChange)
+    const rawPct = num(q.regularMarketChangePercent)
+    const fromPrev = changeFromPrevClose(price, num(q.regularMarketPreviousClose), dec)
+    const change = rawChange !== undefined ? roundTo(rawChange, dec) : fromPrev.change
+    const changePercent = rawPct !== undefined ? roundTo(rawPct, 2) : fromPrev.changePercent
     quote = {
       symbol,
       name: q.longName ?? q.shortName ?? q.displayName ?? symbol,

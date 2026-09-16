@@ -40,9 +40,11 @@ export function RealtimeQuote({ symbol, initialQuote }: Props) {
 
   // 騰落は損益なので緑/赤を使ってよい（DESIGN.md §6-4）。符号は必ず付ける。
   // ▲/▼ は買い/売りの札に使う記号なので、ここでは +/− にする。
-  const isPositive = quote.change > 0
-  const isFlat = quote.change === 0
-  const changeColor = isFlat ? 'text-muted' : isPositive ? 'text-success' : 'text-danger'
+  // 前日の終値が決められない・取得元に無いときは null。0 や ± で埋めず「—」（text-muted）にする（原則9）。
+  const basis = quote.change ?? quote.changePercent
+  const isPositive = basis != null && basis > 0
+  const isFlat = basis === 0
+  const changeColor = basis == null || isFlat ? 'text-muted' : isPositive ? 'text-success' : 'text-danger'
   const changeSign = isFlat ? '±' : isPositive ? '+' : '−'
   const currency = quote.currency === 'JPY' ? '¥' : '$'
 
@@ -52,7 +54,12 @@ export function RealtimeQuote({ symbol, initialQuote }: Props) {
         {currency}{quote.price.toLocaleString('ja-JP', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </div>
       <div className={`text-sm font-medium tabular-nums ${changeColor}`}>
-        {changeSign}{Math.abs(quote.change).toFixed(2)} ({changeSign}{Math.abs(quote.changePercent).toFixed(2)}%)
+        {basis == null ? '—' : (
+          <>
+            {quote.change != null && <>{changeSign}{Math.abs(quote.change).toFixed(2)} </>}
+            ({quote.changePercent != null ? <>{changeSign}{Math.abs(quote.changePercent).toFixed(2)}%</> : '—'})
+          </>
+        )}
       </div>
       <div className="text-muted text-sm mt-1 tabular-nums">更新: {timeLabel} • 60秒ごとに自動更新</div>
     </div>

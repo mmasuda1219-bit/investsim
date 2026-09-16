@@ -10,6 +10,7 @@
 //  - JP symbols (.T) are rejected immediately (unsupported on free tier) so
 //    they don't burn API calls; the caller falls through to its next option.
 import type { StockQuote, HistoricalBar } from '@/types'
+import { toFiniteNumber } from '@/lib/market/previous-close'
 
 const BASE = 'https://api.twelvedata.com'
 
@@ -87,8 +88,9 @@ export async function twelveDataGetQuote(symbol: string): Promise<StockQuote> {
     symbol,
     name:          data.name ?? symbol,
     price,
-    change:        Number(data.change) || 0,
-    changePercent: Number(data.percent_change) || 0,
+    // 前日の終値との比較（Twelve Data の change / percent_change）。数値でなければ 0 で埋めず null（原則9）
+    change:        toFiniteNumber(data.change),
+    changePercent: toFiniteNumber(data.percent_change),
     volume:        Number(data.volume) || 0,
     currency:      data.currency ?? 'USD',
     market:        detectMarket(symbol),

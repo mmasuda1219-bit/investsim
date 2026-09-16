@@ -20,7 +20,10 @@ export interface TickStage {
   note?: string
 }
 
-/** 監視母集団（40銘柄）の1行。quote 取得に失敗した行は ok:false・changePercent/rank は null。 */
+/**
+ * 監視母集団（40銘柄）の1行。quote 取得に失敗した行、前日比が取れなかった行（2026-09-14〜）は
+ * ok:false・changePercent/rank は null。
+ */
 export interface TickUniverseRow {
   symbol: string
   changePercent: number | null
@@ -82,7 +85,17 @@ export interface TickRecord {
   ai: TickAI | null
   /** この tick で生まれた判断の参照。書式は `${symbol}@${decidedAt}` */
   decisionIds: string[]
+  /** universe[].changePercent と判断の change の基準の印。任意（2026-09-14 より前の記録には無い） */
+  changeBasis?: ChangeBasis
 }
+
+/**
+ * 前日比の基準の印（2026-09-14）。'prev-close-v1' ＝ 前日の終値と比べた変化（lib/market/previous-close.ts）。
+ * これより前の記録（TickRecord・AIDecision）には無い。取得元によっては数営業日前の終値との比較だったが、
+ * 保存済みの値は書き換えない。
+ */
+export type ChangeBasis = 'prev-close-v1'
+export const CHANGE_BASIS: ChangeBasis = 'prev-close-v1'
 
 /** AISession.ticks に残す件数。超過は古い順に丸ごと落とす。 */
 export const TICK_RECORD_LIMIT = 12
@@ -138,4 +151,42 @@ export function emptyTickRecord(startedAtMs: number): TickRecord {
 export function pushTick(ticks: TickRecord[] | undefined | null, t: TickRecord): TickRecord[] {
   const prev = Array.isArray(ticks) ? ticks : []
   return [t, ...prev].slice(0, TICK_RECORD_LIMIT)
+}
+
+/**
+ * 監視母集団の走査結果から、値動き（|前日比%|）の大きい順に n 銘柄の候補と、記録用の全行を作る。
+ * - 前日比が取れなかった銘柄（取得失敗で scanned に無い・changePercent が null や数値でない）は順位から外し、
+ *   行は ok:false・changePercent:null・rank:null（0 や模擬データで埋めない。原則9・2026-09-14 オーナー決定）。
+ * - 取れた銘柄が n 未満なら取れた分だけ、0件なら候補は []（保有銘柄だけを分析するのは呼び出し側）。
+ * - 行の並びは symbols（UNIVERSE）の順。値動きが同じ大きさなら symbols の順を保つ。
+ */
+export function rankUniverse(
+  symbols: readonly string[],
+  scanned: ReadonlyArray<{ symbol: string; changePercent: number | null }>,
+  n: number,
+): { candidates: string[]; universe: TickUniverseRow[] } {
+  const change = new Map<string, number>()
+  for (const r of scanned) {
+    if (typeof r.changePercent === 'number' && Number.isFinite(r.changePercent)) change.set(r.symbol, r.changePercent)
+  }
+  const ranked = symbols
+    .filter(s => change.has(s))
+    .map(s => ({ symbol: s, abs: Math.abs(change.get(s) as number) }))
+    .sort((a, b) => b.abs - a.abs)
+  const rankBySymbol = new Map(ranked.map((r, i) => [r.symbol, i + 1]))
+  const universe: TickUniverseRow[] = symbols.map(symbol => {
+    const rank = rankBySymbol.get(symbol)
+    return rank !== undefined
+      ? { symbol, changePercent: change.get(symbol) as number, ok: true, rank }
+      : { symbol, changePercent: null, ok: false, rank: null }
+  })
+  return { candidates: ranked.slice(0, Math.max(0, n)).map(r => r.symbol), universe }
+}
+
+/** 段 'candidates' の note。前日比を取れた銘柄が無い回は、保有銘柄だけを分析したことを残す。 */
+export function candidatesNote(okRows: number, total: number, candidates: number, heldAdded: number): string {
+  if (candidates === 0) {
+    return `前日比を取得できた銘柄が無く（${okRows}/${total}銘柄）、候補なし・保有銘柄だけを分析（${heldAdded}件）`
+  }
+  return `${okRows}/${total}銘柄の前日比を取得・候補${candidates}件・保有から${heldAdded}件`
 }

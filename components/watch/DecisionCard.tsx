@@ -102,7 +102,10 @@ export default function DecisionCard({ decision, held }: DecisionCardProps) {
           <p className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-small tabular-nums">
             <span className="font-semibold text-ink">{decision.symbol}</span>
             <span className="text-ink">{fmtPrice(decision.symbol, decision.price)}</span>
-            <span className={changeCls(decision.change)}>{fmtPct(decision.change)}</span>
+            {/* 前日比が取れなかった判断（null）は 0 で埋めず「—」 */}
+            {decision.change == null
+              ? <span className="text-muted">—</span>
+              : <span className={changeCls(decision.change)}>{fmtPct(decision.change)}</span>}
             <span className="text-caption text-muted">当日</span>
             {held && <span className="text-caption text-muted">保有中</span>}
           </p>

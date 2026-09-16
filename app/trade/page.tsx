@@ -304,12 +304,17 @@ function TradePageBody() {
             <span className="text-lg font-bold text-ink">{quote.symbol}</span>
             <span className="text-sm text-muted truncate">{quote.name}</span>
             <span className="text-2xl font-bold text-ink tabular-nums">{usd(quote.price)}</span>
-            {/* 騰落は損益なので緑/赤（DESIGN.md §6-4）。正＝+／負＝−／ゼロ＝± を必ず付ける */}
-            <span className={`text-sm font-semibold tabular-nums ${
-              quote.change === 0 ? 'text-muted' : quote.change > 0 ? 'text-success' : 'text-danger'
-            }`}>
-              {quote.change === 0 ? '±' : quote.change > 0 ? '+' : '−'}{Math.abs(quote.changePercent).toFixed(2)}%
-            </span>
+            {/* 騰落は損益なので緑/赤（DESIGN.md §6-4）。正＝+／負＝−／ゼロ＝± を必ず付ける。
+                前日比が取れない（null）ときは 0 や ± で埋めず「—」 */}
+            {quote.changePercent == null ? (
+              <span className="text-sm font-semibold tabular-nums text-muted">—</span>
+            ) : (
+              <span className={`text-sm font-semibold tabular-nums ${
+                quote.changePercent === 0 ? 'text-muted' : quote.changePercent > 0 ? 'text-success' : 'text-danger'
+              }`}>
+                {quote.changePercent === 0 ? '±' : quote.changePercent > 0 ? '+' : '−'}{Math.abs(quote.changePercent).toFixed(2)}%
+              </span>
+            )}
             <span className="text-sm text-muted ml-auto tabular-nums">
               {quote.isMarketOpen ? '取引時間中' : '時間外'}・保有 {held}株
             </span>

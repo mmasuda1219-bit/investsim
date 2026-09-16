@@ -2,8 +2,10 @@ export interface StockQuote {
   symbol: string
   name: string
   price: number
-  change: number
-  changePercent: number
+  /** 前日の終値との差（銘柄の通貨単位）。前日の終値が決められない・取得元に無いときは null（0 で埋めない。原則9） */
+  change: number | null
+  /** 前日の終値と比べた変化率（%）。基準は lib/market/previous-close.ts。null は「取得できず」 */
+  changePercent: number | null
   volume: number
   currency: string
   market: 'US' | 'JP' | 'OTHER'
