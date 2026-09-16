@@ -14,7 +14,8 @@ import type {
   ReplayModel, ReplayStage, Provenance, Sourced, Trend,
   CandidatesStage, MaterialsStage, IndicatorsStage, KnowledgeStage, AiStage, DecisionsStage, TradesStage,
 } from '@/lib/ai-trader/replay-model'
-import { PROVENANCE_LABEL } from '@/lib/ai-trader/replay-model'
+import type { ChangeBasisMark } from '@/lib/ai-trader/replay-model'
+import { PROVENANCE_LABEL, LEGACY_CHANGE_NOTE, showsLegacyChangeNote } from '@/lib/ai-trader/replay-model'
 import { UNIVERSE_META, TICK_CANDIDATE_COUNT } from '@/lib/ai-trader/universe'
 import { CLAUDE_TIMEOUT_MS, DECISION_MAX_TOKENS } from '@/lib/ai-trader/ai-config'
 import type { FundamentalsData } from '@/types'
@@ -22,6 +23,15 @@ import ReplayChart, { fmtPrice, type ReplayMarker } from './ReplayChart'
 import { type PhaseState, type StagePlan, stageState, stepProgress, revealCount } from './useReplayClock'
 
 export type HistoryStatus = 'loading' | 'ready' | 'error'
+
+/**
+ * 判断の記録から補う当日変化率と、その基準の印。値と印は必ず一緒に運ぶ
+ * （印なし＝2026-09-16 より前の計算の可能性があるので、画面に1行の注記を足す）。
+ */
+export interface RecordedChange {
+  values: Record<string, number>
+  changeBasis: ChangeBasisMark
+}
 
 export interface ReplayStagesProps {
   model: ReplayModel
@@ -31,8 +41,8 @@ export interface ReplayStagesProps {
   markers: ReplayMarker[]
   /** 3倍のとき true。件数は数え上げず即時に出す */
   instant?: boolean
-  /** 判断の記録にある当日変化率（40銘柄の走査結果が記録に無い回に、判断のある銘柄ぶんだけ補う） */
-  recordedChange?: Record<string, number>
+  /** 判断の記録にある当日変化率（40銘柄の走査結果が記録に無い回に、判断のある銘柄ぶんだけ補う）と基準の印 */
+  recordedChange?: RecordedChange
   /** 段の要素（自動スクロール用） */
   stageRefs?: MutableRefObject<(HTMLLIElement | null)[]>
 }
@@ -233,7 +243,7 @@ const on = (visible: boolean) => (visible ? 'opacity-100' : 'opacity-0')
 // ── 段1 候補を選ぶ ────────────────────────────────────────────────────────
 
 function Candidates({ st, s, phase, instant, recordedChange }: {
-  st: CandidatesStage; s: number; phase: PhaseState; instant: boolean; recordedChange?: Record<string, number>
+  st: CandidatesStage; s: number; phase: PhaseState; instant: boolean; recordedChange?: RecordedChange
 }) {
   const pScan = stepProgress(phase, s, 0)
   const pHeld = stepProgress(phase, s, 1)
@@ -257,7 +267,7 @@ function Candidates({ st, s, phase, instant, recordedChange }: {
   const rowsShown = revealCount(pScan, rankedRows.length)
 
   const changeEntries = st.rows.provenance !== 'record' && recordedChange
-    ? st.analysed.symbols.filter(sym => typeof recordedChange[sym] === 'number')
+    ? st.analysed.symbols.filter(sym => typeof recordedChange.values[sym] === 'number')
     : []
 
   // 取得数・値動きで選ばれた候補・各銘柄の変化率と順位が3つとも記録なしなら、「記録なし」を1行にまとめる
@@ -298,6 +308,12 @@ function Candidates({ st, s, phase, instant, recordedChange }: {
           ))}
         </p>
       )}
+      {/* 印の無い回（2026-09-16 より前の記録）だけ、変化率の行の直後に1行（枠なし・§6-19）。
+          保存値は書き換えない＝表示に注記を添えるだけ（DECISIONS.md 2026-09-16 スライスB）。
+          変化率の数字が1つも出ていない回（全行「取得できず」）では出さない（showsLegacyChangeNote） */}
+      {rankedRows.length > 0 && showsLegacyChangeNote(st) && (
+        <p className="mt-1 text-caption text-muted leading-relaxed">{LEGACY_CHANGE_NOTE}</p>
+      )}
 
       <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-small text-ink-2 tabular-nums">
         <span>
@@ -336,9 +352,12 @@ function Candidates({ st, s, phase, instant, recordedChange }: {
         <p className={`mt-2 text-caption text-ink-2 tabular-nums leading-relaxed ${REVEAL} ${on(showPick)}`}>
           <Mark provenance="record" label="判断の記録にある当日変化率（順位は記録なし）: " />
           {changeEntries.map((sym, i) => (
-            <span key={sym}>{i > 0 && <span className="text-muted">・</span>}<span className="whitespace-nowrap">{sym} {fmtPct1(recordedChange![sym])}</span></span>
+            <span key={sym}>{i > 0 && <span className="text-muted">・</span>}<span className="whitespace-nowrap">{sym} {fmtPct1(recordedChange!.values[sym])}</span></span>
           ))}
         </p>
+      )}
+      {changeEntries.length > 0 && recordedChange!.changeBasis == null && (
+        <p className={`mt-1 text-caption text-muted leading-relaxed ${REVEAL} ${on(showPick)}`}>{LEGACY_CHANGE_NOTE}</p>
       )}
       {st.rows.provenance === 'none' && !scanNone && (
         <p className="mt-1 text-caption text-muted">{st.rows.note ?? '各銘柄の変化率と順位は記録なし'}</p>

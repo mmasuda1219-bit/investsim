@@ -13,10 +13,11 @@ import {
   readTechnicalsText, trendOf,
   type ReplayHistoryBar, type ReplayStage, type CandidatesStage, type MaterialsStage,
   type IndicatorsStage, type KnowledgeStage, type AiStage, type DecisionsStage, type TradesStage,
+  LEGACY_CHANGE_NOTE, LEGACY_CHANGE_NOTE_SHORT, LEGACY_CHANGE_NOTE_ZERO, showsLegacyChangeNote,
 } from '../lib/ai-trader/replay-model'
 import { emptyTickRecord, makeStage, decisionIdFor, type TickRecord } from '../lib/ai-trader/tick-record'
 import { UNIVERSE } from '../lib/ai-trader/universe'
-import type { AISession, AITrade, Holding } from '../lib/ai-trader/engine'
+import type { AIDecision, AISession, AITrade, Holding } from '../lib/ai-trader/engine'
 
 let failed = 0
 let passed = 0
@@ -563,6 +564,261 @@ console.log('E. クライアント安全（engine.ts / memory.ts は import type
   // 画面向けの文字列（引用符の中）に RULES #8/#15 の「注目銘柄」を使わない
   const strings = [...src.matchAll(/'([^'\n]*)'|`([^`\n]*)`/g)].map(m => m[1] ?? m[2])
   check('文字列に「注目銘柄」を使わない（「この回で詳しく見る銘柄」に）', !strings.some(s => s.includes('注目銘柄')))
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+console.log('F. 変化率の基準の印（2026-09-16 スライスB・印の無い記録にだけ注記する）')
+{
+  const fbase = syntheticSession()
+  const ts = '2026-09-15T18:00:00.000Z'
+  const T0 = Date.parse(ts) - 30_000
+  const syms = ['GOOGL', 'CVX', 'XOM']
+
+  const mkRec = (symbol: string) => ({
+    id: `d_${symbol}`, timestamp: ts, symbol, action: 'watch' as const, price: 100,
+    confidence: 'medium' as const, reasoning: '検査用', technicals: '', fundamentals: '',
+    newsHeadlines: [] as string[],
+  })
+  const mkAI = (symbol: string, marked: boolean, tickId: string | undefined): AIDecision => {
+    const d: AIDecision = {
+      symbol, name: symbol, action: 'watch', price: 100, change: symbol === 'XOM' ? 0 : 1.25,
+      reasoning: '', newsInfluence: '', news: [], technicals: '', fundamentals: '',
+      confidence: 'medium', sources: [], decidedAt: new Date(Date.parse(ts) - 1).toISOString(),
+    }
+    if (tickId) d.tickId = tickId
+    if (marked) d.changeBasis = 'prev-close-v1'
+    return d
+  }
+  const mkTick = (marked: boolean): TickRecord => {
+    const t = emptyTickRecord(T0)
+    t.universe = UNIVERSE.map((symbol, i) => ({ symbol, changePercent: i === 0 ? 0 : 1.5, ok: true, rank: i + 1 }))
+    t.selected = [...syms]
+    t.stages = [makeStage('candidates', T0, T0 + 3000, true)]
+    t.decisionIds = syms.map(x => decisionIdFor(x, ts))
+    t.finishedAt = new Date(T0 + 40_000).toISOString()
+    if (marked) t.changeBasis = 'prev-close-v1'
+    return t
+  }
+  const mkSession = (o: { tick: boolean; tickMark?: boolean; decMark?: boolean }): AISession => {
+    const ticks: TickRecord[] = []
+    let tickId: string | undefined
+    if (o.tick) { const t = mkTick(!!o.tickMark); ticks.push(t); tickId = t.id }
+    return {
+      ...fbase, ticks,
+      decisions: syms.map(x => mkAI(x, !!o.decMark, tickId)),
+      learning: { ...fbase.learning, allDecisions: syms.map(mkRec) },
+      watchlist: [...syms],
+    }
+  }
+  const modelOf = (sess: AISession) => {
+    const rs = listReplayRounds(sess)
+    return { m: buildReplayModel(sess, rs[0]), r: rs[0] }
+  }
+
+  // (b) tick にも判断にも印がある回 → 注記なし
+  {
+    const sess = mkSession({ tick: true, tickMark: true, decMark: true })
+    const { m } = modelOf(sess)
+    const c1 = stage<CandidatesStage>(m.stages, 'candidates')
+    const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    check('印つき（tick・判断とも）: 回・段1・段6すべて prev-close-v1（注記なし）',
+      m.round.changeBasis === 'prev-close-v1' && c1.changeBasis === 'prev-close-v1' && c6.changeBasis === 'prev-close-v1',
+      `${m.round.changeBasis} / ${c1.changeBasis} / ${c6.changeBasis}`)
+    check('印つき: 段1の40行すべてに印・段6の判断行すべてに印',
+      c1.rows.value.length === 40 && c1.rows.value.every(r => r.changeBasis === 'prev-close-v1')
+      && c6.rows.filter(r => r.provenance === 'record').length === 3
+      && c6.rows.every(r => r.changeBasis === 'prev-close-v1'))
+  }
+
+  // (a) どちらにも印が無い回 → 注記あり
+  {
+    const sess = mkSession({ tick: true })
+    const snap = JSON.stringify(sess)
+    const { m } = modelOf(sess)
+    const c1 = stage<CandidatesStage>(m.stages, 'candidates')
+    const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    check('印なし（tick・判断とも）: 回・段1・段6すべて null（注記あり）',
+      m.round.changeBasis === null && c1.changeBasis === null && c6.changeBasis === null)
+    check('印なし: 段1の40行・段6の3行すべて null（0.00% の行も含む）',
+      c1.rows.value.every(r => r.changeBasis === null) && c6.rows.every(r => r.changeBasis === null)
+      && c1.rows.value[0].changePercent === 0)
+    check('保存値を1バイトも書き換えない', JSON.stringify(sess) === snap)
+  }
+
+  // (c-1) tick だけに印がある
+  {
+    const { m } = modelOf(mkSession({ tick: true, tickMark: true }))
+    const c1 = stage<CandidatesStage>(m.stages, 'candidates')
+    const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    check('tick だけ印: 段1は印つき・段6は印なし・回は null（1つでも欠ければ注記側）',
+      c1.changeBasis === 'prev-close-v1' && c6.changeBasis === null && m.round.changeBasis === null,
+      `${c1.changeBasis} / ${c6.changeBasis} / ${m.round.changeBasis}`)
+  }
+
+  // (c-2) 判断だけに印がある
+  {
+    const { m } = modelOf(mkSession({ tick: true, decMark: true }))
+    const c1 = stage<CandidatesStage>(m.stages, 'candidates')
+    const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    check('判断だけ印: 段1は tick の印に従って null・段6は印つき・回は null',
+      c1.changeBasis === null && c6.changeBasis === 'prev-close-v1' && m.round.changeBasis === null,
+      `${c1.changeBasis} / ${c6.changeBasis} / ${m.round.changeBasis}`)
+    check('判断だけ印: 段1の行（tick の universe）は null のまま',
+      c1.rows.value.every(r => r.changeBasis === null))
+  }
+
+  // (c-3) 判断の一部だけに印（混在）は印なし扱い
+  {
+    const sess = mkSession({ tick: true, tickMark: true, decMark: true })
+    delete sess.decisions[1].changeBasis
+    const { m } = modelOf(sess)
+    const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    check('判断の一部だけ印: 段6は null（混ざったら印なし扱い）・その行だけ null',
+      c6.changeBasis === null && c6.rows.find(r => r.symbol === 'CVX')?.changeBasis === null
+      && c6.rows.find(r => r.symbol === 'GOOGL')?.changeBasis === 'prev-close-v1')
+  }
+
+  // tick が無い回（段1は判断の記録から補う）
+  {
+    const { m } = modelOf(mkSession({ tick: false, decMark: true }))
+    const c1 = stage<CandidatesStage>(m.stages, 'candidates')
+    check('tick なし・判断に印: 段1は判断の印を使う・回も印つき',
+      c1.changeBasis === 'prev-close-v1' && m.round.changeBasis === 'prev-close-v1', `${c1.changeBasis}`)
+    const { m: m2 } = modelOf(mkSession({ tick: false }))
+    check('tick なし・判断に印なし: 段1・回とも null',
+      stage<CandidatesStage>(m2.stages, 'candidates').changeBasis === null && m2.round.changeBasis === null)
+  }
+
+  // (d) 同じ銘柄が短い間に2回判断された回（tick なし＝decidedAt の近さで照合する経路）。
+  //     旧実装は「判断時刻との差が±60秒に入るか」だけで見ていたため、1件の判断が2つの回の両方に
+  //     一致しえた（2026-09-16 レビュー指摘1）。いまは幅を 5 秒に狭め、さらに「最も近い回」だけが採る。
+  {
+    const sym = 'GOOGL'
+    const t1 = Date.parse('2026-09-15T18:00:00.000Z')
+    const mkGroup = (at: number) => [{
+      id: `d_${sym}_${at}`, timestamp: new Date(at).toISOString(), symbol: sym, action: 'watch' as const,
+      price: 100, confidence: 'medium' as const, reasoning: '検査用', technicals: '', fundamentals: '',
+      newsHeadlines: [] as string[],
+    }]
+    const mkAt = (at: number, marked: boolean): AIDecision => {
+      const d: AIDecision = {
+        symbol: sym, name: sym, action: 'watch', price: 100, change: 1.25,
+        reasoning: '', newsInfluence: '', news: [], technicals: '', fundamentals: '',
+        confidence: 'medium', sources: [], decidedAt: new Date(at).toISOString(),
+      }
+      if (marked) d.changeBasis = 'prev-close-v1'
+      return d
+    }
+    // 回は2つ（t1 と t1+gap）。ticks は無いので decidedAt の近さだけで照合される
+    const twoRounds = (gapMs: number, ai: AIDecision[]): AISession => ({
+      ...fbase, ticks: [], decisions: ai,
+      learning: { ...fbase.learning, allDecisions: [...mkGroup(t1), ...mkGroup(t1 + gapMs)] },
+      watchlist: [sym], holdings: {},
+    })
+    const modelAt = (sess: AISession, at: number) => {
+      const r = listReplayRounds(sess).find(x => Date.parse(x.at) === at)
+      if (!r) throw new Error(`round ${new Date(at).toISOString()} not found`)
+      return buildReplayModel(sess, r)
+    }
+    const basisAt = (sess: AISession, at: number) => {
+      const m = modelAt(sess, at)
+      return { round: m.round.changeBasis, dec: stage<DecisionsStage>(m.stages, 'decisions').changeBasis }
+    }
+
+    // (d-1) 60秒差・判断は1件（古い回のもの）。旧実装ではこの1件が新しい回にも一致していた
+    {
+      const sess = twoRounds(60_000, [mkAt(t1 + 2, true)])
+      const older = basisAt(sess, t1)
+      const newer = basisAt(sess, t1 + 60_000)
+      check('60秒差・判断1件: 近い回だけ印つき',
+        older.dec === 'prev-close-v1' && older.round === 'prev-close-v1', `${older.dec} / ${older.round}`)
+      check('60秒差・判断1件: 遠い回には印が付かない（注記が出る）',
+        newer.dec === null && newer.round === null, `${newer.dec} / ${newer.round}`)
+    }
+
+    // (d-2) 90秒差・判断2件（回ごとに1件・印の有無が違う）。取り違えずそれぞれ自分の回に付く
+    {
+      const sess = twoRounds(90_000, [mkAt(t1 + 90_000 + 2, false), mkAt(t1 + 2, true)])
+      const older = basisAt(sess, t1)
+      const newer = basisAt(sess, t1 + 90_000)
+      check('90秒差・判断2件: 印つきの判断は古い回にだけ付く',
+        older.dec === 'prev-close-v1' && newer.dec === null, `${older.dec} / ${newer.dec}`)
+      const snap = JSON.stringify(sess)
+      modelAt(sess, t1); modelAt(sess, t1 + 90_000)
+      check('90秒差・判断2件: 保存値を1バイトも書き換えない', JSON.stringify(sess) === snap)
+    }
+
+    // (d-3) 差が同点（ちょうど中間）のときは時刻の早い回のものとする＝両方の回には付けない
+    {
+      const sess = twoRounds(6_000, [mkAt(t1 + 3_000, true)])
+      const older = basisAt(sess, t1)
+      const newer = basisAt(sess, t1 + 6_000)
+      check('同点（中間の時刻）: 早い回にだけ付き、両方には付かない',
+        older.dec === 'prev-close-v1' && newer.dec === null, `${older.dec} / ${newer.dec}`)
+    }
+  }
+
+  // (e) 段1の注記は「変化率の数字が画面に出ている回」だけに出す（2026-09-16 レビュー指摘3）
+  {
+    const plain = stage<CandidatesStage>(modelOf(mkSession({ tick: true })).m.stages, 'candidates')
+    check('印なし・変化率がある回: 段1の注記が立つ', showsLegacyChangeNote(plain) === true)
+    const marked = stage<CandidatesStage>(modelOf(mkSession({ tick: true, tickMark: true })).m.stages, 'candidates')
+    check('印つきの回: 段1の注記は立たない', showsLegacyChangeNote(marked) === false)
+    const allFailed = mkSession({ tick: true })
+    for (const r of allFailed.ticks?.[0]?.universe ?? []) { r.ok = false; r.changePercent = null; r.rank = null }
+    const failedStage = stage<CandidatesStage>(modelOf(allFailed).m.stages, 'candidates')
+    check('全行 取得できず（ok:false）の回: 印は無いが段1の注記は立たない（数字が無いのに注記しない）',
+      failedStage.changeBasis === null && failedStage.rows.value.length === 40
+      && failedStage.rows.value.every(r => r.changePercent == null) && showsLegacyChangeNote(failedStage) === false)
+    const oneOk = mkSession({ tick: true })
+    for (const [i, r] of (oneOk.ticks?.[0]?.universe ?? []).entries()) {
+      if (i > 0) { r.ok = false; r.changePercent = null; r.rank = null }
+    }
+    check('1銘柄だけ取れた回: 段1の注記は立つ',
+      showsLegacyChangeNote(stage<CandidatesStage>(modelOf(oneOk).m.stages, 'candidates')) === true)
+    const noTick = stage<CandidatesStage>(modelOf(mkSession({ tick: false })).m.stages, 'candidates')
+    check('tick の無い回: 段1の行は記録なし＝注記は立たない', showsLegacyChangeNote(noTick) === false)
+  }
+
+  // 注記の文言（RULES.md の禁止語を使わない・断定しない）
+  {
+    const banned = ['おすすめ', '買い時', '注目銘柄', '勝率', 'AIが当てた']
+    const all = [LEGACY_CHANGE_NOTE, LEGACY_CHANGE_NOTE_SHORT, LEGACY_CHANGE_NOTE_ZERO]
+    check('注記に禁止語がない', all.every(t => !banned.some(b => t.includes(b))))
+    check('注記は断定せず「可能性」と書く', all.every(t => t.includes('可能性')))
+    check('注記に基準の日付（2026-09-16）が入る', LEGACY_CHANGE_NOTE.includes('2026-09-16') && LEGACY_CHANGE_NOTE_SHORT.includes('2026-09-16'))
+    check('段1の注記は 0.00% の但し書きも含む', LEGACY_CHANGE_NOTE.includes('0.00%') && LEGACY_CHANGE_NOTE_ZERO.includes('0.00%'))
+  }
+
+  // (a) 本番複製（印がまだ1件も無い＝全回に注記が出る）
+  if (session) {
+    const rs = listReplayRounds(session)
+    const models = rs.map(r => buildReplayModel(session, r))
+    const nullRounds = models.filter(m => m.round.changeBasis === null).length
+    const markedTicks = (session.ticks ?? []).filter(t => t.changeBasis).length
+    const markedDecisions = (session.decisions ?? []).filter(d => d.changeBasis).length
+    console.log(`  複製: 回=${rs.length} 印の無い回=${nullRounds} 印つき tick=${markedTicks} 印つき判断=${markedDecisions}`)
+    check('複製の印の有無と回の印が一致する', models.every(m =>
+      m.round.changeBasis === null || (markedTicks > 0 || markedDecisions > 0)))
+    if (markedTicks === 0 && markedDecisions === 0) {
+      check('印がまだ無い複製では全回に注記が立つ', nullRounds === rs.length, `${nullRounds}/${rs.length}`)
+      const rows = models.flatMap(m => stage<DecisionsStage>(m.stages, 'decisions').rows)
+      check('複製の判断行もすべて印なし', rows.length > 0 && rows.every(r => r.changeBasis === null), `${rows.length}行`)
+    }
+    // 複製に印を足した写しでは立たない
+    const marked: AISession = JSON.parse(JSON.stringify(session))
+    for (const t of marked.ticks ?? []) t.changeBasis = 'prev-close-v1'
+    for (const d of marked.decisions ?? []) d.changeBasis = 'prev-close-v1'
+    const mrs = listReplayRounds(marked)
+    const mm = mrs.map(r => buildReplayModel(marked, r))
+    const withTick = mm.filter((_, i) => mrs[i].source === 'tick')
+    check('印を足した写し: tick 由来の回は注記が立たない',
+      withTick.length > 0 && withTick.every(m => m.round.changeBasis === 'prev-close-v1'),
+      `${withTick.filter(m => m.round.changeBasis === 'prev-close-v1').length}/${withTick.length}`)
+    check('印を足しても元の複製は変わらない', (session.ticks ?? []).every(t => !t.changeBasis))
+  } else {
+    console.log('  未実行（本番複製なし）: (a) の節は複製のパスを渡すと実行します')
+  }
 }
 
 console.log('')

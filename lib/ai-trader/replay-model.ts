@@ -14,9 +14,9 @@
 //   - watchlist / holdings / knowledgeShown は「最後に成功した tick の結果」しか残らないので、
 //     それに当たる回（stateRound）だけ 'record'、過去の回は 'none'
 
-import type { AISession, AITrade } from './engine'
+import type { AIDecision, AISession, AITrade } from './engine'
 import type { DecisionRecord } from './memory'
-import type { TickRecord, TickStage } from './tick-record'
+import type { ChangeBasis, TickRecord, TickStage } from './tick-record'
 import type { FundamentalsData } from '@/types'
 import { UNIVERSE } from './universe'
 import { parseFundamentalsWithMeta, fundamentalsProse, PARSEABLE_FIELDS } from './fundamentals-parse'
@@ -33,6 +33,35 @@ export interface Sourced<T> {
 }
 
 export type Trend = 'up' | 'down' | 'flat'
+
+/**
+ * 変化率（当日の前日比）の基準の印。'prev-close-v1' ＝ 前日の終値と比べた値（2026-09-16 以降の記録）。
+ * null ＝ 記録に印が無い＝ 2026-09-16 より前の計算（chartPreviousClose 基準＝最大で約5営業日分の変化）の
+ * 可能性がある。旧コードは取れない値を 0 で埋めていたため「0.00%」が取得できなかった記録の可能性もある。
+ * 旧記録にも正しい回が混ざるので「誤り」とは断定しない（DECISIONS.md 2026-09-16 スライスB）。
+ * 保存値は1バイトも書き換えず、画面に注記を添えるだけ（DECISIONS.md 2026-09-11 / 2026-09-14）。
+ */
+export type ChangeBasisMark = ChangeBasis | null
+
+/** 印の無い回の変化率に添える1行（段1）。断定せず「可能性があります」と書く。 */
+export const LEGACY_CHANGE_NOTE =
+  'この回の変化率は、2026-09-16 より前の計算（最大で約5営業日分の変化）の可能性があります。0.00% は取得できなかった記録の可能性もあります。'
+/** 判断1件ぶんに添える短い版（判断カード）。 */
+export const LEGACY_CHANGE_NOTE_SHORT =
+  'この変化率は 2026-09-16 より前の計算（最大で約5営業日分の変化）の可能性があります。'
+/** 値が 0.00% のときだけ足す一言。 */
+export const LEGACY_CHANGE_NOTE_ZERO = '0.00% は取得できなかった記録の可能性もあります。'
+
+/**
+ * 段1に LEGACY_CHANGE_NOTE（印の無い回の注記）を出すか。印が無いだけでは出さず、
+ * 画面に変化率の数字が1つでも出ている回に限る（全行「取得できず」の回に「この変化率は…」と言わないため）。
+ * 表示の判断だけで、保存値には触れない（2026-09-16 レビュー指摘3）。
+ */
+export function showsLegacyChangeNote(stage: CandidatesStage): boolean {
+  if (stage.changeBasis != null) return false
+  if (stage.rows.provenance !== 'record' || stage.rows.value.length === 0) return false
+  return stage.rows.value.some(r => r.changePercent != null)
+}
 
 export interface ReplayRound {
   /** tick の id（`tick_<epoch ms>`）か `decisions_<timestamp>` */
@@ -101,10 +130,14 @@ export interface ReplayUniverseRow {
   rank: number | null
   /** 株価を取得できたか。記録が無ければ null */
   ok: boolean | null
+  /** changePercent の基準の印。null は印なし（旧基準の可能性）。tick の記録から */
+  changeBasis: ChangeBasisMark
 }
 
 export interface CandidatesStage extends StageBase {
   key: 'candidates'
+  /** この段に出る変化率の基準の印。tick があれば tick の印、無ければ判断の印。null は印なし */
+  changeBasis: ChangeBasisMark
   /** 格子に並べる監視銘柄（tick があればその順、無ければ universe.ts） */
   universe: string[]
   rows: Sourced<ReplayUniverseRow[]>
@@ -203,6 +236,8 @@ export interface DecisionRow {
   provenance: 'record' | 'none'
   /** 保有中か。分からなければ null */
   held: boolean | null
+  /** この判断の変化率の基準の印（AIDecision.changeBasis）。null は印なし（旧基準の可能性） */
+  changeBasis: ChangeBasisMark
 }
 
 export interface FocusDecision {
@@ -223,6 +258,8 @@ export interface FocusDecision {
 export interface DecisionsStage extends StageBase {
   key: 'decisions'
   rows: DecisionRow[]
+  /** この回の判断の変化率の基準の印。判断すべてに印があるときだけ 'prev-close-v1' */
+  changeBasis: ChangeBasisMark
   /** 返ってきた判断の数（record） */
   returned: number
   /** AI に渡した銘柄数（engine の decisionsExpected＝材料の取得に成功した数）。tick が無い回は none（watchlist は取得失敗の銘柄も含む） */
@@ -259,6 +296,11 @@ export interface ReplayModel {
     isStateRound: boolean
     /** 第N回。最後に成功した回だけ tickCount から分かる。過去の回は null */
     tickNumber: number | null
+    /**
+     * この回の変化率の基準の印。tick と判断のどちらの印も見て、この回にある記録すべてに
+     * 印があるときだけ 'prev-close-v1'。1つでも欠ければ null（＝画面で注記する）
+     */
+    changeBasis: ChangeBasisMark
   }
   summary: { universe: number; analysed: number | null; decided: number }
   /** この回で詳しく見る銘柄（段2・3・6 の中心）。判断も材料も無い回は null */
@@ -309,6 +351,98 @@ function none<T>(value: T, note?: string): Sourced<T> {
 /** tick が AI の返事を得られなかった（timeout/error）か。empty は返事があり tickCount も進むので含めない。 */
 function tickThrew(tick: TickRecord | undefined): boolean {
   return !!tick && !!tick.ai && (tick.ai.stopReason === 'timeout' || tick.ai.stopReason === 'error')
+}
+
+/**
+ * AIDecision.decidedAt（AI の返事を受け取った時刻）と DecisionRecord.timestamp（その回の判断をまとめて
+ * 保存し始めた時刻）は別々に打たれるため、この幅までのずれは「同じ回」とみなす。
+ * engine の順序は decidedAt（askClaude の直後）→ 学習メモリの記録（DB 書き込みを await）→ executeTrades の
+ * now＝timestamp なので、ずれは普通は数 ms（2026-09-15 取得の本番複製では 50 件すべて 2ms 以内）で、
+ * DB が遅いときだけ数秒に伸びうる。5 秒はその遅い場合を吸収する幅であり、同じ銘柄が続けて判断された
+ * 最短の間隔（同複製で 33 秒）よりずっと短いので、隣の回まで届かない。
+ * （2026-09-16 レビュー: 以前は 60 秒だったが、根拠が無いうえ実データに 33 秒差の隣の回があり、
+ *   1件の判断が2つの回に一致しうる幅だった。幅を狭めたうえで下の「最も近い回」判定も足している）
+ */
+const DECIDED_AT_TOLERANCE_MS = 5_000
+
+/** tickId で一致した候補の印（時刻で拾った候補より常に優先する。距離 0 より小さい値にしてある） */
+const MATCHED_BY_TICK_ID = -1
+
+/** times のうち t に最も近い時刻。差が同点なら早い方を採る（どの回のものか一意に決まるように） */
+function nearestTime(times: number[] | undefined, t: number): number | null {
+  let best: number | null = null
+  for (const x of times ?? []) {
+    if (best == null) { best = x; continue }
+    const d = Math.abs(x - t)
+    const b = Math.abs(best - t)
+    if (d < b || (d === b && x < best)) best = x
+  }
+  return best
+}
+
+/**
+ * この回の判断（AIDecision）ごとの変化率の基準の印。session.decisions は tickId を持つ回はそれで一意に決まり、
+ * 持たない古い回は decidedAt の近さで照合する。近さの照合は「幅に入るか」ではなく「最も近い回はどれか」で決める:
+ * 幅だけで見ると、同じ銘柄が短い間に2回判断された場合に1件の判断が両方の回に一致しうるため。
+ *   - その銘柄の判断時刻（セッション全体＝他の回も含む）のうち decidedAt に最も近いものが、この回のもののときだけ採る。
+ *   - 回をまたいで差が同点のときは、時刻の早い回のものとする（nearestTime。両方の回に付けない）。
+ *   - 同じ回に同じ銘柄の候補が複数残るときは差が最小の1件。差も同点なら先に見つけた1件（session.decisions は
+ *     新しい順なので新しい方）を残す。
+ * 見つからない銘柄は地図に入れない（＝読む側は null）。
+ */
+function decisionBasisMap(session: AISession, round: ReplayRound): Map<string, ChangeBasisMark> {
+  const out = new Map<string, ChangeBasisMark>()
+  const list: AIDecision[] = session.decisions ?? []
+  if (list.length === 0) return out
+  const start = round.tick ? ms(round.tick.startedAt) : NaN
+  const endRaw = round.tick ? ms(round.tick.finishedAt) : NaN
+  const end = Number.isFinite(endRaw) ? endRaw : Number.isFinite(start) ? start + TICK_WINDOW_FALLBACK_MS : NaN
+  // この回の判断時刻（銘柄ごと）
+  const times = new Map<string, number[]>()
+  for (const d of round.decisions) {
+    const t = ms(d.timestamp)
+    if (!Number.isFinite(t)) continue
+    const g = times.get(d.symbol)
+    if (g) g.push(t); else times.set(d.symbol, [t])
+  }
+  // セッション全体の判断時刻（銘柄ごと・他の回も含む）。回の一覧はこの allDecisions を時刻でまとめたものなので、
+  // ここに他の回の時刻も必ず入る＝「より近い回が他にあるか」を純粋な計算だけで判定できる。
+  const allTimes = new Map<string, number[]>()
+  for (const d of session.learning?.allDecisions ?? []) {
+    if (!d || typeof d.symbol !== 'string') continue
+    const t = ms(d.timestamp)
+    if (!Number.isFinite(t)) continue
+    const g = allTimes.get(d.symbol)
+    if (g) g.push(t); else allTimes.set(d.symbol, [t])
+  }
+  // 銘柄ごとに、いま採用している候補の「この回の判断時刻との差」
+  const bestDist = new Map<string, number>()
+  for (const d of list) {
+    if (!d || typeof d.symbol !== 'string') continue
+    if (round.source === 'tick' && typeof d.tickId === 'string') {
+      // tickId がある回は時刻を見ない（記録そのものがどの回のものか言っている）
+      if (d.tickId === round.id && bestDist.get(d.symbol) !== MATCHED_BY_TICK_ID) {
+        bestDist.set(d.symbol, MATCHED_BY_TICK_ID)
+        out.set(d.symbol, d.changeBasis ?? null)
+      }
+      continue
+    }
+    const t = ms(d.decidedAt)
+    if (!Number.isFinite(t)) continue
+    const mineAt = nearestTime(times.get(d.symbol), t)
+    const dist = mineAt == null ? Number.POSITIVE_INFINITY : Math.abs(mineAt - t)
+    const near = mineAt != null && dist <= DECIDED_AT_TOLERANCE_MS
+      && mineAt === nearestTime(allTimes.get(d.symbol), t)
+    const inWindow = Number.isFinite(start) && t >= start && t <= end
+    if (!near && !inWindow) continue
+    // 時刻では照合できず tick の窓だけで入った候補は差 0 とみなす（窓に入っている＝この回のもの）
+    const myDist = Number.isFinite(dist) ? dist : 0
+    const prev = bestDist.get(d.symbol)
+    if (prev != null && prev <= myDist) continue
+    bestDist.set(d.symbol, myDist)
+    out.set(d.symbol, d.changeBasis ?? null)
+  }
+  return out
 }
 
 export function trendOf(price: number | null, ma20: number | null, ma50: number | null): Trend | null {
@@ -653,6 +787,17 @@ export function buildReplayModel(
     ? { stopReason: tick.ai.stopReason, note: tick.stages.find(s => s.name === 'ai')?.note ?? null }
     : null
 
+  // ── 変化率の基準の印（2026-09-16 スライスB）。tick と判断のどちらの印も見る。
+  // この回にある記録すべてに印があるときだけ「印つき」＝注記を出さない。1つでも欠ければ null。
+  const tickBasis: ChangeBasisMark = tick?.changeBasis ?? null
+  const basisBySymbol = decisionBasisMap(session, round)
+  const hasDecisions = decisions.length > 0
+  const decisionsMarked = hasDecisions && decisions.every(d => basisBySymbol.get(d.symbol) != null)
+  const decisionsBasis: ChangeBasisMark = decisionsMarked ? basisBySymbol.get(decisions[0].symbol) ?? null : null
+  const anyBasis: ChangeBasisMark = tickBasis ?? decisionsBasis
+  const roundBasis: ChangeBasisMark =
+    anyBasis && (!tick || !!tickBasis) && (!hasDecisions || !!decisionsBasis) ? anyBasis : null
+
   // 第N回: 最後に成功した回だけ tickCount から分かる（allDecisions は判断0件の回を含まないため逆算できない）
   let tickNumber: number | null = null
   if (isStateRound && typeof session.tickCount === 'number') {
@@ -666,8 +811,8 @@ export function buildReplayModel(
   // ── 1 候補を選ぶ
   const universe = tick ? tick.universe.map(r => r.symbol) : [...UNIVERSE]
   const rows: Sourced<ReplayUniverseRow[]> = tick
-    ? rec(tick.universe.map(r => ({ symbol: r.symbol, changePercent: r.changePercent, rank: r.rank, ok: r.ok })))
-    : none(UNIVERSE.map(symbol => ({ symbol, changePercent: null, rank: null, ok: null })),
+    ? rec(tick.universe.map(r => ({ symbol: r.symbol, changePercent: r.changePercent, rank: r.rank, ok: r.ok, changeBasis: tickBasis })))
+    : none(UNIVERSE.map(symbol => ({ symbol, changePercent: null, rank: null, ok: null, changeBasis: null })),
         '各銘柄の変化率と順位は記録に残っていない')
   const fetched: Sourced<number | null> = tick ? rec(tick.universe.filter(r => r.ok).length) : none(null)
   const selected: Sourced<string[]> = tick ? rec(tick.selected) : none([], '値動きで選ばれた候補は記録に残っていない')
@@ -693,6 +838,8 @@ export function buildReplayModel(
     provenance: tick ? 'record' : analysed.provenance,
     sourceLabel: tick ? '記録から' : isStateRound ? '記録から（結果のみ）' : '判断のある銘柄だけ記録あり',
     ms: stageMs(tick, 'candidates'),
+    // 段1に出る変化率は、tick があれば tick の universe、無ければ判断の記録から補う（ProcessReplay の recordedChange）
+    changeBasis: tick ? tickBasis : decisionsBasis,
     universe, rows, fetched, selected, heldAdded, held: heldList, analysed,
   }
 
@@ -827,8 +974,8 @@ export function buildReplayModel(
   const seen = new Set<string>()
   const orderedSymbols = analysed.complete ? analysed.symbols : decisions.map(d => d.symbol)
   const toRow = (symbol: string, d: DecisionRecord | undefined): DecisionRow => d
-    ? { symbol, action: d.action, confidence: d.confidence, price: d.price, reasoning: d.reasoning ?? '', provenance: 'record', held: heldAt(held, symbol) }
-    : { symbol, action: null, confidence: null, price: null, reasoning: null, provenance: 'none', held: heldAt(held, symbol) }
+    ? { symbol, action: d.action, confidence: d.confidence, price: d.price, reasoning: d.reasoning ?? '', provenance: 'record', held: heldAt(held, symbol), changeBasis: basisBySymbol.get(symbol) ?? null }
+    : { symbol, action: null, confidence: null, price: null, reasoning: null, provenance: 'none', held: heldAt(held, symbol), changeBasis: null }
   for (const symbol of orderedSymbols) {
     if (seen.has(symbol)) continue
     seen.add(symbol)
@@ -882,6 +1029,7 @@ export function buildReplayModel(
     provenance: decisions.length > 0 ? 'record' : 'none',
     sourceLabel: failure ? '判断は記録されていない' : decisions.length > 0 ? '記録から' : '記録なし',
     ms: none(null, '判断の受け取りは「AI に聞く」の所要時間に含まれる'),
+    changeBasis: decisionsBasis,
     rows: rowsOut,
     returned: decisions.length,
     expected,
@@ -909,7 +1057,7 @@ export function buildReplayModel(
     : none(null)
 
   return {
-    round: { id: round.id, at: round.at, source: round.source, isStateRound, tickNumber },
+    round: { id: round.id, at: round.at, source: round.source, isStateRound, tickNumber, changeBasis: roundBasis },
     summary: {
       universe: universe.length,
       analysed: analysed.complete ? analysed.symbols.length : null,

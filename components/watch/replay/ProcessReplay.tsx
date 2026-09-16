@@ -19,7 +19,7 @@ import {
   listReplayRounds, findStateRound, pickFocusSymbol, buildReplayModel,
   type ReplayHistoryBar, type ReplayRound,
 } from '@/lib/ai-trader/replay-model'
-import ReplayStages, { planFor, STAGE_NAMES, ProvDot, type HistoryStatus } from './ReplayStages'
+import ReplayStages, { planFor, STAGE_NAMES, ProvDot, type HistoryStatus, type RecordedChange } from './ReplayStages'
 import type { ReplayMarker } from './ReplayChart'
 import { useReplayClock, type ReplaySpeed } from './useReplayClock'
 
@@ -155,11 +155,16 @@ export default function ProcessReplay({ session }: ProcessReplayProps) {
   const watchSet = useMemo(() => new Set(watchlist), [watchlist])
   const decisionsFromLatestTick = watchlist.length > 0 && latestRun.length > 0 && latestRun.every(d => watchSet.has(d.symbol))
   const isStateRoundShown = !!round && !!stateRound && round.id === stateRound.id
-  const recordedChange = useMemo(() => {
+  // 値だけでなく「変化率の基準の印」も一緒に渡す。1件でも印が無ければ印なし扱い（注記を出す側で判断しない）
+  const recordedChange = useMemo<RecordedChange | undefined>(() => {
     if (!isStateRoundShown || !(decisionsFromLatestTick || watchlist.length === 0)) return undefined
-    const out: Record<string, number> = {}
-    for (const d of latestRun) if (typeof d.change === 'number' && Number.isFinite(d.change)) out[d.symbol] = d.change
-    return Object.keys(out).length > 0 ? out : undefined
+    const values: Record<string, number> = {}
+    let changeBasis = latestRun[0]?.changeBasis ?? null
+    for (const d of latestRun) {
+      if (typeof d.change === 'number' && Number.isFinite(d.change)) values[d.symbol] = d.change
+      if (!d.changeBasis) changeBasis = null
+    }
+    return Object.keys(values).length > 0 ? { values, changeBasis } : undefined
   }, [isStateRoundShown, decisionsFromLatestTick, watchlist.length, latestRun])
 
   // ── 時計・読み上げ・自動スクロール ──

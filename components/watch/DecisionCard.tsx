@@ -21,6 +21,7 @@
 
 import { useId, useState } from 'react'
 import type { AIDecision } from '@/lib/ai-trader/engine'
+import { LEGACY_CHANGE_NOTE_SHORT, LEGACY_CHANGE_NOTE_ZERO } from '@/lib/ai-trader/replay-model'
 import EvidenceMap from '@/components/watch/EvidenceMap'
 
 export interface DecisionCardProps {
@@ -109,6 +110,14 @@ export default function DecisionCard({ decision, held }: DecisionCardProps) {
             <span className="text-caption text-muted">当日</span>
             {held && <span className="text-caption text-muted">保有中</span>}
           </p>
+          {/* 変化率の基準の印が無い判断（2026-09-16 より前の記録）にだけ1行。保存値は書き換えない
+              （DECISIONS.md 2026-09-16 スライスB）。用語の説明（ReadingText）の点線とは別物なので、
+              下線・枠を持たない --muted の小さな文字にする。 */}
+          {decision.change != null && decision.changeBasis == null && (
+            <p className="mt-1 text-caption text-muted leading-relaxed max-w-[42rem]">
+              {LEGACY_CHANGE_NOTE_SHORT}{decision.change === 0 ? LEGACY_CHANGE_NOTE_ZERO : ''}
+            </p>
+          )}
         </div>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
