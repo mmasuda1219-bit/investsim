@@ -125,7 +125,9 @@ function stopReasonLabel(r: string): string {
   switch (r) {
     case 'end_turn': return '正常に終了（end_turn）'
     case 'max_tokens': return '返事の上限で打ち切り（max_tokens）'
-    case 'timeout': return `${CLAUDE_TIMEOUT_MS / 1000}秒で打ち切り（timeout）`
+    // 秒数は書かない: 過去の記録は当時の設定（例 35秒）で打ち切られており、今の CLAUDE_TIMEOUT_MS を
+    // 過去の回に当てて表示すると事実と違う数字になる。今の設定値は下の「今の設定:」の行だけが名乗る。
+    case 'timeout': return '時間切れで打ち切り（timeout）'
     case 'error': return '呼び出しに失敗（error）'
     case 'empty': return '返事はあったが判断を1件も読めなかった（empty）'
     case 'cli': return 'ローカルの CLI 経路（cli）'

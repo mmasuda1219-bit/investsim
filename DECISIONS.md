@@ -2,6 +2,13 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-09-15: AI の返事の上限を実測で 2,500→3,500・打ち切り 35→40秒にし、判断の文から数字の再掲を削る（S4-1）
+- 背景: 本番の過程の記録（9/14 の3回）で毎回 max_tokens、判断が 7/9・6/8・8/8。1判断 約310〜385トークンで9銘柄には約2,800〜3,500必要。長い原因は字数の上限が無く、判断理由とファンダの文で同じ数値を書き、さらにコードが数値表を付けて三重になっていたこと
+- 決定: 出力の指示に字数の上限（reasoning 80字・fundSignal 60字・techSignal/newsInfluence 各50字）と「数値の再掲禁止」を入れ、上限 3,500・打ち切り 40秒（cron 50秒枠の内訳: 前段2秒＋AI 40秒＋失敗時の保存5秒＝47秒）。項目名は変えない（過去の記録と読み取りの互換）。JSON は1判断1行・字下げ無しにする。再生画面の打ち切り表示から秒数を外す（過去の回は35秒時代）。techSignal だけは水準が意味を持つので RSI か移動平均の数値1つを許す
+- 却下: 2回に分けて並列（同じ現金で二重に買いうる・記録形式が変わる）／候補を4→3（8銘柄でも切れている）／今は上限だけ上げる（遅い日に40秒を超えて全部消える）。ストリーミング救出は ai.ms>33秒 か timeout が出たら次のスライス
+- 検証: `npx tsc --noEmit` 0件・`npm run build` 成功・`scripts/check-*.ts` 29本すべて PASS（check-decision-parse は 14→24 チェック＝1判断1行・字下げ無し・改行の無い1行配列・末尾が途中で切れた救出を10件追加、check-replay-model 97、check-tick-record・check-previous-close・check-markets 含む）。見積り: 新しい字数上限いっぱいに書いても1判断 392字＝約238トークン（英数152字×0.3＋日本語240字×0.8。実測の旧 約450字・310〜385トークンから約3割減）、9銘柄で約2,150トークン＋配列の囲みで上限3,500の約6割。プロンプト側は出力形式の指示が 439字→848字（入力 約+300トークン＝Haiku で1回あたり約0.05円）。ローカルに API キーが無いため出力の実測は未実施＝本番の次の3回で測る。合格条件は本番の3回で stopReason:end_turn・decisionsReturned==decisionsExpected・ms<33,000
+- 影響ファイル: lib/ai-trader/ai-config.ts, lib/ai-trader/engine.ts, components/watch/replay/ReplayStages.tsx, scripts/check-decision-parse.ts
+
 ## 2026-09-14: /learn の囲い撤去（3c）は設定→結果→実測カードの3本に分け、選択肢の格子は行とチップにする（3c-1 実施）
 - 背景: page.tsx 約1300行・囲い約60行・3段の入れ子で、1本ではレビューできない
 - 決定: 3c-1 設定→3c-2 結果（MetricStrip・InsightNote・DetailsSection）→3c-3 ExecutionPlanCard。hidden の3か所・ラジオの name/onChange・resetDownstream・export・文言は変えない。AI レポート生成は検証でも押さない（Opus の費用。日次上限はある）

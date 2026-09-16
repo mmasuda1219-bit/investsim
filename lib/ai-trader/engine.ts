@@ -103,12 +103,15 @@ class AskClaudeError extends Error {
 // 「データ取得+後処理(約10秒) + 判断35秒」で見積もる。
 // 学習(2026-07-31にcron/learnへ分離)は専用エンドポイントの60秒枠を単独で使えるため、
 // tickのhot pathに遠慮する必要がなくなった。20秒では生成が終わらず空振りしていたので広げる。
-// CLAUDE_TIMEOUT_MS（35秒）は ./ai-config.ts に置く（画面が「今の設定」として同じ値を読むため）
+// CLAUDE_TIMEOUT_MS（S4-1 2026-09-15 に 35秒→40秒。cron 50秒枠の内訳は ai-config.ts の注釈）は
+// ./ai-config.ts に置く（画面が「今の設定」として同じ値を読むため）
 const CLAUDE_LEARN_TIMEOUT_MS = 40_000
 // 生成時間はほぼ出力トークン数に比例するため、判断側は4096から絞る。ただし絞りすぎると
 // JSONが途中で切れて閉じフェンスが無くなり、呼び出し側の正規表現が無マッチ＝静かに空判断に
 // なる（銘柄数×1オブジェクトぶんの余裕を必ず残す）。学習側は6配列×5件で嵩むため据え置く。
-// DECISION_MAX_TOKENS（2500）も ./ai-config.ts に置く（同上）
+// DECISION_MAX_TOKENS（S4-1 に 2500→3500。9銘柄の実測が約2,800〜3,500 だったため）も
+// ./ai-config.ts に置く（同上）。上限を上げるだけでは遅い日に打ち切りへぶつかるので、
+// 同じスライスで【返し方】に字数の上限と「数値の再掲禁止」を入れて出力そのものを短くしている。
 const LEARN_MAX_TOKENS = 4096
 
 async function callClaudeApi(prompt: string, opts: CallClaudeOpts = {}): Promise<ClaudeReply> {
@@ -479,8 +482,10 @@ function buildCriteriaBlock(persona: { criteria: string[] }): string {
 // 「無音のハング→504」を再来させうる。listKnowledge/recordKnowledgeUsageのどちらも
 // このデッドラインで包み、超過・失敗時は必ずfail-open（[]/スキップ）にする。
 const KNOWLEDGE_IO_TIMEOUT_MS = 2_000
-// 4a: askClaude 失敗時に記録だけを保存する upsert の期限。cron の50秒枠のうち Claude の35秒を使い切った
-// 後に呼ばれるため、ここで粘ると関数上限に達する。JSONB 1行（数百KB）の upsert は通常1秒未満。
+// 4a: askClaude 失敗時に記録だけを保存する upsert の期限。cron の50秒枠のうち Claude の40秒（S4-1 で
+// 35秒から）を使い切った後に呼ばれるため、ここで粘ると関数上限に達する。
+// 50秒枠の内訳: 前段（候補の走査・データ取得・知識の読み込み）約2秒 ＋ AI 最大40秒 ＋ ここ5秒 ＝ 47秒。
+// JSONB 1行（数百KB）の upsert は通常1秒未満。
 const FAILED_TICK_SAVE_TIMEOUT_MS = 5_000
 
 function withDeadline<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -573,22 +578,21 @@ ${learningCtx}${knowledgeSection}
 【判断基準】
 ${buildCriteriaBlock(persona)}
 
-各銘柄についてJSON形式で判断を返してください:
+各銘柄についてJSON形式で判断を返してください。キーの名前・順序は下のまま、1判断を1行に書く（字下げ・途中改行は入れない）:
 
 \`\`\`json
 [
-  {
-    "symbol": "AAPL",
-    "action": "buy",
-    "confidence": "high",
-    "reasoning": "日本語2文以内の判断理由",
-    "newsInfluence": "ニュースの影響（1文）",
-    "techSignal": "テクニカル要約（1文）",
-    "fundSignal": "ファンダメンタル評価（1文）",
-    "knowledgeRefs": ["km_xxxxxxxxxx"]
-  }
+{"symbol":"AAPL","action":"buy","confidence":"high","reasoning":"判断理由","newsInfluence":"ニュースの影響","techSignal":"テクニカル要約","fundSignal":"会社の中身の見立て","knowledgeRefs":["km_xxxxxxxxxx"]}
 ]
 \`\`\`
+
+【字数】reasoning は日本語80字以内、fundSignal は60字以内、techSignal と newsInfluence は各50字以内。
+上限に届かせる必要はない。言うことが無ければ短く済ませ、体裁のために薄めた文を足さない。
+【数値の再掲禁止】渡した数値を文に書き写さない。会社の数字（PER・PBR・ROE・営業利益率・FCF・売上成長など）と
+価格・前日比の一覧は、画面がこの判断の後ろに自動で並べる。同じ数字が二度三度出ると読み手の邪魔になるので、
+fundSignal と reasoning には数値ではなく見立てを書く（例:「営業利益率21.9%で高い」→「利益率が同業より厚い」）。
+同じ根拠を reasoning と fundSignal に重ねて書かない（reasoning＝その行動を選んだ理由、fundSignal＝会社の中身の評価）。
+techSignal だけは水準そのものが意味を持つので、RSI か移動平均の数値を1つまで入れてよい。
 
 actionは "buy" | "sell" | "hold" | "watch"。buyは現金十分な場合のみ。sellは保有銘柄のみ。
 knowledgeRefsは実際に依拠した【投資の原則（知識ベース）】のIDのみ。最大2件。無ければ []（体裁のために埋めない）。`
@@ -1110,7 +1114,7 @@ export async function runTick(sessionId: string): Promise<AISession> {
     session.watchlist = prevWatchlist
     session.knowledgeShown = prevKnowledgeShown
     session.ticks = pushTick(session.ticks, record)
-    // 35秒のタイムアウト後に Supabase まで固まると関数上限（60秒）まで延びるため、記録の保存には期限を掛ける。
+    // AI のタイムアウト（CLAUDE_TIMEOUT_MS）後に Supabase まで固まると関数上限（60秒）まで延びるため、記録の保存には期限を掛ける。
     // 超過・失敗は1行 warn して元のエラーを優先する（成功経路の upsertSession は従来どおり無期限）。
     try {
       await withDeadline(upsertSession(session), FAILED_TICK_SAVE_TIMEOUT_MS, 'failed tick save')

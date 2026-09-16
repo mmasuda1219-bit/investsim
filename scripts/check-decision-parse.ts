@@ -44,6 +44,33 @@ const manyText = '```json\n' + JSON.stringify(many, null, 2)
 const cutAt = manyText.indexOf('"symbol": "S8"') + 30
 check('9件目の途中で切れる → 8件救出', extractDecisionArray(manyText.slice(0, cutAt)).length, 8)
 
+// S4-1(2026-09-15): プロンプトを「1判断1行・字下げ無し」に変えたので、新旧どちらの形でも読めることを確かめる。
+console.log('S4-1 1判断1行・字下げ無し（新しい出力形式）')
+const compact = '[\n' + [A, B, C].map(o => JSON.stringify(o)).join(',\n') + '\n]'
+check('1行形式・フェンスあり → 3件', extractDecisionArray('```json\n' + compact + '\n```').length, 3)
+check('1行形式・フェンスあり・中身が一致', extractDecisionArray('```json\n' + compact + '\n```'), [A, B, C])
+check('1行形式・フェンス無し → 3件', extractDecisionArray(compact).length, 3)
+check('改行が1つも無い1行の配列 → 3件・中身が一致', extractDecisionArray(JSON.stringify([A, B, C])), [A, B, C])
+const compactCut = '```json\n[\n' + JSON.stringify(A) + ',\n' + JSON.stringify(B) + ',\n' + JSON.stringify(C).slice(0, 30)
+check('1行形式・3件目の途中で切れる → 2件救出', extractDecisionArray(compactCut), [A, B])
+const compactCutNoLF = '```json\n[' + JSON.stringify(A) + ',' + JSON.stringify(B).slice(0, 18)
+check('改行無し・2件目の途中で切れる → 1件救出', extractDecisionArray(compactCutNoLF), [A])
+
+// 本番の形（9銘柄・新しい字数上限いっぱいの長さ）を1行ずつ書き、9件目の途中で切る
+console.log('S4-1 本番の形（9銘柄・字数上限いっぱい・1件1行）')
+const nine = Array.from({ length: 9 }, (_, i) => ({
+  symbol: `S${i}`, action: 'hold', confidence: 'medium',
+  reasoning: '理'.repeat(80), newsInfluence: 'ニ'.repeat(50),
+  techSignal: 'テ'.repeat(50), fundSignal: 'フ'.repeat(60), knowledgeRefs: [],
+}))
+const nineLines = nine.map(o => JSON.stringify(o))
+check('9件そろって完結 → 9件', extractDecisionArray('```json\n[\n' + nineLines.join(',\n') + '\n]\n```').length, 9)
+const nineText = '```json\n[\n' + nineLines.join(',\n')
+check('閉じフェンスも ] も無い（max_tokens 直前）→ 9件', extractDecisionArray(nineText).length, 9)
+check('9件目の途中で切れる → 8件救出', extractDecisionArray(nineText.slice(0, nineText.lastIndexOf('{') + 120)).length, 8)
+check('9件目の末尾の " が閉じずに切れる → 8件救出',
+  extractDecisionArray(nineText.slice(0, nineText.length - 40)).length, 8)
+
 console.log('')
 if (failed) { console.log(`${failed} 件 FAIL`); process.exit(1) }
 console.log('すべてPASS')
