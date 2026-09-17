@@ -101,12 +101,17 @@ export default function SimulatePage() {
         }),
       })
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? `HTTP ${res.status}`)
+        // 取れなかった理由はサーバーが和文で返す（lib/simulation.ts）。本文が JSON でない応答（HTML のエラーページ等）は
+        // 和文の既定文にし、生の英語を見出しに出さない
+        const err = await res.json().catch(() => ({}))
+        throw new Error(typeof err?.error === 'string' ? err.error : `サーバーから結果を受け取れませんでした（HTTP ${res.status}）`)
       }
-      setResult(await res.json())
+      // 200 でも本文が JSON でなければ（途中で切れた応答等）SyntaxError の英語が見出しに出るので和文にする
+      const data: SimResult = await res.json().catch(() => { throw new Error('サーバーから結果を受け取れませんでした') })
+      setResult(data)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'エラーが発生しました')
+      // fetch 自体の失敗（回線切れ等）は英語の TypeError になるので和文に置き換える
+      setError(e instanceof TypeError ? 'サーバーに接続できませんでした' : e instanceof Error ? e.message : 'エラーが発生しました')
     } finally {
       setLoading(false)
     }
@@ -205,10 +210,19 @@ export default function SimulatePage() {
         </button>
       </div>
 
-      {/* Error */}
+      {/* Error: 取得できなかったことは --warning-ink で書く（§5-1 色のルール）。枠で囲わず白い帯に、文字は左揃え
+          （§6-12 の三点形式: 何が起きたか／データはどうなったか／どうすればいいか）。app/stocks/[symbol]/page.tsx の
+          catch と components/MasterSignals.tsx の「シグナルを取得できませんでした」と同じ型。新しい見せ方は作らない。
+          仮の数字は出さない: run() が先に setResult(null) するので、エラー時に前回や見本の結果は描かれない */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
-          {error}
+        <div className="bg-card rounded-card px-4 py-5 space-y-1">
+          <p className="text-body text-warning-ink">{error}</p>
+          <p className="text-body text-ink-2 max-w-[42rem]">
+            実データが取れないときは、代わりの数字を作らずここで止めます。損益・勝率・売買履歴は表示していません。
+          </p>
+          <p className="text-body text-ink-2 max-w-[42rem]">
+            時間をおいて、もう一度実行してください。
+          </p>
         </div>
       )}
 
@@ -224,6 +238,24 @@ export default function SimulatePage() {
       {/* Results */}
       {result && !loading && (
         <div className="space-y-5">
+          {/* 除外した銘柄: 株価を取れなかった銘柄は lib/simulation.ts が黙って外すので、ここで必ず伝える（原則9・
+              2026-09-17 レビュー指摘 W1）。上のエラー帯と同じ型（--warning-ink の1行目＋データの状態＋どうすればいいか）。
+              空のとき（全銘柄で計算できたとき）は何も出さず、通常時の表示は変えない */}
+          {result.excludedSymbols.length > 0 && (
+            <div className="bg-card rounded-card px-4 py-5 space-y-1">
+              {/* 1行に書く: JSX の改行は空白になり「銘柄 （」と隙間が入るため */}
+              <p className="text-body text-warning-ink">
+                {result.stockResults.length + result.excludedSymbols.length}銘柄中 {result.excludedSymbols.length} 銘柄（{result.excludedSymbols.join('・')}）は株価を取得できず、除外して計算しました
+              </p>
+              <p className="text-body text-ink-2 max-w-[42rem]">
+                下の損益・勝率・売買履歴は、残りの {result.stockResults.length} 銘柄だけで計算した結果です。除外した銘柄の代わりの数字は作っていません。
+              </p>
+              <p className="text-body text-ink-2 max-w-[42rem]">
+                時間をおいて、もう一度実行してください。
+              </p>
+            </div>
+          )}
+
           {/* Period */}
           <p className="text-xs text-muted">
             シミュレーション期間: {result.startDate} → {result.endDate}（{result.simulationDays}営業日）

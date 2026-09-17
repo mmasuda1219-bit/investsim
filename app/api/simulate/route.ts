@@ -4,7 +4,7 @@ import { runSimulation } from '@/lib/simulation'
 const UNIVERSE_PRESETS: Record<string, string[]> = {
   large_cap: ['AAPL', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'JPM', 'V', 'MA',
               'JNJ', 'UNH', 'KO', 'WMT', 'XOM', 'HD', 'MCD', 'LLY', 'COST', 'ABBV'],
-  value:     ['BRK', 'KO', 'WFC', 'BAC', 'OXY', 'JPM', 'CVX', 'XOM', 'KHC', 'JNJ',
+  value:     ['BRK-B', 'KO', 'WFC', 'BAC', 'OXY', 'JPM', 'CVX', 'XOM', 'KHC', 'JNJ',
               'PG', 'MRK', 'C', 'V', 'VZ', 'T', 'MMM', 'CAT', 'AXP', 'GS'],
   growth:    ['NVDA', 'MSFT', 'META', 'AMZN', 'TSLA', 'NFLX', 'AMD', 'CRM', 'ADBE', 'COIN',
               'PLTR', 'SNOW', 'SHOP', 'UBER', 'NOW', 'AVGO', 'QCOM', 'LLY', 'SBUX', 'ORCL'],

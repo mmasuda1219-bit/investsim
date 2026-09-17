@@ -324,6 +324,12 @@ Step 1・2・2b は完了済み（公開・動作確認まで）。オーナー�
 26. **SPY が一時的に取れないと、そのセッションは一生ベンチマーク無し**（同 reviewer S3）: `engine.ts:986-993`。原則9 上は正しい挙動だが、画面は「N/A」とだけ出て理由が無い（`client.tsx:950`）。「最初に取れた tick の値を起点にして印と時刻を残す」か「N/A の理由を表示する」かを architect で決める
 27. **分析対象が0銘柄でも Claude を呼ぶ**（同 reviewer S4・builder も独立に指摘）: `engine.ts:1103,:536-` に `stockData.length === 0` の早期 return が無い。実データ全滅の回でも AI 呼び出し1回ぶんの費用がかかり、返事は必ず「判断0件」。**費用より、最大40秒の枠（cron 50秒）を無意味に使うほうが痛い**。`decisions: []` と note「分析対象0件のため AI を呼ばず」を返す1分岐で足りる
 28. **`buildStockContext` が quote 失敗時も `fetchNews` を並列で投げる**（同 reviewer S5）: `engine.ts:340-345` の `Promise.all`。全滅時に無駄な Yahoo 呼び出しが保有銘柄数ぶん出る。データの正しさには影響なし。`allSettled` の後で news を取るか、quote を先に await するかの2択
+29. 🔴 **`/simulate` にも「財務が取れないと4人が様子見と嘘をつく」穴がある**（2026-09-17 スライス4 reviewer W2・**18 と同じ穴の別の入口**）: `/api/signals` はスライス2で `Object.values(f).some(v => v != null)` の門を付けたが、`lib/simulation.ts` には無い。`buffett.ts:12`（graham/dalio/lynch も `:12`）は `!fundamentals` しか見ず `{}` を素通りし、スコア0で hold を返す。`fundamentalsMap[sym]` は `Object.fromEntries` で全銘柄に必ず入るので「財務データを取得中です」の分岐は `/simulate` から到達不能。結果、**Yahoo の財務モジュールだけ落ちている日は、バフェット/リンチ/グレアム/ダリオの `/simulate` が「最終資産＝初期資本・取引0件・勝率0%」を戦略の判断として表示**し、`app/simulate/page.tsx:320` は「このユニバースでは買いシグナルが発生しませんでした」と言う（スライス4より前は模擬財務で架空の買いが出ていたので改善ではある）。**直し方（18 と一緒に）**: 財務が全項目 null の銘柄を数えて `SimResult` に載せ、`page.tsx:320` を「財務データを取得できず判定できなかった銘柄が N 件」に切り替える。財務系4人で全銘柄が null なら「財務データを取得できませんでした」で止める
+30. **`/simulate` の検査が文字列一致だけで、`runSimulation` を実際に呼んでいない**（同 reviewer S1）: `scripts/check-previous-close.ts:384-399`。スライス4の「通常時の結果が修正前と同一」「3銘柄だけ取れないと17銘柄で走る」の証拠（md5 一致・JSON 完全一致）は builder のセッション（scratchpad の `engine-compare.ts`）にしか無く、repo から再検証できない。**直し方**: `scripts/check-signals-undecidable.ts:15,93-96` の流儀（`Module._load` で `@/lib/market` を差し替え、本物の関数を呼ぶ）で `check-simulate-no-mock.ts` を作り、(a) 全滅→和文で throw (b) 20中3失敗→`stockResults.length === 17` と `excludedSymbols` 3件 (c) 決定的な日足→結果 JSON のスナップショット一致、を assert
+31. **`/simulate` の日付の対応付けが「割合」で、日付で揃えていない**（同 reviewer S4・変更前から）: `lib/simulation.ts:153,192,223,248` の `cutoff = floor(symBars.length * pct)`。11本を超えたが参照銘柄より本数が少ない銘柄（取得元が途中までしか返さなかった日・上場直後）は、**実データだが別の日の価格で売買される**。`time` による対応付けに
+32. **`/api/simulate` の想定外の例外が英語のまま画面の見出しに出る**（同 reviewer S5・builder 範囲外1と同件）: `app/api/simulate/route.ts:36` の catch はモデル内部の TypeError 等の英語もそのまま `error` に載せ、`page.tsx:107` がそれを見出しに出す。既定文 `'Simulation failed'` と `Unknown investor: …` も英語。route で和文の固定文にし、原文は `console.error` へ（スライス1 W1 と同じ流儀）。502 化も `/api/signals` に揃えて
+33. **`/simulate` の結果表示が DESIGN 移行前のまま**（スライス4 builder 報告）: 損益・札の色が `text-green-700`・`bg-red-50` の直書き、`rounded-xl`、`MiniChart` が暗色テーマの固定色（`#94a3b8`・`#1e293b`）で `components/chartTheme.ts` を使っていない（DESIGN §6-14）。ナビ外の補助機能なので優先度は低い
+34. **開発サーバーで `yahoo2.ts` のメモリキャッシュが効いていない可能性**（スライス4 builder 観測・確度低）: 2秒差の2回目も 4.7秒かかり結果が動いた（HISTORY は5分キャッシュのはず）。Turbopack のモジュール分離か、yahoo2 が失敗して無キャッシュの yahoodirect に落ちたか。本番挙動は未確認 → data-engineer の調査候補
 
 ### 🔴 調査が要る問題（2026-09-09〜10 に実データで発見）
 
@@ -359,6 +365,7 @@ Step 1・2・2b は完了済み（公開・動作確認まで）。オーナー�
 - 「5人の有名投資家」は正しい（`lib/investors/` に buffett/dalio/graham/lynch/soros が実在）が、`/learn` のスクリーニングは3人だけ。表現を合わせる必要がある
 - クイックプリセットの条件を1→2に増やす案（strategist 提案・オーナーは「今は触らない」）
 - Step 3（スマホ実機点検）は未実施のまま。S1・S2 の後にまとめて行うのが効率的
+- **【保留・2026-09-17 オーナー判断「焦らず今はやらない」】Duolingo 風の日々の進歩の記録**。MC の案（未承認・設計未着手）: 数えるのは「考えた」回数（理由つき売買／理由つき見送り／答え合わせ）で**売買回数は数えない**（数えると売買のしすぎを育てる）／**週単位**で1日休んでも途切れない／炎・XP・順位表・紙吹雪なし（`DESIGN.md` §1-4「煽らない」）／自分の過去とだけ比べる／卒業を認める（`JOURNEY.md` S7）。最初の形は `/review` に「週ごとの記録の帯」1本。**再開の目安**: 実利用者が出て `marketing/CORE.md` 先行指標3（別の日に戻って2件目を記録した人の割合）を測れるようになったとき
 
 ---
 

@@ -54,6 +54,8 @@ export interface SimResult {
   simulationDays: number
   startDate: string
   endDate: string
+  /** 株価を取得できず計算から外した銘柄（symbols の順）。空なら全銘柄で計算した。画面が「N 銘柄を除外」と注記する（原則9） */
+  excludedSymbols: string[]
 }
 
 interface Position {
@@ -93,11 +95,14 @@ export async function runSimulation(config: SimConfig): Promise<SimResult> {
   const inv = invFound
 
   // Fetch historical data (3 months for warmup + 1 month simulation)
+  // allowMock:false（原則9・2026-09-17 スライス4）: 実データ3経路が全滅した銘柄に providers/mock の種つき乱数の
+  // 日足が黙って入り、その損益・勝率・売買履歴が本物の成績として画面に出ていた。取れない銘柄は下の catch で [] に
+  // なり、symbolsWithData（11本以上）で除外される。全滅のときだけ止める。
   const [historyMap, fundamentalsMap] = await Promise.all([
     Promise.all(
       symbols.map(async (sym) => {
         try {
-          const bars = await getHistory(sym, '3mo' as any)
+          const bars = await getHistory(sym, '3mo', { allowMock: false })
           return [sym, bars] as [string, HistoricalBar[]]
         } catch {
           return [sym, []] as [string, HistoricalBar[]]
@@ -107,7 +112,10 @@ export async function runSimulation(config: SimConfig): Promise<SimResult> {
     Promise.all(
       symbols.map(async (sym) => {
         try {
-          const f = await getFundamentals(sym)
+          // 取れないときは {} が返る（throw しない）。投資家モデル4本（buffett/graham/dalio/lynch の :12）は
+          // `!fundamentals` しか見ないので {} は素通りし、判定材料ゼロのまま走って hold（「○○基準を満たす指標が不足」）を
+          // 返す＝「財務データを取得中です」の分岐にはここから到達しない。既知の穴（スライス5で直す・DECISIONS.md 2026-09-17）
+          const f = await getFundamentals(sym, { allowMock: false })
           return [sym, f] as [string, FundamentalsData]
         } catch {
           return [sym, {}] as [string, FundamentalsData]
@@ -117,8 +125,11 @@ export async function runSimulation(config: SimConfig): Promise<SimResult> {
   ])
 
   // Find common trading days across all symbols with data
+  // 例外文は app/simulate/page.tsx がそのまま見出しに出すので和文（DESIGN.md §6-12）
   const symbolsWithData = symbols.filter(s => (historyMap[s]?.length ?? 0) > 10)
-  if (symbolsWithData.length === 0) throw new Error('No historical data available')
+  if (symbolsWithData.length === 0) throw new Error('過去の株価を取得できませんでした')
+  // 黙って絞り込まない: 除外した銘柄を結果に載せ、画面が「20銘柄中 N 銘柄を除外」と伝える（2026-09-17 レビュー指摘 W1）
+  const excludedSymbols = symbols.filter(s => !symbolsWithData.includes(s))
 
   // Use the symbol with most data points as reference calendar
   const refSymbol = symbolsWithData.reduce((a, b) =>
@@ -129,7 +140,7 @@ export async function runSimulation(config: SimConfig): Promise<SimResult> {
   // Simulation window = last ~22 trading days (1 month)
   const warmupBars = allBars.slice(0, Math.max(0, allBars.length - 22))
   const simBars = allBars.slice(Math.max(0, allBars.length - 22))
-  if (simBars.length === 0) throw new Error('Insufficient data for simulation')
+  if (simBars.length === 0) throw new Error('シミュレーションに必要な日数の株価がそろいませんでした')
 
   // Portfolio state
   let cash = startCapital
@@ -148,12 +159,14 @@ export async function runSimulation(config: SimConfig): Promise<SimResult> {
       const cutoff = Math.floor(symBars.length * pct)
       const history = symBars.slice(0, Math.max(1, cutoff))
       const latestBar = history[history.length - 1]
+      // 前日比は計算していないので null（「0%」ではない。types の change は number | null・スライスA）。
+      // 投資家モデル5本は quote.change / changePercent を読まない（2026-09-17 grep で確認）
       const quote = {
         symbol: sym,
         name: sym,
         price: latestBar?.close ?? 0,
-        change: 0,
-        changePercent: 0,
+        change: null,
+        changePercent: null,
         volume: latestBar?.volume ?? 0,
         currency: 'USD',
         market: 'US' as const,
@@ -289,7 +302,7 @@ export async function runSimulation(config: SimConfig): Promise<SimResult> {
     const finalHistory = symBars
     const lastBar = symBars[symBars.length - 1]
     const quote = {
-      symbol: sym, name: sym, price: lastPrice, change: 0, changePercent: 0,
+      symbol: sym, name: sym, price: lastPrice, change: null, changePercent: null,
       volume: lastBar?.volume ?? 0, currency: 'USD', market: 'US' as const,
       isMarketOpen: false, lastUpdated: new Date().toISOString(),
     }
@@ -328,5 +341,6 @@ export async function runSimulation(config: SimConfig): Promise<SimResult> {
     simulationDays: simBars.length,
     startDate: getDateStr(simBars[0].time),
     endDate: endDateStr,
+    excludedSymbols,
   }
 }

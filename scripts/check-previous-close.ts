@@ -5,6 +5,8 @@
 //  - 製品コードに古い基準（chartPreviousClose）・0 埋め・模擬データへのフォールバックが戻っていないこと
 //  - 銘柄詳細（app/stocks/[symbol]）と名人の判定（app/api/signals/[symbol]）が模擬データに黙って
 //    切り替わらないこと（2026-09-17 スライス1: 取れないときは「取得できませんでした」／502 で止める）
+//  - AI の運用成績（lib/ai-trader/engine.ts）とバックテスト（lib/simulation.ts・app/simulate）が模擬データの
+//    株価で成績を作らないこと（2026-09-17 スライス3・4: 取れない銘柄は除外し、全滅なら和文で止める）
 // （2026-09-14 オーナー決定: 候補は前日比で選ぶ／取れなければ偽の値を使わず候補を減らす。原則9）
 //
 // globalThis.fetch はこの検査の中だけで差し替える（実ネットワーク不要）。差し替えで返す値は検査用の
@@ -374,6 +376,50 @@ function productCode() {
   check('engine.ts: 評価額の取得失敗は取得単価で代用し、件数を trade 段の note に残す',
     engine.includes('valuationFallbacks++') && engine.includes('評価額の株価取得に失敗${valuationFallbacks}銘柄（取得単価で代用）'))
   everyCallNoMock('engine.ts', engine)
+
+  // /simulate のバックテスト（2026-09-17 スライス4・原則9）。getHistory/getFundamentals が既定の allowMock:true の
+  // ままだと、実データ3経路が全滅した銘柄に providers/mock の種つき乱数の日足が入り、その損益・勝率・最大
+  // ドローダウン・売買履歴が本物の成績として画面に出ていた。取れない銘柄は catch → [] → symbolsWithData（11本以上）で
+  // 除外され、全滅のときだけ和文で止める（app/simulate/page.tsx がその文をそのまま見出しに出す）。
+  const sim = code('lib/simulation.ts')
+  check('simulation.ts: バックテストの日足は模擬データなし', sim.includes("getHistory(sym, '3mo', { allowMock: false })"))
+  check('simulation.ts: 財務データも模擬データなし', sim.includes('getFundamentals(sym, { allowMock: false })'))
+  everyCallNoMock('simulation.ts', sim)
+  check('simulation.ts: 取れない銘柄は除外し、全滅のときは和文で止める（英語の例外文を残さない）',
+    sim.includes("throw new Error('過去の株価を取得できませんでした')")
+    && !sim.includes('No historical data available') && !sim.includes('Insufficient data for simulation'))
+  check('simulation.ts: 合成 quote の change・changePercent は null（0 で埋めない・2か所）',
+    count(sim, /change:\s*null,\s*changePercent:\s*null/g) === 2 && !/change(?:Percent)?:\s*0\b/.test(sim))
+  const simPage = code('app/simulate/page.tsx')
+  check('simulate/page: エラー帯は三点形式・--warning-ink（旧色 border-red-200 を残さない）',
+    simPage.includes('text-warning-ink') && !simPage.includes('border-red-200')
+    && simPage.includes('代わりの数字を作らずここで止めます') && simPage.includes('もう一度実行してください'))
+  // 「含む」だけだと fetch より後にあっても通る。setResult(null) が fetch より前にあることを位置で見る（2026-09-17 レビュー指摘 S2）
+  const resetAt = simPage.indexOf('setResult(null)')
+  const fetchAt = simPage.indexOf("fetch('/api/simulate'")
+  check('simulate/page: 実行のたびに、fetch より前に前回の結果を消す（エラー時に仮の数字を出さない）',
+    resetAt > -1 && fetchAt > -1 && resetAt < fetchAt, `setResult(null)@${resetAt} fetch@${fetchAt}`)
+  check('simulate/page: JSON でない応答・回線の失敗も和文にする',
+    simPage.includes('サーバーから結果を受け取れませんでした') && simPage.includes('サーバーに接続できませんでした'))
+  // 200 応答の本文が JSON でないとき（途中で切れた応答等）も英語の SyntaxError を見出しに出さない: res.json() は
+  // すべて .catch( を伴うこと（2026-09-17 レビュー指摘 S3）
+  check('simulate/page: res.json() はすべて .catch( を伴う（200 でも本文が JSON でなければ和文）',
+    count(simPage, /res\.json\(\)/g) >= 2 && !/res\.json\(\)(?!\.catch\()/.test(simPage))
+
+  // 除外した銘柄を黙って落とさない（2026-09-17 レビュー指摘 W1）: runSimulation が symbolsWithData に絞った残りを
+  // excludedSymbols として返し、画面が結果の先頭で「N 銘柄は株価を取得できず、除外して計算しました」と注記する
+  check('simulation.ts: SimResult に excludedSymbols（string[]）があり、symbolsWithData の残りを返す',
+    sim.includes('excludedSymbols: string[]') && sim.includes('const excludedSymbols = symbols.filter(s => !symbolsWithData.includes(s))')
+    && /^\s*excludedSymbols,\s*$/m.test(sim))
+  check('simulate/page: excludedSymbols を読み、除外した銘柄を --warning-ink の帯で伝える',
+    simPage.includes('result.excludedSymbols.length > 0') && simPage.includes("result.excludedSymbols.join('・')")
+    && simPage.includes('は株価を取得できず、除外して計算しました'))
+  // value ユニバースの 'BRK' は Yahoo に無い記号（providers/mock にしか無かった）。プロジェクトの表記は BRK-B
+  // （lib/market/us-universe.ts）。単独の 'BRK' が戻ると value は常に19銘柄＋除外1件で走る（2026-09-17 レビュー指摘 W1-b）
+  const simRoute = code('app/api/simulate/route.ts')
+  check("api/simulate: value ユニバースはバークシャーを 'BRK-B' で持ち、単独の 'BRK' を残さない",
+    simRoute.includes("'BRK-B'") && !/['"]BRK['"]/.test(simRoute))
+
   check("report/prompt.ts: 前日比が無いとき「取得できず」", code('lib/report/prompt.ts').includes("q.changePercent == null ? '取得できず'"))
 
   check('DecisionCard: null は「—」', code('components/watch/DecisionCard.tsx').includes('decision.change == null'))
