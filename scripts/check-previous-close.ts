@@ -3,6 +3,8 @@
 //  - 取得元の quote（yahoodirect・twelvedata）が古い基準を使わず、取れない値を 0 で埋めないこと
 //  - 候補選び（lib/ai-trader/tick-record.ts の rankUniverse）が前日比の取れない銘柄を順位から外すこと
 //  - 製品コードに古い基準（chartPreviousClose）・0 埋め・模擬データへのフォールバックが戻っていないこと
+//  - 銘柄詳細（app/stocks/[symbol]）と名人の判定（app/api/signals/[symbol]）が模擬データに黙って
+//    切り替わらないこと（2026-09-17 スライス1: 取れないときは「取得できませんでした」／502 で止める）
 // （2026-09-14 オーナー決定: 候補は前日比で選ぶ／取れなければ偽の値を使わず候補を減らす。原則9）
 //
 // globalThis.fetch はこの検査の中だけで差し替える（実ネットワーク不要）。差し替えで返す値は検査用の
@@ -331,6 +333,32 @@ function productCode() {
   check('engine.ts: 新しい記録と判断に基準の印を付ける',
     engine.includes('record.changeBasis = CHANGE_BASIS') && engine.includes('changeBasis:   CHANGE_BASIS'))
   check("engine.ts: AI には前日比が無いとき「取得できず」と渡す", engine.includes("前日比: ${quote.changePercent == null ? '取得できず'"))
+
+  // 利用者の目と売買記録に直接届く経路（2026-09-17 スライス1・原則9）。
+  // 銘柄詳細の quote は TradeButton → TradeModal を経て約定価格として記録に残る。
+  // 「allowMock:false の呼び出しが1つある」だけでは、同じファイルに指定なしの呼び出し（既定は allowMock:true）が
+  // 後から足されても通ってしまう。取得の呼び出し回数と allowMock:false の回数が一致すること（全呼び出しが
+  // 守られていること）と、providers/mock を直接 import していないことも見る（2026-09-17 レビュー指摘 S1）。
+  const count = (src: string, re: RegExp) => (src.match(re) ?? []).length
+  const FETCH_CALL = /\b(?:getQuote|getHistory|getFundamentals)\(/g
+  const NO_MOCK = /allowMock:\s*false\b/g
+  const MOCK_IMPORT = /(?:from\s*|import\s*\(\s*)['"][^'"]*providers\/mock['"]/
+  const everyCallNoMock = (label: string, src: string) => {
+    const calls = count(src, FETCH_CALL)
+    const noMock = count(src, NO_MOCK)
+    check(`${label}: 取得の呼び出し全部に allowMock:false（呼び出し ${calls} 件＝allowMock:false ${noMock} 件）`,
+      calls > 0 && calls === noMock)
+    check(`${label}: providers/mock を import しない`, !MOCK_IMPORT.test(src))
+  }
+  const stockPage = code('app/stocks/[symbol]/page.tsx')
+  check('stocks/[symbol]/page: 銘柄詳細の quote は模擬データなし', stockPage.includes('getQuote(symbol, { allowMock: false })'))
+  everyCallNoMock('stocks/[symbol]/page', stockPage)
+  const signalsRoute = code('app/api/signals/[symbol]/route.ts')
+  check('api/signals: 名人の判定の材料3つとも模擬データなし',
+    signalsRoute.includes('getQuote(symbol, { allowMock: false })') && signalsRoute.includes("getHistory(symbol, '1y', { allowMock: false })")
+    && signalsRoute.includes('getFundamentals(symbol, { allowMock: false })'))
+  everyCallNoMock('api/signals', signalsRoute)
+  check('api/signals: 取れないときは 502 で止める（500 に戻さない）', signalsRoute.includes('status: 502') && !signalsRoute.includes('status: 500'))
   check("report/prompt.ts: 前日比が無いとき「取得できず」", code('lib/report/prompt.ts').includes("q.changePercent == null ? '取得できず'"))
 
   check('DecisionCard: null は「—」', code('components/watch/DecisionCard.tsx').includes('decision.change == null'))

@@ -20,7 +20,11 @@ export default async function StockPage({ params, searchParams }: Props) {
   const period = VALID_PERIODS.includes(rawPeriod ?? '') ? rawPeriod! : '3mo'
 
   try {
-    const quote = await getQuote(symbol)
+    // allowMock:false は外さないこと（原則9）。ここで取れた quote.price は TradeButton → TradeModal を
+    // 経て利用者の売買記録に約定価格として残る。既定の allowMock:true のままだと、実データ3経路
+    // （yahoo2 → yahoodirect → twelvedata）が全滅したときに providers/mock の«乱数の架空価格»が黙って
+    // 入り、利用者はそれを実勢だと思って売買してしまう。取れないときは値を作らず下の catch で止める。
+    const quote = await getQuote(symbol, { allowMock: false })
 
     return (
       <div className="space-y-5">
@@ -59,12 +63,27 @@ export default async function StockPage({ params, searchParams }: Props) {
       </div>
     )
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'データを取得できませんでした'
+    // 取得できなかった原因（«Real quote unavailable for AAPL — yahoo2: …»）は画面に出さず、サーバーのログにだけ残す
+    // （app/api/markets/route.ts の failed() と同じ流儀）。yahoo2 の部分には Yahoo が返した応答本文がそのまま入り、
+    // HTML のエラーページ全文になりうる。取得元の構成（3経路と失敗の順）も利用者に見せる必然性がない。
+    console.error(`[stocks/[symbol]] ${symbol} の株価を取得できませんでした: ${err instanceof Error ? err.message : String(err)}`)
+    // 文言は DESIGN.md §6-12 の三点形式（何が起きたか／データはどうなったか／どうすればいいか）。仮の数字は出さない。
     return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 text-center">
-        <h1 className="text-2xl font-bold text-ink">{symbol}</h1>
-        <p className="text-muted text-sm">{msg}</p>
-        <a href="/" className="text-blue-700 hover:text-blue-800 text-sm underline">トップに戻る</a>
+      <div className="space-y-5">
+        <h1 className="text-h1 text-ink">{symbol}</h1>
+        {/* 取得できなかったことは --warning-ink で書く（§5-1 色のルール）。枠で囲わず白い帯に、文字は左揃え
+            （§2 の「全部中央揃え」の禁止・§6-12）。components/MasterSignals.tsx の「シグナルを取得できませんでした」と同じ型 */}
+        <div className="bg-card rounded-card px-4 py-5 space-y-1">
+          <p className="text-body text-warning-ink">{symbol} の株価を取得できませんでした</p>
+          <p className="text-body text-ink-2 max-w-[42rem]">
+            株価のデータ源（Yahoo Finance など）から、この銘柄の値を受け取れませんでした。実データが取れないときは、代わりの数字を作らずここで止めます。このページからの売買もできません。
+          </p>
+          <p className="text-body text-ink-2 max-w-[42rem]">
+            時間をおいて再読み込みしてください。銘柄コードの綴りが違う場合は、正しいコードで開き直してください。
+          </p>
+        </div>
+        {/* 補助的な移動は文字ボタン（§6-1: 枠なし・--brand の文字・ホバーで下線） */}
+        <a href="/" className="inline-block text-small text-brand hover:underline">トップに戻る</a>
       </div>
     )
   }

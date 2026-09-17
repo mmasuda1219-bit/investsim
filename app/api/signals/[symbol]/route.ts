@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server'
 import { getQuote, getHistory, getFundamentals } from '@/lib/market'
+import { findStock } from '@/lib/market/universe'
 import investors from '@/lib/investors'
 import type { Signal } from '@/types'
 
+// GET /api/signals/:symbol — 名人5人（バフェット／ソロス／リンチ／グレアム／ダリオ）の判定。
+//
+// allowMock:false は外さないこと（原則9）。/watch の名人の区画（MasterSignals）と銘柄詳細の
+// InvestorPanel がここを読む。既定の allowMock:true のままだと、実データ3経路が全滅したときに
+// providers/mock の«乱数の株価・架空の財務»で判定が作られ、利用者はそれを名人の判断だと思って読む。
+// 取れないときは値を作らず 502 で止める。画面側（MasterSignals.tsx／InvestorPanel.tsx）は
+// 「シグナルを取得できませんでした」を出す前提で書かれている。
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ symbol: string }> }
@@ -12,9 +20,9 @@ export async function GET(
 
   try {
     const [quote, history, fundamentals] = await Promise.all([
-      getQuote(symbol),
-      getHistory(symbol, '1y'),
-      getFundamentals(symbol),
+      getQuote(symbol, { allowMock: false }),
+      getHistory(symbol, '1y', { allowMock: false }),
+      getFundamentals(symbol, { allowMock: false }),
     ])
 
     // 単位の変換（2026-09-11）: `FundamentalsData.debtToEquity` は Yahoo 原値の%表記（78.4 ＝ 0.78倍。
@@ -36,6 +44,11 @@ export async function GET(
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to compute signals'
-    return NextResponse.json({ error: message }, { status: 500 })
+    // 502 = 上流のデータ源が返せなかった（app/api/stocks/[symbol]/route.ts と同じ形）。
+    // 入力ミス（存在しない銘柄）とデータ源の障害を画面側が区別できるよう、判っている範囲を添える。
+    return NextResponse.json(
+      { error: message, symbol, listed: Boolean(findStock(symbol)) },
+      { status: 502, headers: { 'Cache-Control': 'no-store' } },
+    )
   }
 }
