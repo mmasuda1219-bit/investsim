@@ -32,6 +32,7 @@ import {
 // sonnet-4-6 だと1呼び出し+データ取得で約55秒かかり Vercel の60秒関数タイムアウトを不定期に
 // 超えて 504（画面上「分析に失敗しました」）になる。Haiku は生成が2〜3倍速く合計35秒前後で
 // 安定し、$1/$5 と安価。深い分析が要るレポート機能は別途 Opus を使う。
+// （上の秒数は 2026-07-13 当時の見積り。現在の打ち切り時間と cron 50秒枠の内訳は ./ai-config.ts を参照）
 // より賢いモデルで運用したい場合は Vercel Pro で maxDuration を伸ばし AI_MODEL で上書きする。
 const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-4-5'
 
@@ -103,7 +104,7 @@ class AskClaudeError extends Error {
 // 「データ取得+後処理(約10秒) + 判断35秒」で見積もる。
 // 学習(2026-07-31にcron/learnへ分離)は専用エンドポイントの60秒枠を単独で使えるため、
 // tickのhot pathに遠慮する必要がなくなった。20秒では生成が終わらず空振りしていたので広げる。
-// CLAUDE_TIMEOUT_MS（S4-1 2026-09-15 に 35秒→40秒。cron 50秒枠の内訳は ai-config.ts の注釈）は
+// CLAUDE_TIMEOUT_MS（上の35秒は 2026-07-30 当時の見積り。S4-1 2026-09-15 に 35秒→40秒。cron 50秒枠の内訳は ai-config.ts の注釈）は
 // ./ai-config.ts に置く（画面が「今の設定」として同じ値を読むため）
 const CLAUDE_LEARN_TIMEOUT_MS = 40_000
 // 生成時間はほぼ出力トークン数に比例するため、判断側は4096から絞る。ただし絞りすぎると
@@ -982,9 +983,11 @@ function updateStats(session: AISession) {
 }
 
 export async function startSession(capital = 100000, persona?: InvestorId): Promise<AISession> {
+  // ベンチマーク比較の起点。このセッションの間ずっと使われるので、実データが取れないときは乱数の株価で
+  // 埋めず null のまま始める（2026-09-17 スライス3・原則9。null なら runTick が benchmarkPct を出さない）。
   let benchmarkStart: number | null = null
   try {
-    const spy = await getQuote('SPY')
+    const spy = await getQuote('SPY', { allowMock: false })
     benchmarkStart = spy.price
   } catch { /* non-critical */ }
 
@@ -1148,12 +1151,15 @@ export async function runTick(sessionId: string): Promise<AISession> {
   const newTrades = executeTrades(session, decisions)
   session.trades = [...newTrades, ...session.trades].slice(0, 200)
 
-  // 評価額の株価取得に失敗した銘柄は従来どおり取得単価で代用する（挙動は不変）。件数だけ記録の note に残す。
+  // 評価額の株価取得に失敗した銘柄は取得単価で代用し、件数を記録の note に残す。
+  // 2026-09-17 スライス3（原則9）: allowMock:false を明示。既定のままだと実データ3経路が全滅したとき乱数の株価で
+  // 評価額（総資産・損益・シャープレシオ・最大ドローダウン）が計算され、しかも catch に入らないので件数にも
+  // 数えられなかった。今は throw → catch → 取得単価で代用 → 件数が正しく数えられる。
   let valuationFallbacks = 0
   const holdingValues = await Promise.all(
     Object.entries(session.holdings).map(async ([sym, pos]) => {
       try {
-        const q = await getQuote(sym)
+        const q = await getQuote(sym, { allowMock: false })
         return pos.shares * q.price
       } catch {
         valuationFallbacks++
@@ -1170,8 +1176,9 @@ export async function runTick(sessionId: string): Promise<AISession> {
 
   let benchmarkPct: number | undefined
   if (session.benchmarkStart) {
+    // 実データが取れない回は benchmarkPct を出さない（乱数の SPY と比べない。2026-09-17 スライス3）。
     try {
-      const spy = await getQuote('SPY')
+      const spy = await getQuote('SPY', { allowMock: false })
       benchmarkPct = parseFloat(
         (((spy.price - session.benchmarkStart) / session.benchmarkStart) * 100).toFixed(2)
       )

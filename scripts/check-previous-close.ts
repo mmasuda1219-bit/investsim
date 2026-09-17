@@ -341,7 +341,10 @@ function productCode() {
   // 守られていること）と、providers/mock を直接 import していないことも見る（2026-09-17 レビュー指摘 S1）。
   const count = (src: string, re: RegExp) => (src.match(re) ?? []).length
   const FETCH_CALL = /\b(?:getQuote|getHistory|getFundamentals)\(/g
-  const NO_MOCK = /allowMock:\s*false\b/g
+  // allowMock:false は「取得呼び出しの引数の中」にあるものだけ数える。ファイル全体で数えると
+  // `getQuote(sym) // allowMock: false` のような行末コメントで件数を合わせられてしまう（code() が除くのは
+  // 行頭のコメント行だけ）。呼び出し1件と1対1で対応させる（2026-09-17 レビュー指摘 S1）。
+  const NO_MOCK = /\b(?:getQuote|getHistory|getFundamentals)\([^)]*allowMock:\s*false/g
   const MOCK_IMPORT = /(?:from\s*|import\s*\(\s*)['"][^'"]*providers\/mock['"]/
   const everyCallNoMock = (label: string, src: string) => {
     const calls = count(src, FETCH_CALL)
@@ -359,6 +362,18 @@ function productCode() {
     && signalsRoute.includes('getFundamentals(symbol, { allowMock: false })'))
   everyCallNoMock('api/signals', signalsRoute)
   check('api/signals: 取れないときは 502 で止める（500 に戻さない）', signalsRoute.includes('status: 502') && !signalsRoute.includes('status: 500'))
+
+  // AI の運用成績とベンチマーク比較（2026-09-17 スライス3・原則9）。engine.ts の3か所＝運用開始時の SPY
+  // （ベンチマーク比較の起点。セッションの間ずっと使われる）／保有銘柄の評価額（総資産・損益・シャープレシオ・
+  // 最大ドローダウンの元）／各 tick の SPY（比較点）。既定の allowMock:true のままだと実データ3経路が全滅した
+  // とき乱数の株価が黙って入り、評価額は catch に入らないので「取得に失敗した件数」にも数えられなかった。
+  check('engine.ts: 運用開始時と各 tick の SPY（ベンチマーク）は模擬データなし（2か所）',
+    count(engine, /getQuote\('SPY', \{ allowMock: false \}\)/g) === 2 && !/getQuote\('SPY'\)/.test(engine))
+  check('engine.ts: 保有銘柄の評価額の quote は模擬データなし（候補選びと合わせて2か所）',
+    count(engine, /getQuote\(sym, \{ allowMock: false \}\)/g) === 2 && !/getQuote\(sym\)/.test(engine))
+  check('engine.ts: 評価額の取得失敗は取得単価で代用し、件数を trade 段の note に残す',
+    engine.includes('valuationFallbacks++') && engine.includes('評価額の株価取得に失敗${valuationFallbacks}銘柄（取得単価で代用）'))
+  everyCallNoMock('engine.ts', engine)
   check("report/prompt.ts: 前日比が無いとき「取得できず」", code('lib/report/prompt.ts').includes("q.changePercent == null ? '取得できず'"))
 
   check('DecisionCard: null は「—」', code('components/watch/DecisionCard.tsx').includes('decision.change == null'))
