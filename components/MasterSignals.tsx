@@ -28,7 +28,13 @@ const ACTION_BADGE = 'rounded-full bg-surface px-2.5 text-small font-semibold te
 
 // /api/signals/[symbol] の応答。判定は signals の下に名人の id ごとに入っている。
 // 旧: 応答全体を state に入れて signals[m.id] をトップレベルで引き、5人とも常に「判定なし」だった（DECISIONS 2026-09-14）。
-type SignalsResponse = { symbol: string; signals: Record<string, Signal> }
+// undecidable は「判定できなかった名人の id → 理由の文」（2026-09-17 スライス2）。財務データが取れないとき、
+// 財務を材料にする4人はここに入り signals には入らない。判定できない名人がいないときはキー自体が無い。
+type SignalsResponse = {
+  symbol: string
+  signals: Record<string, Signal>
+  undecidable?: Record<string, string>
+}
 
 // 応答が不正（signals が無い・配列・null）なら空＝従来どおり「判定なし」。
 // 1人分の形が壊れていても描画（sig.reasons.length など）で落ちないよう、その人だけ外す。
@@ -43,22 +49,56 @@ function readSignals(d: Partial<SignalsResponse> | null): Record<string, Signal>
   return out
 }
 
+// 理由が文字列の人だけ残す（形が壊れていても落ちない）。無ければ空。
+function readUndecidable(d: Partial<SignalsResponse> | null): Record<string, string> {
+  const raw: unknown = d?.undecidable
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, string> = {}
+  for (const [id, why] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof why === 'string' && why.length > 0) out[id] = why
+  }
+  return out
+}
+
+// 画面に出す取得失敗の文。HTTP の番号や取得元の生の英語（«Real quote unavailable for AAPL — yahoo2: …»）は
+// 出さない（NEXT-STEPS 積み残し14）。原因は API の応答本文（error）とサーバーのログにある。
+// 502 ＝ データ源（Yahoo Finance など）が返せなかった（app/api/signals/[symbol]/route.ts の catch）。
+const MSG_UPSTREAM = 'データ源（Yahoo Finance など）から、この銘柄の値を受け取れませんでした。'
+const MSG_SERVER = 'サーバーから判定の結果を受け取れませんでした。'
+const MSG_NETWORK = 'サーバーに接続できないか、応答を読めませんでした。'
+class HttpError extends Error {
+  constructor(status: number) { super(status === 502 ? MSG_UPSTREAM : MSG_SERVER) }
+}
+
 export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: string }) {
   const [symbol, setSymbol] = useState(initialSymbol)
   const [signals, setSignals] = useState<Record<string, Signal> | null>(null)
+  const [undecidable, setUndecidable] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let alive = true
-    setLoading(true); setError(null); setSignals(null)
+    setLoading(true); setError(null); setSignals(null); setUndecidable({})
     fetch(`/api/signals/${encodeURIComponent(symbol)}`)
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: Partial<SignalsResponse> | null) => { if (alive) setSignals(readSignals(d)) })
-      .catch((e: Error) => { if (alive) setError(e.message) })
+      .then(r => (r.ok ? r.json() : Promise.reject(new HttpError(r.status))))
+      .then((d: Partial<SignalsResponse> | null) => {
+        if (alive) { setSignals(readSignals(d)); setUndecidable(readUndecidable(d)) }
+      })
+      .catch((e: unknown) => { if (alive) setError(e instanceof HttpError ? e.message : MSG_NETWORK) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [symbol])
+
+  // 判定できない名人（signals に無く、undecidable に理由がある人）。理由が全員同じなら、行ごとに同じ文を
+  // くり返さず一覧の手前に1回だけ出す（sharedWhy）。名人ごとに理由が違うときは sharedWhy を作らず各行に出す
+  // （スライス5で「名人ごとに必要な項目が違う」形に変える計画があるため。凝った仕組みにしない）。
+  // 2026-09-14 の再生画面で「記録なし」の重複を減らしたのと同じ方針（MC 指摘・2026-09-17）。
+  const pending = signals ? INVESTOR_META.filter(m => !signals[m.id] && undecidable[m.id]) : []
+  const sharedWhy =
+    pending.length > 0 && pending.every(m => undecidable[m.id] === undecidable[pending[0].id])
+      ? undecidable[pending[0].id]
+      : undefined
 
   return (
     <section className="space-y-2">
@@ -107,7 +147,16 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
         // 取得できなかったことは --warning-ink で書く（§5-1 色のルール）。
         <div className="bg-card rounded-card px-4 py-5 space-y-1">
           <p className="text-body text-warning-ink">シグナルを取得できませんでした</p>
-          <p className="text-body text-ink-2 max-w-[42rem]">{error} — 実データが取れないときは、代わりの数字を作らずここで止めます。</p>
+          <p className="text-body text-ink-2 max-w-[42rem]">{error} 実データが取れないときは、代わりの数字を作らずここで止めます。時間をおいて再読み込みしてください。</p>
+        </div>
+      )}
+
+      {!loading && !error && signals && sharedWhy && (
+        // 判定できない名人の理由が全員同じとき、一覧の手前に1回だけ。見た目は上の「シグナルを取得できませんでした」と
+        // 同じ型（枠なしの白い帯・左揃え・見出しは --warning-ink、説明は --ink-2）。新しい見せ方は作らない。
+        <div className="bg-card rounded-card px-4 py-5 space-y-1">
+          <p className="text-body text-warning-ink">{pending.map(m => m.label).join('・')}は判定できません</p>
+          <p className="text-body text-ink-2 max-w-[42rem]">{sharedWhy}</p>
         </div>
       )}
 
@@ -117,6 +166,10 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
         <ul className="bg-card rounded-card">
           {INVESTOR_META.map(m => {
             const sig = signals[m.id]
+            // 材料が無くて判定できない（財務データが取れない等）。「判定なし」＋哲学の文だと何か言っているように
+            // 読めるので使わず、取得できなかったことを --warning-ink で書く（§5-1 色のルール。上の
+            // 「シグナルを取得できませんでした」と同じ型: 見出しは --warning-ink、説明は --ink-2）。
+            const why = sig ? undefined : undecidable[m.id]
             return (
               <li key={m.id} className="mx-4 border-t border-border first:border-t-0 py-4 space-y-2">
                 <div className="flex items-center gap-2">
@@ -132,6 +185,8 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
                     <span className={`ml-auto ${ACTION_BADGE}`}>
                       {ACTION_LABEL[sig.action]}
                     </span>
+                  ) : why ? (
+                    <span className="ml-auto text-small text-warning-ink whitespace-nowrap">判定できません</span>
                   ) : (
                     <span className="ml-auto text-small text-muted">判定なし</span>
                   )}
@@ -143,6 +198,10 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
                       <li key={i} className="text-small text-ink-2">・{r}</li>
                     ))}
                   </ul>
+                ) : why ? (
+                  // 理由が全員同じなら上の帯に1回だけ書いてあるので、行には札だけ残す。違う理由が混ざるときは行ごとに出す。
+                  // どちらでも m.philosophy（投資哲学の文）は出さない（何か言っているように読めるため）。
+                  sharedWhy ? null : <p className="text-small text-ink-2 max-w-[42rem]">{why}</p>
                 ) : (
                   <p className="text-small text-muted">{m.philosophy}</p>
                 )}

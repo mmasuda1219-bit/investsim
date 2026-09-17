@@ -24,27 +24,54 @@ const ACTION_COLOR: Record<Signal['action'], string> = {
 
 const STRENGTH_DOTS = (n: Signal['strength']) => Array.from({ length: 3 }, (_, i) => i < n)
 
+// 画面に出す取得失敗の文。取得元の生の英語（«Real quote unavailable for AAPL — yahoo2: … / yahoodirect: …»、
+// スライス1以降は3経路の失敗理由を連結した長い文）は出さない。原因は API の応答本文（error）にあり、
+// 開発者はブラウザの Network で読める。文言は DESIGN.md §6-12 の三点形式（何が起きたか／データはどうなったか／
+// どうすればいいか）。502 ＝ データ源が返せなかった（app/api/signals/[symbol]/route.ts の catch）。
+const MSG_UPSTREAM = 'データ源（Yahoo Finance など）から、この銘柄の値を受け取れませんでした。実データが取れないときは、代わりの数字を作らずここで止めます。時間をおいて再読み込みしてください。'
+const MSG_SERVER = 'サーバーから判定の結果を受け取れませんでした。時間をおいて再読み込みしてください。'
+const MSG_NETWORK = 'サーバーに接続できないか、応答を読めませんでした。通信の状態を確かめて、再読み込みしてください。'
+class HttpError extends Error {
+  constructor(status: number) { super(status === 502 ? MSG_UPSTREAM : MSG_SERVER) }
+}
+
+// /api/signals の undecidable（判定できなかった名人の id → 理由の文。2026-09-17 スライス2）。
+// 理由が文字列の人だけ残す。キーが無ければ空。
+function readUndecidable(d: { undecidable?: unknown } | null): Record<string, string> {
+  const raw = d?.undecidable
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, string> = {}
+  for (const [id, why] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof why === 'string' && why.length > 0) out[id] = why
+  }
+  return out
+}
+
 export function InvestorPanel({ symbol }: Props) {
   const [selectedId, setSelectedId] = useState(investors[0].id)
   const [signals, setSignals] = useState<Record<string, Signal>>({})
+  const [undecidable, setUndecidable] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
     setError(null)
+    setUndecidable({})
     fetch(`/api/signals/${symbol}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) throw new Error(d.error)
+      .then(async (r) => {
+        const d = await r.json().catch(() => null)
+        if (!r.ok || !d || d.error) throw new HttpError(r.status)
         setSignals(d.signals ?? {})
+        setUndecidable(readUndecidable(d))
       })
-      .catch((e) => setError(e.message))
+      .catch((e: unknown) => setError(e instanceof HttpError ? e.message : MSG_NETWORK))
       .finally(() => setLoading(false))
   }, [symbol])
 
   const selected = investors.find((i) => i.id === selectedId)!
   const signal = signals[selectedId]
+  const whyUndecidable = signal ? undefined : undecidable[selectedId]
 
   return (
     <div className="bg-panel border border-border rounded-xl p-5">
@@ -92,12 +119,23 @@ export function InvestorPanel({ symbol }: Props) {
       )}
 
       {error && (
-        <div className="text-danger text-sm bg-danger-tint border border-border rounded-lg px-4 py-3">
-          データ取得エラー: {error}
+        // 取得できなかったことは --warning-ink で書く（DESIGN.md §5-1 色のルール）。
+        // 旧: 赤い箱に「データ取得エラー: {取得元の生の英語}」。枠の中に枠を作らない。
+        <div className="text-sm py-2 max-w-[42rem] leading-relaxed">
+          <p className="text-warning-ink">シグナルを取得できませんでした</p>
+          <p className="text-ink-2 mt-1">{error}</p>
         </div>
       )}
 
-      {!loading && !error && !signal && (
+      {!loading && !error && whyUndecidable && (
+        // 材料が無くて判定できない（財務データが取れない等）。理由の文は API から来る。
+        <div className="text-sm py-2 max-w-[42rem] leading-relaxed">
+          <p className="text-warning-ink">判定できません</p>
+          <p className="text-ink-2 mt-1">{whyUndecidable}</p>
+        </div>
+      )}
+
+      {!loading && !error && !signal && !whyUndecidable && (
         <div className="text-muted text-sm py-2">
           このシンボルのシグナルデータが取得できませんでした
         </div>
