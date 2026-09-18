@@ -35,7 +35,7 @@ interface Props {
 
 // ── 色 ────────────────────────────────────────────────────────────────────
 // lightweight-charts は canvas 描画で CSS 変数を読めないため hex 直書きだが、
-// すべて app/globals.css のトークンと同値（TradingChart と同じ方式）。
+// すべて app/globals.css のトークンと同値。
 // トークン側を変えたらここも合わせること。
 const C = {
   ink:     '#1A1A18', // --ink     終値の線・売買マーカー

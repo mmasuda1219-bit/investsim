@@ -18,7 +18,9 @@ import {
 } from '../lib/ai-trader/replay-model'
 import os from 'node:os'
 import crypto from 'node:crypto'
+import Module from 'node:module'
 import { execFileSync } from 'node:child_process'
+import type { HistoricalBar } from '../types'
 import {
   emptyTickRecord, makeStage, decisionIdFor, skippedTickAI, AI_SKIPPED_NOTE, AI_SKIPPED_KNOWLEDGE_NOTE,
   type TickRecord,
@@ -1269,7 +1271,224 @@ function jSession(kind: 'timeout' | 'error' | 'decided' | 'partial' | 'no-tick' 
   }
 }
 
-console.log('')
-console.log(`PASS ${passed} 件 / FAIL ${failed} 件`)
-if (failed) { process.exit(1) }
-console.log('すべてPASS')
+// ══════════════════════════════════════════════════════════════════════════
+// K. chart API（app/api/ai-session/[id]/chart/[symbol]/route.ts）の失敗時応答（2026-09-18・計画④）と、旧チャート部品の削除
+//
+// 実ネットワーク不要: `@/lib/ai-trader/engine`（getSession）と `@/lib/market`（getHistory）を Module._load で偽物に差し替え、
+// route.ts の GET をそのまま呼ぶ（scripts/check-ai-session-latest.ts と同じ流儀）。差し替えで返す値は検査用の合成値で、
+// 製品コードには入れない（原則9の範囲内）。変更前の版（BASELINE_COMMIT の route。J 節と同じ commit）も git から一時
+// ディレクトリに取り出して同じ入力で呼び、成功（200）と 404 の応答が status・本文・ヘッダともバイト一致することを確かめる。
+const CHART_ROUTE_REL = 'app/api/ai-session/[id]/chart/[symbol]/route.ts'
+type ChartRoute = { GET: (req: unknown, ctx: { params: Promise<{ id: string; symbol: string }> }) => Promise<Response> }
+type ChartStub = {
+  session: AISession | null; history: HistoricalBar[]; throws: unknown
+  calls: { getSession: string[]; getHistory: Array<{ symbol: string; range: string; opts: { allowMock?: boolean } | undefined }> }
+}
+const chartStub: ChartStub = { session: null, history: [], throws: null, calls: { getSession: [], getHistory: [] } }
+const chartEngineStub = {
+  getSession: async (id: string): Promise<AISession | null> => {
+    chartStub.calls.getSession.push(id)
+    return chartStub.session && chartStub.session.id === id ? chartStub.session : null
+  },
+}
+const chartMarketStub = {
+  getHistory: async (symbol: string, range: string, opts?: { allowMock?: boolean }): Promise<HistoricalBar[]> => {
+    chartStub.calls.getHistory.push({ symbol, range, opts })
+    if (chartStub.throws) throw chartStub.throws
+    return chartStub.history
+  },
+}
+type ChartReply = {
+  status: number; text: string; cache: string | null; headers: string[]; logged: string[]
+  body: { error?: string; history?: unknown[]; trades?: Array<{ time: number; timestamp: string }>; outOfRangeTrades?: number }
+  calls: ChartStub['calls']
+}
+async function callChartRoute(route: ChartRoute, id: string, symbol: string): Promise<ChartReply> {
+  const logged: string[] = []
+  const realError = console.error
+  console.error = (...args: unknown[]) => { logged.push(args.map(String).join(' ')) }
+  chartStub.calls = { getSession: [], getHistory: [] }
+  let res: Response
+  try {
+    res = await route.GET(new Request(`http://localhost/api/ai-session/${id}/chart/${symbol}`), { params: Promise.resolve({ id, symbol }) })
+  } finally {
+    console.error = realError
+  }
+  const text = await res.text()
+  const headers = [...res.headers.entries()].map(([k, v]) => `${k}: ${v}`).sort()
+  return { status: res.status, text, cache: res.headers.get('cache-control'), headers, logged, body: JSON.parse(text), calls: { ...chartStub.calls } }
+}
+/* eslint-disable @typescript-eslint/no-require-imports */
+async function sectionK() {
+  console.log('K. chart API の失敗時応答（502・no-store・和文）と成功時の不変、旧チャート部品（TradingChart / ReferencePanel / api/chart）の削除')
+  // 差し替えの前に本物を掴んでおく（変更前の版は一時ディレクトリに置くので、そこからは next/server を見つけられない）
+  const nextServer = require('next/server')
+  type ModuleWithLoad = typeof Module & { _load: (request: string, ...rest: unknown[]) => unknown }
+  const M = Module as unknown as ModuleWithLoad
+  const realLoad = M._load
+  M._load = function (request: string, ...rest: unknown[]) {
+    if (request === 'server-only') return {}
+    if (request === '@/lib/ai-trader/engine') return chartEngineStub
+    if (request === '@/lib/market') return chartMarketStub
+    if (request === 'next/server') return nextServer
+    return realLoad.call(this, request, ...rest)
+  }
+  try {
+    const route = require(path.join(PROJECT_ROOT, CHART_ROUTE_REL)) as ChartRoute
+    let baseline: ChartRoute | null = null
+    try {
+      execFileSync('git', ['cat-file', '-e', `${BASELINE_COMMIT}^{commit}`], { cwd: PROJECT_ROOT, stdio: 'ignore' })
+      const src = execFileSync('git', ['show', `${BASELINE_COMMIT}:${CHART_ROUTE_REL}`], { cwd: PROJECT_ROOT, encoding: 'utf8' })
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'investsim-chart-route-baseline-'))
+      const file = path.join(dir, 'route.ts')
+      fs.writeFileSync(file, src)
+      try { baseline = require(file) as ChartRoute } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+    } catch (e) {
+      console.log(`  未実行（変更前との突き合わせ）: git で ${BASELINE_COMMIT} の route を読めない — ${e instanceof Error ? e.message : String(e)}`)
+    }
+
+    // ── 検査用の足（6本・9/8〜9/15）と売買（CVX 3件が窓の中、1件が窓の外、XOM 1件は別銘柄） ──
+    const K_DAYS = ['2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11', '2026-09-14', '2026-09-15']
+    const K_BARS: HistoricalBar[] = K_DAYS.map((d, i) => ({
+      time: Math.floor(Date.parse(`${d}T13:30:00.000Z`) / 1000), open: 100 + i, high: 101 + i, low: 99 + i, close: 100.5 + i, volume: 1000 + i,
+    }))
+    const barAt = (d: string) => K_BARS[K_DAYS.indexOf(d)].time
+    const kTrade = (symbol: string, action: AITrade['action'], timestamp: string, price: number): AITrade => ({
+      timestamp, symbol, name: symbol, action, shares: 10, price, total: price * 10, reason: `検査用 ${symbol} ${action}`,
+      technicals: '', fundamentals: '', news: [], sources: [],
+    })
+    const tIn1 = kTrade('CVX', 'buy', '2026-09-10T15:00:00.000Z', 102.5)                          // 9/10 の足（差 1.5 時間）
+    const tIn2 = kTrade('CVX', 'sell', '2026-09-15T20:00:00.000Z', 105.5)                         // 9/15 の足（差 6.5 時間）
+    const tOut = kTrade('CVX', 'buy', '2026-08-01T15:00:00.000Z', 90)                             // 最古の足から 38 日前 → 窓の外
+    const tEdge = kTrade('CVX', 'buy', new Date((barAt('2026-09-15') + 3 * 86_400) * 1000).toISOString(), 106) // ちょうど 3 日後 → 窓の中（> でなく >=）
+    const tOther = kTrade('XOM', 'buy', '2026-09-10T15:00:00.000Z', 160)                          // 別銘柄 → 数えない
+    const kSession: AISession = { ...syntheticSession(), id: 'k-session', trades: [tIn1, tOut, tIn2, tOther, tEdge] }
+    const pick = (t: AITrade, time: number) => ({ time, action: t.action, price: t.price, shares: t.shares, total: t.total, reason: t.reason, timestamp: t.timestamp })
+    const EXPECTED_OK = JSON.stringify({
+      history: K_BARS,
+      trades: [pick(tIn1, barAt('2026-09-10')), pick(tIn2, barAt('2026-09-15')), pick(tEdge, barAt('2026-09-15'))],
+      outOfRangeTrades: 1,
+    })
+    const HISTORY_FAILED = '取得元から応答がありません'
+    const SESSION_NOT_FOUND = 'セッションが見つかりません'
+    const CAUSE = 'Real market data unavailable for CVX — yahoo2: fetch failed (ECONNRESET) / yahoodirect: HTTP 429 Too Many Requests'
+
+    // ── 1. 成功（200）: 本文は history / trades / outOfRangeTrades だけ・ヘッダは変更前と同じ（Cache-Control なし） ──
+    chartStub.session = kSession; chartStub.history = K_BARS; chartStub.throws = null
+    const ok = await callChartRoute(route, 'k-session', 'CVX')
+    check('成功: 200', ok.status === 200, String(ok.status))
+    check('成功: 本文が期待の JSON と一字も違わない（窓の中 3 件・外 1 件・別銘柄は数えない）', ok.text === EXPECTED_OK, ok.text.slice(0, 300))
+    check('成功: Cache-Control を付けない（変更前と同じ）', ok.cache === null, String(ok.cache))
+    check('成功: console.error は出ない', ok.logged.length === 0, JSON.stringify(ok.logged))
+    check("成功: getHistory は (symbol, '6mo', { allowMock: false }) で 1 回（原則9・変更前と同じ）",
+      ok.calls.getHistory.length === 1 && ok.calls.getHistory[0].symbol === 'CVX' && ok.calls.getHistory[0].range === '6mo' && ok.calls.getHistory[0].opts?.allowMock === false,
+      JSON.stringify(ok.calls.getHistory))
+    check('成功: getSession は id で 1 回', JSON.stringify(ok.calls.getSession) === JSON.stringify(['k-session']))
+
+    // ── 2. 404: セッションが無い → 和文・getHistory は呼ばない ──
+    chartStub.session = null
+    const nf = await callChartRoute(route, 'no-such', 'CVX')
+    check('404: status 404', nf.status === 404, String(nf.status))
+    check(`404: error は「${SESSION_NOT_FOUND}」（本文は error だけ）`, nf.body.error === SESSION_NOT_FOUND && JSON.stringify(Object.keys(nf.body)) === '["error"]', nf.text)
+    check("404: 英語の 'Session not found' が本文に無い", !nf.text.includes('Session not found'))
+    check('404: getHistory を呼ばない', nf.calls.getHistory.length === 0)
+
+    // ── 3. 失敗（getHistory が投げる） → 502・no-store・和文の error だけ・原因はログに 1 行 ──
+    chartStub.session = kSession; chartStub.throws = new Error(CAUSE)
+    const ng = await callChartRoute(route, 'k-session', 'CVX')
+    check('失敗: 502（500 ではない）', ng.status === 502, String(ng.status))
+    check('失敗: Cache-Control: no-store', ng.cache === 'no-store', String(ng.cache))
+    check(`失敗: error は「${HISTORY_FAILED}」`, ng.body.error === HISTORY_FAILED, String(ng.body.error))
+    check('失敗: 本文は error だけ（history / trades / outOfRangeTrades を持たない）', JSON.stringify(Object.keys(ng.body)) === '["error"]', ng.text)
+    check('失敗: 元の例外の英語が本文に無い', !ng.text.includes('Real market data unavailable') && !ng.text.includes('ECONNRESET') && !ng.text.includes('429'), ng.text)
+    check('失敗: console.error はちょうど 1 回', ng.logged.length === 1, String(ng.logged.length))
+    check('失敗: その 1 行に経路名・id/銘柄・原因が入る', ng.logged[0]?.includes('[api/ai-session/[id]/chart/[symbol]]') === true
+      && ng.logged[0]?.includes('k-session/CVX') === true && ng.logged[0]?.includes(CAUSE) === true, JSON.stringify(ng.logged))
+    // 和文の形: 括弧に入れて読めるよう短く、英字なし、「取得できませんでした」を重ねない
+    check('失敗: error は 20 字以内・英字なし・句点なし', HISTORY_FAILED.length <= 20 && !/[A-Za-z]/.test(HISTORY_FAILED) && !HISTORY_FAILED.includes('。'))
+    check('失敗: error に「取得できませんでした」を含まない（括弧の外にある語を重ねない）', !HISTORY_FAILED.includes('取得できませんでした'))
+    // Error でないものが投げられても（文字列など）同じ形
+    chartStub.throws = 'plain string failure'
+    const ng2 = await callChartRoute(route, 'k-session', 'CVX')
+    check('失敗（Error 以外）: 502・no-store・同じ和文・ログに String(err)', ng2.status === 502 && ng2.cache === 'no-store' && ng2.body.error === HISTORY_FAILED
+      && ng2.logged.length === 1 && ng2.logged[0].includes('plain string failure'), `${ng2.status} ${ng2.text} ${JSON.stringify(ng2.logged)}`)
+    chartStub.throws = null
+
+    // ── 4. 画面の括弧に入れたときの見え方（ReplayStages は実際に描く。/watch のチャート面は文の型を静的に確かめる） ──
+    const watchSrc = fs.readFileSync(path.join(PROJECT_ROOT, 'app/watch/client.tsx'), 'utf8')
+    check('/watch: 「価格データを取得できませんでした（{chartError}）」の形で error をそのまま括弧に入れる（画面側は変えない）',
+      watchSrc.includes('価格データを取得できませんでした（{chartError}）') && watchSrc.includes("throw new Error(d.error ?? `HTTP ${r.status}`)"))
+    console.log(`  /watch の見え方: 価格データを取得できませんでした（${HISTORY_FAILED}）`)
+    let kit: RenderKit | null = null
+    try { kit = loadKit(PROJECT_ROOT) } catch (e) { check('部品を読み込めた', false, e instanceof Error ? e.message : String(e)) }
+    if (kit) {
+      const s = jSession('decided')
+      const rounds = kit.listReplayRounds(s)
+      const m = kit.buildReplayModel(s, rounds[0], { rounds })
+      const phase = kit.completePhase(kit.planFor(m))
+      const html = kit.renderToStaticMarkup(kit.React.createElement(kit.ReplayStages as never, { model: m, phase, history: 'error', historyError: HISTORY_FAILED, markers: [], instant: false }))
+      const seg2 = htmlText(stageHtml(html, 'materials'))
+      const SENTENCE = `株価の足を取得できませんでした（${HISTORY_FAILED}）。線と平均線は再計算できません。`
+      check(`再生画面 段2: 「${SENTENCE}」`, seg2.includes(SENTENCE), seg2.slice(0, 240))
+      check('再生画面 段2: 英語の Real market data / unavailable が出ない', !/Real market data|unavailable/i.test(seg2))
+      console.log(`  再生画面の見え方: ${SENTENCE}`)
+    }
+
+    // ── 5. 変更前の版（BASELINE_COMMIT）と同じ入力で突き合わせ: 成功と 404 はバイト一致・失敗だけが違う ──
+    if (baseline) {
+      chartStub.session = kSession; chartStub.history = K_BARS; chartStub.throws = null
+      const b = await callChartRoute(baseline, 'k-session', 'CVX')
+      check(`成功: 変更前（${BASELINE_COMMIT}）と status・本文・ヘッダがバイト一致`, b.status === ok.status && b.text === ok.text && JSON.stringify(b.headers) === JSON.stringify(ok.headers),
+        `今 ${ok.status} ${JSON.stringify(ok.headers)} / 前 ${b.status} ${JSON.stringify(b.headers)}`)
+      chartStub.session = null
+      const bnf = await callChartRoute(baseline, 'no-such', 'CVX')
+      check('404: 変更前と status・ヘッダは同じ（変えたのは文だけ）', bnf.status === nf.status && JSON.stringify(bnf.headers) === JSON.stringify(nf.headers))
+      check("検査の妥当性: 変更前の 404 は英語の 'Session not found'", bnf.body.error === 'Session not found', bnf.text)
+      chartStub.session = kSession; chartStub.throws = new Error(CAUSE)
+      const bng = await callChartRoute(baseline, 'k-session', 'CVX')
+      check('検査の妥当性: 変更前の失敗は 500・Cache-Control なし・英語の原因が本文に出ていた', bng.status === 500 && bng.cache === null && bng.body.error === CAUSE, `${bng.status} ${bng.text}`)
+      check('検査の妥当性: 変更前は console.error を出していなかった', bng.logged.length === 0)
+      chartStub.throws = null
+    }
+
+    // ── 6. 実装の守り（route.ts の中身） ──
+    const routeSrc = fs.readFileSync(path.join(PROJECT_ROOT, CHART_ROUTE_REL), 'utf8')
+    const routeCode = routeSrc.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n')
+    check("route.ts: getHistory(symbol, '6mo', { allowMock: false }) のまま（原則9）", routeCode.includes("getHistory(symbol, '6mo', { allowMock: false })"))
+    check('route.ts: 成功時の return NextResponse.json({ history, trades, outOfRangeTrades }) のまま', routeCode.includes('return NextResponse.json({ history, trades, outOfRangeTrades })'))
+    check('route.ts: status: 500 を使わない・status: 502 と no-store がある', !routeCode.includes('status: 500') && routeCode.includes('status: 502') && routeCode.includes("'Cache-Control': 'no-store'"))
+    check("route.ts: 'Session not found' / 'Failed to fetch chart' の英語を使わない", !routeCode.includes('Session not found') && !routeCode.includes('Failed to fetch chart'))
+    check('route.ts: catch に console.error がある', /catch \(err\) \{[\s\S]*console\.error\(/.test(routeCode))
+    check('route.ts: 画面向けの 2 文は定数に置く', routeCode.includes(`const HISTORY_FAILED_MESSAGE = '${HISTORY_FAILED}'`) && routeCode.includes(`const SESSION_NOT_FOUND_MESSAGE = '${SESSION_NOT_FOUND}'`))
+
+    // ── 7. 旧チャート部品の削除: 3 ファイルが無く、コード（コメント以外）からの参照が 0 件 ──
+    const GONE = ['components/TradingChart.tsx', 'components/ReferencePanel.tsx', 'app/api/chart/route.ts', 'app/api/chart']
+    check('削除: TradingChart.tsx / ReferencePanel.tsx / app/api/chart/ が無い', GONE.every(f => !fs.existsSync(path.join(PROJECT_ROOT, f))), GONE.filter(f => fs.existsSync(path.join(PROJECT_ROOT, f))).join(','))
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== '.next') walk(p, out) }
+        else if (/\.(ts|tsx|js|mjs)$/.test(e.name)) out.push(p)
+      }
+      return out
+    }
+    const files = ['app', 'components', 'lib', 'scripts'].flatMap(d => walk(path.join(PROJECT_ROOT, d))).filter(f => path.resolve(f) !== path.resolve(__filename))
+    const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+    const NAMES = /TradingChart|ReferencePanel|\/api\/chart(?![A-Za-z0-9_-])/
+    const hits = files.filter(f => NAMES.test(stripComments(fs.readFileSync(f, 'utf8')))).map(f => path.relative(PROJECT_ROOT, f))
+    check(`削除: app/ components/ lib/ scripts/ のコード（${files.length} ファイル・コメント除く）に TradingChart / ReferencePanel / /api/chart の参照が無い`, hits.length === 0, hits.join(','))
+    check('残る chart の route は ai-session の 1 本だけ', walk(path.join(PROJECT_ROOT, 'app/api')).filter(f => /chart/.test(f) && /route\.ts$/.test(f)).length === 1)
+  } finally {
+    M._load = realLoad
+  }
+}
+/* eslint-enable @typescript-eslint/no-require-imports */
+
+sectionK()
+  .catch(err => { failed++; console.error(err) })
+  .finally(() => {
+    console.log('')
+    console.log(`PASS ${passed} 件 / FAIL ${failed} 件`)
+    if (failed) { process.exit(1) }
+    console.log('すべてPASS')
+  })
