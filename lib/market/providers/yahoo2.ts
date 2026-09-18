@@ -258,7 +258,11 @@ export async function yf2GetFundamentals(symbol: string): Promise<FundamentalsDa
   const data: FundamentalsData = Object.fromEntries(
     Object.entries(raw).filter(([, v]) => v !== undefined),
   )
-  writeCache(key, data)
+  // 取れなかった結果（空 {}）は覚えない。lib/market/index.ts の getFundamentals は「キーが1つ以上」のときだけ
+  // この結果を受け取り、空なら次の取得元へ回る。空を30分覚えると、その間は問い合わせずに空が即返り＝一度の
+  // 失敗が30分固定されていた。覚える条件は index.ts が受け取る条件（Object.keys(f).length > 0）と同じにし、
+  // 値が1つでもあれば一部だけでも覚える（2026-09-17 DECISIONS「取れなかった結果を覚えない」）。
+  if (Object.keys(data).length > 0) writeCache(key, data)
   return data
 }
 

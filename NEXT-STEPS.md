@@ -305,7 +305,7 @@ Step 1・2・2b は完了済み（公開・動作確認まで）。オーナー�
 7. **`leadingUniqueRun` の近似**（tick 境界を銘柄の重複で推定）→ S2 の `decidedAt` で解消
 8. **`GET /api/ai-session` が全項目（343KB）を返す** → 一覧は要約・`[id]` は詳細・decisions はカーソル（data-engineer 案）
 9. **C1 単位の全体統一**（プロバイダ層で /100・`investor-presets.ts:70` 200→2.0・`universe_fundamentals` の再取得）→ **オーナー判断**（スクリーニングが再取得まで空になる）
-10. `TradingChart.tsx` / `ReferencePanel.tsx` は参照ゼロ → 2ファイルまとめて削除候補。**`TradingChart.tsx` は `app/api/chart/route.ts` の唯一の呼び出し元で、その route の `high/low ?? 0` はフィルタが無く「ヒゲが 0 まで伸びる偽の足」を描きうる**（2026-09-17 architect）→ 2ファイルまとめて**スライス5**で削除（直すのではなく消す）。`ReferencePanel.tsx` はその範囲外
+10. `TradingChart.tsx` / `ReferencePanel.tsx` は参照ゼロ → 2ファイルまとめて削除候補。**`TradingChart.tsx` は `app/api/chart/route.ts` の唯一の呼び出し元で、その route の `high/low ?? 0` はフィルタが無く「ヒゲが 0 まで伸びる偽の足」を描きうる**（2026-09-17 architect）→ 2ファイルまとめて**スライス5**で削除（直すのではなく消す）。~~`ReferencePanel.tsx` はその範囲外~~ → **訂正（2026-09-17 architect）: `ReferencePanel.tsx:3` が `import type { Trade } from './TradingChart'` で型を読んでいるので、TradingChart だけ消すと型エラーになる。3ファイル一緒に消す**（ReferencePanel を使っている所は無い。TradeLog.tsx のコメントに名前が出るだけ）
 11. `learning.fundamentalInsights` に「D/E が高くても…」等、単位バグ期の教訓が混ざっている可能性 → scout が目視して注記（自動削除しない）
 12. `FundamentalsFigure` の未使用 `full` variant（原則8）
 13. **502 の不統一**: `app/api/ai-session/[id]/chart/[symbol]/route.ts:61` は `allowMock:false` の失敗で 500 を返す。2026-09-17 に `/api/stocks/` `/api/signals/` を 502（上流のデータ源が返せなかった）へ揃えたので、ここだけ残っている。原則9違反ではない（`allowMock:false` は済み）ので急がない → スライス5で一緒に
@@ -330,6 +330,10 @@ Step 1・2・2b は完了済み（公開・動作確認まで）。オーナー�
 32. **`/api/simulate` の想定外の例外が英語のまま画面の見出しに出る**（同 reviewer S5・builder 範囲外1と同件）: `app/api/simulate/route.ts:36` の catch はモデル内部の TypeError 等の英語もそのまま `error` に載せ、`page.tsx:107` がそれを見出しに出す。既定文 `'Simulation failed'` と `Unknown investor: …` も英語。route で和文の固定文にし、原文は `console.error` へ（スライス1 W1 と同じ流儀）。502 化も `/api/signals` に揃えて
 33. **`/simulate` の結果表示が DESIGN 移行前のまま**（スライス4 builder 報告）: 損益・札の色が `text-green-700`・`bg-red-50` の直書き、`rounded-xl`、`MiniChart` が暗色テーマの固定色（`#94a3b8`・`#1e293b`）で `components/chartTheme.ts` を使っていない（DESIGN §6-14）。ナビ外の補助機能なので優先度は低い
 34. **開発サーバーで `yahoo2.ts` のメモリキャッシュが効いていない可能性**（スライス4 builder 観測・確度低）: 2秒差の2回目も 4.7秒かかり結果が動いた（HISTORY は5分キャッシュのはず）。Turbopack のモジュール分離か、yahoo2 が失敗して無キャッシュの yahoodirect に落ちたか。本番挙動は未確認 → data-engineer の調査候補
+35. **決算データの空の結果が1時間残る**（2026-09-17 architect・範囲外で発見）: `lib/market/providers/yahoo2.ts:481` の `getEarnings` は、2つの取得が両方失敗した空の結果を1時間キャッシュし、earnings の route でも CDN に1時間保存される。画面は「取得できませんでした」と正直に出すので、害は古い表示が残ることだけ。積み残し19（空の財務の30分キャッシュ）と同じ形
+36. **決算書の欠けた結果が24時間残る**（同上）: `yahoo2.ts:344-351` 付近で、3つの取得の一部が一時的に失敗しても、その欠けた結果を24時間キャッシュする
+37. **銘柄検索とニュースの空の結果を10分覚える**（2026-09-18 ①の builder 報告）: `yahoo2.ts:285`（`yf2Search`）・`:313`（`yf2GetNews`）が空配列 `[]` を10分キャッシュし、「本当に0件」と「取りこぼし」が区別できない。重要度は低め。35・36 と一緒に「取れなかった結果を覚えない」の横展開として扱う
+38. **一部だけ取れた財務も30分キャッシュされる**（2026-09-18 ① MC レビュー）: ①で「空は覚えない」にしたが、`marketCap` だけのような**一部だけの結果は覚える**（受け取る側 `index.ts:119` の条件と揃えた結果で、①より前から同じ挙動＝今回の変更で悪化はしていない）。ただし**積み残し18（財務が一部だけのとき4人が「様子見」と本物に見える判断を返す）と組み合わさると、その判定が30分続く**。18 を直すときに「一部だけの結果を覚えてよいか」も一緒に決めること
 
 ### 🔴 調査が要る問題（2026-09-09〜10 に実データで発見）
 
