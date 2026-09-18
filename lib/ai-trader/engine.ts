@@ -22,6 +22,8 @@ import type { KnowledgeItem, KnowledgeKind } from '@/lib/knowledge/types'
 // 画面(/watch)が「AIは何銘柄を監視しているのか」を同じ定義から読めるようにしている。
 import { UNIVERSE, TICK_CANDIDATE_COUNT } from './universe'
 import { CLAUDE_TIMEOUT_MS, DECISION_MAX_TOKENS } from './ai-config'
+// 7a(2026-09-17): ベンチマーク比較の起点（benchmarkStart）を実データで取れたときだけ付ける印。型と定数だけの純データ。
+import { BENCHMARK_BASIS, type BenchmarkBasis } from './benchmark-basis'
 // 4a(2026-09-11): tick ごとの過程の記録（DESIGN.md §6-19 の材料）。型と組み立ては純関数側に置く。
 import {
   emptyTickRecord, makeStage, pushTick, decisionIdFor, rankUniverse, candidatesNote, CHANGE_BASIS,
@@ -255,6 +257,10 @@ export interface AISession {
   learning:     LearningMemory
   equityHistory:    EquityPoint[]
   benchmarkStart:   number | null
+  // 2026-09-17 スライス7a: benchmarkStart の印。'real-v1' ＝ 運用開始時の SPY を実データで取れた。任意フィールド
+  // （これより前のセッションには無く、起点が実データだったか模擬データだったかを後から区別できない。runTick の
+  // 補完でも足さない・消さない。保存済みのセッションは書き換えない。値の範囲では判別しない）。
+  benchmarkBasis?:  BenchmarkBasis
   stats: {
     daysRunning:    number
     maxValue:       number
@@ -986,9 +992,13 @@ export async function startSession(capital = 100000, persona?: InvestorId): Prom
   // ベンチマーク比較の起点。このセッションの間ずっと使われるので、実データが取れないときは乱数の株価で
   // 埋めず null のまま始める（2026-09-17 スライス3・原則9。null なら runTick が benchmarkPct を出さない）。
   let benchmarkStart: number | null = null
+  // 2026-09-17 スライス7a: 起点を実データで取れたときだけ印を付ける（付ける場所はここ1か所。catch では付けない）。
+  // 取れなかった回は undefined のままで、下のセッションにキー自体を持たせない（null や '' で埋めない）。
+  let benchmarkBasis: BenchmarkBasis | undefined
   try {
     const spy = await getQuote('SPY', { allowMock: false })
     benchmarkStart = spy.price
+    benchmarkBasis = BENCHMARK_BASIS
   } catch { /* non-critical */ }
 
   const id = `session_${Date.now()}`
@@ -1010,6 +1020,8 @@ export async function startSession(capital = 100000, persona?: InvestorId): Prom
     learning:       createLearningMemory(),
     equityHistory:  [],
     benchmarkStart,
+    // 印が無いときはキーごと持たない（旧セッションと同じ形。読む側は「キーが無い＝印なし」）。
+    ...(benchmarkBasis !== undefined ? { benchmarkBasis } : {}),
     stats:          emptyStats(),
     auto:           { enabled: false, date: '', count: 0 },
     persona,
