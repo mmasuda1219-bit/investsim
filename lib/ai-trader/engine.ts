@@ -27,6 +27,7 @@ import { BENCHMARK_BASIS, type BenchmarkBasis } from './benchmark-basis'
 // 4a(2026-09-11): tick ごとの過程の記録（DESIGN.md §6-19 の材料）。型と組み立ては純関数側に置く。
 import {
   emptyTickRecord, makeStage, pushTick, decisionIdFor, rankUniverse, candidatesNote, CHANGE_BASIS,
+  skippedTickAI, AI_SKIPPED_NOTE, AI_SKIPPED_KNOWLEDGE_NOTE,
   type TickRecord, type TickAI, type TickUniverseRow, type TickContext, type ChangeBasis,
 } from './tick-record'
 
@@ -1089,13 +1090,24 @@ export async function runTick(sessionId: string): Promise<AISession> {
   record.stages.push(makeStage('contexts', ctxStartMs, Date.now(), enriched.length > 0,
     `${enriched.length}/${combined.length}銘柄の材料を取得`))
 
+  // 材料を取得できた銘柄が0件なら、知識の読み込みと AI を飛ばす（2026-09-17 決定「0銘柄なら AI を呼ばない」）。
+  // 以前は0件でも呼んでいて、費用と最大 CLAUDE_TIMEOUT_MS を使ったうえ返事は必ず判断0件（'empty'）になり、
+  // 再生画面が「返事が打ち切られ」と事実と違う文を出していた。段の並び candidates → contexts → knowledge →
+  // ai → trade は保ち、note で理由を残す。tickCount・equityHistory・評価額は 'empty' の回と同じ数え方で進める。
+  // 1銘柄でも取れた回は今までどおり呼ぶ（止める条件を広げない）。
+  const aiSkipped = enriched.length === 0
+  if (aiSkipped) {
+    console.warn(`[ai-trader] ${AI_SKIPPED_NOTE}（分析対象 ${combined.length} 銘柄すべてで材料の取得に失敗）`)
+  }
+
   // S2(知識配線): knowledge_items未設定/未実行・タイムアウト時は[]にフォールバックする
   // （loadKnowledgePoolSafely内部でfail-open・1行warn）。selectKnowledgeForDecisionは
   // 純関数なので空プールなら[]を返し、formatKnowledgeBlockも空文字を返すため、
   // askClaudeへ渡すプロンプトは知識未接続時と完全に同一の挙動になる。
+  // AI を呼ばない回は読みにも行かない（見せる相手がいない）。knowledgeShown は []。
   const knStartMs = Date.now()
-  const knowledgePool = await loadKnowledgePoolSafely()
-  const selectedKnowledge = selectKnowledgeForDecision(knowledgePool, {
+  const knowledgePool: KnowledgeItem[] = aiSkipped ? [] : await loadKnowledgePoolSafely()
+  const selectedKnowledge: KnowledgeItem[] = aiSkipped ? [] : selectKnowledgeForDecision(knowledgePool, {
     persona: session.persona,
     symbols: combined,
   })
@@ -1104,14 +1116,18 @@ export async function runTick(sessionId: string): Promise<AISession> {
   // 読み込み失敗は loadKnowledgePoolSafely の中で [] に畳まれ、ここからは「0件」としか見えない
   // （ok は段が完了したことだけを表す。失敗と0件の区別は本スライスでは付けない）。
   record.stages.push(makeStage('knowledge', knStartMs, Date.now(), true,
-    `${knowledgePool.length}件から${selectedKnowledge.length}件を提示`))
+    aiSkipped ? AI_SKIPPED_KNOWLEDGE_NOTE : `${knowledgePool.length}件から${selectedKnowledge.length}件を提示`))
 
   // AI に聞く。失敗（タイムアウト・例外）は stopReason 付きで記録を保存してから元のエラーを再送出する。
   // tickCount・equityHistory・decisions は進めない（今までの数え方のまま）。
   const aiStartMs = Date.now()
   let asked: AskClaudeResult
   try {
-    asked = await askClaude(session, enriched, selectedKnowledge)
+    // 呼ばない回は askClaude に入らず、判断0件・skippedTickAI（tick-record.ts が正）をそのまま結果にする
+    // （投げないので下の catch には入らない。decidedAt は判断が0件なので使われない）。
+    asked = aiSkipped
+      ? { decisions: [], ai: skippedTickAI(), decidedAt: new Date().toISOString(), note: AI_SKIPPED_NOTE }
+      : await askClaude(session, enriched, selectedKnowledge)
   } catch (e) {
     const original = e instanceof AskClaudeError ? e.original : e
     const msg = (original instanceof Error ? original.message : String(original)).slice(0, 200)

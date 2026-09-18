@@ -7,6 +7,7 @@
 import {
   pushTick, emptyTickRecord, makeStage, tickIdFor, decisionIdFor,
   TICK_RECORD_LIMIT,
+  skippedTickAI, isAiSkipped, AI_SKIPPED_STOP_REASON, AI_SKIPPED_MODEL, AI_SKIPPED_NOTE, AI_SKIPPED_KNOWLEDGE_NOTE,
   type TickRecord, type TickUniverseRow, type TickContext, type TickAI,
 } from '../lib/ai-trader/tick-record'
 
@@ -91,6 +92,48 @@ console.log('失敗行の null（原則9: 0 や前回値で埋めない）')
   const jb = JSON.parse(JSON.stringify(failedBeforePrompt))
   check('プロンプト組み立て前の失敗は promptChars が null（0 で埋めない）・JSON 往復でも null',
     failedBeforePrompt.promptChars === null && jb.promptChars === null && jb.stopReason === 'error')
+}
+
+console.log('AI を呼ばなかった回（材料0件・skippedTickAI・2026-09-17）')
+{
+  const a = skippedTickAI()
+  check("stopReason は AI_SKIPPED_STOP_REASON（'skipped'）で、失敗の値（timeout / error / empty）とは別",
+    a.stopReason === AI_SKIPPED_STOP_REASON && AI_SKIPPED_STOP_REASON === 'skipped' && !['timeout', 'error', 'empty'].includes(a.stopReason))
+  check("model は AI_SKIPPED_MODEL（'none'）で、'cli' や実在のモデル名と混ざらない", a.model === AI_SKIPPED_MODEL && AI_SKIPPED_MODEL === 'none' && !['cli', 'claude-haiku-4-5'].includes(a.model))
+  check('所要 0ms・渡した銘柄 0・返事 0（呼んでいない）', a.ms === 0 && a.decisionsExpected === 0 && a.decisionsReturned === 0)
+  check('トークン・文字数は null（測っていないので 0 で埋めない）', a.inputTokens === null && a.outputTokens === null && a.promptChars === null && a.responseChars === null)
+  check('TickAI の 9 項目だけを持つ（余計なキー・欠けたキーが無い）',
+    JSON.stringify(Object.keys(a).sort()) === JSON.stringify(['decisionsExpected', 'decisionsReturned', 'inputTokens', 'model', 'ms', 'outputTokens', 'promptChars', 'responseChars', 'stopReason']),
+    Object.keys(a).join(','))
+  const j = JSON.parse(JSON.stringify(a)) as TickAI
+  check('JSON 往復でも同じ形（null が消えない・ms 0 のまま）', j.stopReason === 'skipped' && j.promptChars === null && j.responseChars === null && j.ms === 0 && j.model === 'none')
+  check('毎回新しいオブジェクト（記録どうしで共有しない）', skippedTickAI() !== skippedTickAI() && JSON.stringify(skippedTickAI()) === JSON.stringify(a))
+
+  const timeoutAi: TickAI = { ...a, model: 'claude-haiku-4-5', stopReason: 'timeout', ms: 40_000, decisionsExpected: 8, promptChars: 6200 }
+  const emptyAi: TickAI = { ...a, model: 'claude-haiku-4-5', stopReason: 'empty', ms: 12_000, decisionsExpected: 0, inputTokens: 5000, outputTokens: 10, promptChars: 6000, responseChars: 20 }
+  const okAi: TickAI = { ...emptyAi, stopReason: 'end_turn', decisionsExpected: 8, decisionsReturned: 8 }
+  check('isAiSkipped: skipped の記録だけ true', isAiSkipped(a) === true && isAiSkipped(j) === true)
+  check('isAiSkipped: null / undefined（tick なし・ai なし）は false', isAiSkipped(null) === false && isAiSkipped(undefined) === false)
+  check("isAiSkipped: 失敗の回（timeout）・'empty'（材料0件で呼んでしまった旧記録も含む）・成功の回は false",
+    isAiSkipped(timeoutAi) === false && isAiSkipped(emptyAi) === false && isAiSkipped(okAi) === false)
+  check("isAiSkipped は stopReason だけで決める（model が 'none' でも stopReason が違えば false）", isAiSkipped({ ...okAi, model: 'none' }) === false)
+
+  check('段の note は和文で、英語の skipped を含まない', !/skipped/i.test(AI_SKIPPED_NOTE) && !/skipped/i.test(AI_SKIPPED_KNOWLEDGE_NOTE))
+  check("段 'ai' の note は「材料 0件」と「AI を呼ばず」を言う", AI_SKIPPED_NOTE.includes('0件') && AI_SKIPPED_NOTE.includes('AI を呼ばず'), AI_SKIPPED_NOTE)
+  check("段 'knowledge' の note は「読まず」を言う", AI_SKIPPED_KNOWLEDGE_NOTE.includes('AI を呼ばない') && AI_SKIPPED_KNOWLEDGE_NOTE.includes('読まず'), AI_SKIPPED_KNOWLEDGE_NOTE)
+  check('note に「打ち切」を使わない（打ち切りではなく、聞いていない）', !AI_SKIPPED_NOTE.includes('打ち切') && !AI_SKIPPED_KNOWLEDGE_NOTE.includes('打ち切'))
+
+  // engine.ts が積む形: knowledge は ok:true・ai は ok:false、どちらも note 付き（段の並びは candidates → contexts → knowledge → ai → trade）
+  const kn = makeStage('knowledge', T0 + 9000, T0 + 9000, true, AI_SKIPPED_KNOWLEDGE_NOTE)
+  const ai = makeStage('ai', T0 + 9000, T0 + 9000, false, AI_SKIPPED_NOTE)
+  check('段 knowledge は ok:true・所要 0・note 付き', kn.ok && kn.ms === 0 && kn.note === AI_SKIPPED_KNOWLEDGE_NOTE)
+  check('段 ai は ok:false・所要 0・note 付き', !ai.ok && ai.ms === 0 && ai.note === AI_SKIPPED_NOTE)
+  const r = emptyTickRecord(T0)
+  r.ai = skippedTickAI()
+  r.stages = [makeStage('candidates', T0, T0 + 3000, false), makeStage('contexts', T0 + 3000, T0 + 9000, false, '0/2銘柄の材料を取得'), kn, ai, makeStage('trade', T0 + 9000, T0 + 9500, true, '約定0件')]
+  check('記録に載せても段の並びは 5 つ（candidates, contexts, knowledge, ai, trade）', r.stages.map(s => s.name).join(',') === 'candidates,contexts,knowledge,ai,trade')
+  check('記録の JSON に英語の skipped が出るのは stopReason の値だけ（note・model には無い）',
+    (JSON.stringify(r).match(/skipped/g) ?? []).length === 1 && JSON.stringify(r).includes('"stopReason":"skipped"'))
 }
 
 console.log('1件のサイズ実測（40銘柄・8 contexts・見出し5件ずつ）')

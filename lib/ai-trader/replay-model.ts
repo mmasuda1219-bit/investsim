@@ -16,7 +16,7 @@
 
 import type { AIDecision, AISession, AITrade } from './engine'
 import type { DecisionRecord } from './memory'
-import type { ChangeBasis, TickRecord, TickStage } from './tick-record'
+import { isAiSkipped, type ChangeBasis, type TickRecord, type TickStage } from './tick-record'
 import type { FundamentalsData } from '@/types'
 import { UNIVERSE } from './universe'
 import { parseFundamentalsWithMeta, fundamentalsProse, PARSEABLE_FIELDS } from './fundamentals-parse'
@@ -210,10 +210,18 @@ export interface IndicatorsStage extends StageBase {
 export interface KnowledgeStage extends StageBase {
   key: 'knowledge'
   items: Sourced<Array<{ id: string; title: string }>>
+  /** AI を呼ばなかった回（AiStage.skipped と同じ）。知識は読みにも行っていないので「0件を選んだ」とは書かない */
+  skipped: boolean
 }
 
 export interface AiStage extends StageBase {
   key: 'ai'
+  /**
+   * AI を呼ばなかった回（材料を取得できた銘柄が0件・2026-09-17）。true のとき model / stopReason / ms は
+   * 「呼んでいない」ことを表す目印（record）で、画面は英語の stopReason を出さず「AI は呼ばなかった」と書く。
+   * 失敗（timeout / error / empty）ではないので DecisionsStage.failure は null。呼んだ回・tick の無い回は false
+   */
+  skipped: boolean
   /** 実際に材料を渡した銘柄 */
   symbolsSent: Sourced<string[]>
   model: Sourced<string | null>
@@ -265,8 +273,10 @@ export interface DecisionsStage extends StageBase {
   /** AI に渡した銘柄数（engine の decisionsExpected＝材料の取得に成功した数）。tick が無い回は none（watchlist は取得失敗の銘柄も含む） */
   expected: Sourced<number | null>
   focus: FocusDecision | null
-  /** 失敗した tick（timeout / error / empty）。判断は記録されていない */
+  /** 失敗した tick（timeout / error / empty）。判断は記録されていない。AI を呼ばなかった回（skipped）は失敗ではなく null */
   failure: { stopReason: string; note: string | null } | null
+  /** AI を呼ばなかった回（AiStage.skipped と同じ）。判断が無いのは聞いていないから */
+  skipped: boolean
 }
 
 export interface ReplayTrade {
@@ -314,6 +324,7 @@ export interface ReplayModel {
 
 // ── 共通 ──────────────────────────────────────────────────────────────────
 
+/** 失敗として扱う stopReason。AI を呼ばなかった回（'skipped'・tick-record.ts の AI_SKIPPED_STOP_REASON）は入れない */
 const FAILED_STOP_REASONS = new Set(['timeout', 'error', 'empty'])
 /** finishedAt が無い（保存前に落ちた）tick の窓 */
 const TICK_WINDOW_FALLBACK_MS = 10 * 60_000
@@ -786,6 +797,8 @@ export function buildReplayModel(
   const failure = tick?.ai && FAILED_STOP_REASONS.has(tick.ai.stopReason)
     ? { stopReason: tick.ai.stopReason, note: tick.stages.find(s => s.name === 'ai')?.note ?? null }
     : null
+  // AI を呼ばなかった回（材料0件・2026-09-17）。失敗ではないので failure とは別（両方 true にはならない）
+  const skipped = isAiSkipped(tick?.ai)
 
   // ── 変化率の基準の印（2026-09-16 スライスB）。tick と判断のどちらの印も見る。
   // この回にある記録すべてに印があるときだけ「印つき」＝注記を出さない。1つでも欠ければ null。
@@ -935,6 +948,7 @@ export function buildReplayModel(
     sourceLabel: PROVENANCE_LABEL[knowledgeItems.provenance],
     ms: stageMs(tick, 'knowledge'),
     items: knowledgeItems,
+    skipped,
   }
 
   // ── 5 AI に聞く
@@ -950,14 +964,17 @@ export function buildReplayModel(
   const expected: Sourced<number | null> = ai ? rec(ai.decisionsExpected) : none(null, sentUnknownNote)
   const aiStage: AiStage = {
     key: 'ai', no: 5,
-    title: tick
-      ? `${symbolsSent.value.length}銘柄分の材料をまとめて、1回で AI に渡す`
-      : analysed.complete
-        ? `分析対象${analysed.symbols.length}銘柄の材料をまとめて、1回で AI に渡す`
-        : '分析対象の材料をまとめて、1回で AI に渡す',
+    title: skipped
+      ? '材料を取得できた銘柄が0件のため、AI に渡さない'
+      : tick
+        ? `${symbolsSent.value.length}銘柄分の材料をまとめて、1回で AI に渡す`
+        : analysed.complete
+          ? `分析対象${analysed.symbols.length}銘柄の材料をまとめて、1回で AI に渡す`
+          : '分析対象の材料をまとめて、1回で AI に渡す',
     provenance: ai ? 'record' : 'none',
     sourceLabel: ai ? '記録から' : '渡した銘柄数・所要時間・モデルは記録なし',
     ms: ai ? rec(ai.ms) : stageMs(tick, 'ai'),
+    skipped,
     symbolsSent,
     model: ai ? rec(ai.model) : none(null),
     inputTokens: ai ? rec(ai.inputTokens) : none(null),
@@ -1023,11 +1040,11 @@ export function buildReplayModel(
   }
   const decisionsStage: DecisionsStage = {
     key: 'decisions', no: 6,
-    title: failure
+    title: failure || skipped
       ? '返ってきた判断　なし'
       : expected.value != null ? `返ってきた判断　${decisions.length} / ${expected.value} 銘柄` : `返ってきた判断　${decisions.length} 銘柄`,
     provenance: decisions.length > 0 ? 'record' : 'none',
-    sourceLabel: failure ? '判断は記録されていない' : decisions.length > 0 ? '記録から' : '記録なし',
+    sourceLabel: skipped ? 'AI には聞いていない' : failure ? '判断は記録されていない' : decisions.length > 0 ? '記録から' : '記録なし',
     ms: none(null, '判断の受け取りは「AI に聞く」の所要時間に含まれる'),
     changeBasis: decisionsBasis,
     rows: rowsOut,
@@ -1035,6 +1052,7 @@ export function buildReplayModel(
     expected,
     focus,
     failure,
+    skipped,
   }
 
   const stages: ReplayStage[] = [candidates, materials, indicators, knowledge, aiStage, decisionsStage]

@@ -15,7 +15,10 @@ import {
   type IndicatorsStage, type KnowledgeStage, type AiStage, type DecisionsStage, type TradesStage,
   LEGACY_CHANGE_NOTE, LEGACY_CHANGE_NOTE_SHORT, LEGACY_CHANGE_NOTE_ZERO, showsLegacyChangeNote,
 } from '../lib/ai-trader/replay-model'
-import { emptyTickRecord, makeStage, decisionIdFor, type TickRecord } from '../lib/ai-trader/tick-record'
+import {
+  emptyTickRecord, makeStage, decisionIdFor, skippedTickAI, AI_SKIPPED_NOTE, AI_SKIPPED_KNOWLEDGE_NOTE,
+  type TickRecord,
+} from '../lib/ai-trader/tick-record'
 import { UNIVERSE } from '../lib/ai-trader/universe'
 import type { AIDecision, AISession, AITrade, Holding } from '../lib/ai-trader/engine'
 
@@ -818,6 +821,184 @@ console.log('F. 変化率の基準の印（2026-09-16 スライスB・印の無�
     check('印を足しても元の複製は変わらない', (session.ticks ?? []).every(t => !t.changeBasis))
   } else {
     console.log('  未実行（本番複製なし）: (a) の節は複製のパスを渡すと実行します')
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+console.log("G. AI を呼ばなかった回（材料0件・stopReason 'skipped'・2026-09-17）と、旧記録（timeout / empty）の不変")
+// 3種の tick を同じ形で作る。skipped は engine.ts の runTick が積む形（tick-record.ts の skippedTickAI・note）
+const G_T = Date.parse('2026-09-18T13:30:00.000Z')
+function gTick(kind: 'skipped' | 'timeout' | 'empty'): TickRecord {
+  const t = emptyTickRecord(G_T)
+  if (kind === 'skipped') {
+    // 40銘柄すべて前日比が取れず候補なし・保有2銘柄だけ分析したが材料も取れなかった回
+    t.universe = UNIVERSE.map(symbol => ({ symbol, changePercent: null, ok: false, rank: null }))
+    t.selected = []
+    t.heldAdded = ['CVX', 'XOM']
+    t.contexts = t.heldAdded.map(symbol => ({ symbol, bars: 0, ma20: null, ma50: null, rsi14: null, macd: null, bb: null, fundamentalsOk: false, newsCount: 0, newsHeadlines: [], error: 'Real quote unavailable' }))
+    t.knowledge = []
+    t.ai = skippedTickAI()
+    t.stages = [
+      makeStage('candidates', G_T, G_T + 3000, false, '前日比を取得できた銘柄が無く（0/40銘柄）、候補なし・保有銘柄だけを分析（2件）'),
+      makeStage('contexts', G_T + 3000, G_T + 9000, false, '0/2銘柄の材料を取得'),
+      makeStage('knowledge', G_T + 9000, G_T + 9000, true, AI_SKIPPED_KNOWLEDGE_NOTE),
+      makeStage('ai', G_T + 9000, G_T + 9000, false, AI_SKIPPED_NOTE),
+      makeStage('trade', G_T + 9000, G_T + 9500, true, '約定0件・評価額の株価取得に失敗2銘柄（取得単価で代用）'),
+    ]
+    t.finishedAt = new Date(G_T + 9600).toISOString()
+    return t
+  }
+  t.universe = UNIVERSE.map((symbol, i) => i === 39
+    ? { symbol, changePercent: null, ok: false, rank: null }
+    : { symbol, changePercent: Number(((i % 7) - 3 + i / 100).toFixed(2)), ok: true, rank: i + 1 })
+  t.selected = ['NVDA', 'TSLA']
+  t.heldAdded = ['CVX', 'XOM']
+  t.contexts = [...t.selected, ...t.heldAdded].map((symbol, i) => i === 0
+    ? { symbol, bars: 0, ma20: null, ma50: null, rsi14: null, macd: null, bb: null, fundamentalsOk: false, newsCount: 0, newsHeadlines: [], error: 'Real quote unavailable' }
+    : { symbol, bars: 63, ma20: 1, ma50: 1, rsi14: 50, macd: null, bb: null, fundamentalsOk: true, newsCount: 3, newsHeadlines: ['[1h前] x (y)'] })
+  t.knowledge = [{ id: 'km_1', title: '買う前に降りる条件を決める' }]
+  t.ai = kind === 'timeout'
+    ? { model: 'claude-haiku-4-5-20251001', inputTokens: null, outputTokens: null, stopReason: 'timeout', ms: 40_004, decisionsReturned: 0, decisionsExpected: 3, promptChars: 6200, responseChars: null }
+    : { model: 'claude-haiku-4-5-20251001', inputTokens: 5000, outputTokens: 10, stopReason: 'empty', ms: 12_000, decisionsReturned: 0, decisionsExpected: 3, promptChars: 6200, responseChars: 20 }
+  t.stages = [
+    makeStage('candidates', G_T, G_T + 3000, true, '39/40銘柄の前日比を取得・候補2件・保有から2件'),
+    makeStage('contexts', G_T + 3000, G_T + 9000, true, '3/4銘柄の材料を取得'),
+    makeStage('knowledge', G_T + 9000, G_T + 9200, true, '48件から1件を提示'),
+    makeStage('ai', G_T + 9200, G_T + 49_204, false, kind === 'timeout' ? 'Claude timed out after 40000ms' : '返事あり(stop=end_turn, 20字)だが判断を1件も救出できず'),
+  ]
+  if (kind === 'empty') t.stages.push(makeStage('trade', G_T + 49_204, G_T + 49_500, true, '約定0件'))
+  t.finishedAt = new Date(G_T + 49_600).toISOString()
+  return t
+}
+const gBase = syntheticSession()
+function gModel(kind: 'skipped' | 'timeout' | 'empty') {
+  const s: AISession = { ...gBase, ticks: [gTick(kind)] }
+  const rounds = listReplayRounds(s)
+  return { s, rounds, m: buildReplayModel(s, rounds[0], { rounds }) }
+}
+{
+  const { s, rounds, m } = gModel('skipped')
+  const c4 = stage<KnowledgeStage>(m.stages, 'knowledge')
+  const c5 = stage<AiStage>(m.stages, 'ai')
+  const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+  check('skipped: 判断0件の回として先頭に立つ（tick 由来）', rounds[0].source === 'tick' && rounds[0].decisions.length === 0)
+  check('skipped: 失敗ではないので state round（tickCount が進んだ回。watchlist / holdings はこの回の結果）', findStateRound(s, rounds)?.id === rounds[0].id && m.round.isStateRound)
+  check('skipped: 段は 1〜6（売買なし）', m.stages.map(x => x.no).join(',') === '1,2,3,4,5,6', m.stages.map(x => x.no).join(','))
+  check('skipped: 段4・段5・段6 の skipped が true', c4.skipped === true && c5.skipped === true && c6.skipped === true)
+  check("skipped: 段6 failure は null（'skipped' は失敗扱いに入れない）", c6.failure === null, JSON.stringify(c6.failure))
+  check('skipped: 段5 見出しは「材料 0件のため AI に渡さない」', c5.title === '材料を取得できた銘柄が0件のため、AI に渡さない', c5.title)
+  check('skipped: 段5 渡した銘柄 0（record）・期待 0（record）・所要 0ms（record）',
+    c5.symbolsSent.provenance === 'record' && c5.symbolsSent.value.length === 0 && c5.expected.provenance === 'record' && c5.expected.value === 0
+    && c5.ms.provenance === 'record' && c5.ms.value === 0)
+  check("skipped: 段5 model / stopReason は記録の値そのまま（'none' / 'skipped'）＝画面が和文にする", c5.model.value === 'none' && c5.stopReason.value === 'skipped' && c5.stopReason.provenance === 'record')
+  check('skipped: 段5 トークン・文字数は null（record）', c5.inputTokens.value === null && c5.outputTokens.value === null && c5.promptChars.value === null && c5.responseChars.value === null)
+  check('skipped: 段6 見出し「返ってきた判断　なし」・印「AI には聞いていない」', c6.title === '返ってきた判断　なし' && c6.sourceLabel === 'AI には聞いていない', `${c6.title} / ${c6.sourceLabel}`)
+  check('skipped: 段6 の行は保有2銘柄（分析対象）で判断は none・保有中 true', c6.rows.length === 2 && c6.rows.every(r => r.provenance === 'none' && r.held === true))
+  check('skipped: 段4 知識 0 件（record）・所要 0ms', c4.items.provenance === 'record' && c4.items.value.length === 0 && c4.ms.value === 0)
+  check('skipped: 詳しく見る銘柄は保有の先頭（CVX）・材料は記録なし', m.focusSymbol === 'CVX' && stage<MaterialsStage>(m.stages, 'materials').provenance === 'none')
+  check('skipped: 段6 の focus は無い（判断が無い）', c6.focus === null)
+  const json = JSON.stringify(m)
+  // 文字列の値（キーではない）を全部集める。'skipped' を含む値は記録の stopReason の 1 つだけ＝見出し・印・注記には使っていない
+  const strings: string[] = []
+  const walk = (v: unknown) => {
+    if (typeof v === 'string') strings.push(v)
+    else if (Array.isArray(v)) v.forEach(walk)
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk)
+  }
+  walk(m)
+  check("skipped: モデルの文字列の値で英語の skipped を含むのは記録の stopReason の値 1 つだけ（文言には使わない）",
+    JSON.stringify(strings.filter(s => /skipped/i.test(s))) === '["skipped"]', JSON.stringify(strings.filter(s => /skipped/i.test(s))))
+  check("skipped: モデルの文言に「打ち切」が無い（打ち切りではなく、聞いていない）", !/打ち切/.test(json))
+  check('skipped: 文言に禁止語（おすすめ・買い時・注目銘柄・勝率）が無い', !['おすすめ', '買い時', '注目銘柄', '勝率'].some(w => json.includes(w)))
+}
+{
+  // 旧記録（timeout / empty）は変更前と同じ値のまま（2026-09-17 の変更前に取った値と突き合わせる）
+  for (const kind of ['timeout', 'empty'] as const) {
+    const { s, rounds, m } = gModel(kind)
+    const c4 = stage<KnowledgeStage>(m.stages, 'knowledge')
+    const c5 = stage<AiStage>(m.stages, 'ai')
+    const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    check(`${kind}: 段4・段5・段6 の skipped は false`, c4.skipped === false && c5.skipped === false && c6.skipped === false)
+    check(`${kind}: 段6 failure は stopReason '${kind}' と段 'ai' の note（変更前と同じ）`,
+      c6.failure?.stopReason === kind && c6.failure?.note === (kind === 'timeout' ? 'Claude timed out after 40000ms' : '返事あり(stop=end_turn, 20字)だが判断を1件も救出できず'), JSON.stringify(c6.failure))
+    check(`${kind}: 段6 見出し「返ってきた判断　なし」・印「判断は記録されていない」（変更前と同じ）`, c6.title === '返ってきた判断　なし' && c6.sourceLabel === '判断は記録されていない')
+    check(`${kind}: 段5 見出しは「3銘柄分の材料をまとめて、1回で AI に渡す」（変更前と同じ）`, c5.title === '3銘柄分の材料をまとめて、1回で AI に渡す', c5.title)
+    check(`${kind}: 段5 stopReason '${kind}'（record）・期待 3`, c5.stopReason.value === kind && c5.expected.value === 3)
+    check(`${kind}: state round か（timeout は直前の回・empty はこの回）`, kind === 'timeout' ? !m.round.isStateRound : m.round.isStateRound)
+    check(`${kind}: 段6 の行は分析対象4銘柄すべて none`, c6.rows.length === 4 && c6.rows.every(r => r.provenance === 'none'))
+    check(`${kind}: session を変更しない`, JSON.stringify(s.ticks) === JSON.stringify([gTick(kind)]))
+    void rounds
+  }
+}
+{
+  // 実装の守り: 失敗扱いの集合に 'skipped' を足していない（足すと段6が「打ち切られ」と書く）
+  const src = fs.readFileSync(path.resolve(__dirname, '../lib/ai-trader/replay-model.ts'), 'utf8')
+  const line = src.split('\n').find(l => /const FAILED_STOP_REASONS\s*=/.test(l)) ?? ''
+  check("FAILED_STOP_REASONS は timeout / error / empty の3つで、'skipped' を含まない",
+    /new Set\(\['timeout', 'error', 'empty'\]\)/.test(line) && !line.includes('skipped'), line.trim())
+  check("tickThrew（state round の判定）は timeout / error だけを見る（'skipped' も 'empty' も進んだ回）",
+    /stopReason === 'timeout' \|\| tick\.ai\.stopReason === 'error'\)/.test(src) && !/tickThrew[\s\S]{0,200}skipped/.test(src))
+  check("skipped の判定は tick-record.ts の isAiSkipped を使う（'skipped' の文字列を手書きしない）",
+    src.includes("import { isAiSkipped, type ChangeBasis, type TickRecord, type TickStage } from './tick-record'")
+    && !/['"]skipped['"]/.test(src.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n')))
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+console.log('H. 部品の静的描画（ReplayStages を react-dom/server で描き、文言を確かめる。next build / next dev は使わない）')
+{
+  type RenderKit = {
+    React: typeof import('react')
+    renderToStaticMarkup: (el: unknown) => string
+    ReplayStages: (props: Record<string, unknown>) => unknown
+    planFor: (m: unknown) => unknown[]
+    completePhase: (plan: unknown[]) => unknown
+  }
+  let kit: RenderKit | null = null
+  try {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const React = require('react') as RenderKit['React']
+    const { renderToStaticMarkup } = require('react-dom/server') as { renderToStaticMarkup: RenderKit['renderToStaticMarkup'] }
+    const stagesMod = require('../components/watch/replay/ReplayStages') as { default: RenderKit['ReplayStages']; planFor: RenderKit['planFor'] }
+    const clockMod = require('../components/watch/replay/useReplayClock') as { completePhase: RenderKit['completePhase'] }
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    kit = { React, renderToStaticMarkup, ReplayStages: stagesMod.default, planFor: stagesMod.planFor, completePhase: clockMod.completePhase }
+  } catch (e) {
+    check('部品（ReplayStages / useReplayClock / react-dom）を読み込めた', false, e instanceof Error ? e.message : String(e))
+  }
+  if (kit) {
+    const render = (kind: 'skipped' | 'timeout' | 'empty') => {
+      const { m } = gModel(kind)
+      const plan = kit!.planFor(m)
+      const phase = kit!.completePhase(plan)
+      const html = kit!.renderToStaticMarkup(kit!.React.createElement(kit!.ReplayStages as never, { model: m, phase, history: 'ready', markers: [], instant: false }))
+      const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+      return { html, text, plan: plan as Array<{ key: string; steps: Array<{ key: string; ms: number }> }> }
+    }
+    const sk = render('skipped')
+    check('skipped: 描画できる（段 6 つ）', (sk.html.match(/data-stage="/g) ?? []).length === 6)
+    check("skipped: 画面に英語の 'skipped' が出ない", !/skipped/i.test(sk.text), sk.text.match(/.{0,40}skipped.{0,40}/i)?.[0])
+    check("skipped: 画面に 'none'（model の目印）が文字として出ない", !/\bnone\b/.test(sk.text))
+    check('skipped: 「打ち切られ」「打ち切り」が出ない', !/打ち切/.test(sk.text))
+    check('skipped: 段5 に「AI は呼ばなかった」', sk.text.includes('AI は呼ばなかった'))
+    check('skipped: 段5 に返事の行（「返事:」「所要時間は記録なし」「モデル」「終わり方」「トークン」「判断の数」）が無い',
+      !['返事:', '所要時間は記録なし', 'モデル', '終わり方', 'トークン', '判断の数'].some(w => sk.text.includes(w)), sk.text.match(/返事:|所要時間は記録なし|モデル|終わり方|トークン|判断の数/)?.[0])
+    check('skipped: 段6 に「材料が0件のため AI には聞いていません」', sk.text.includes('材料が0件のため AI には聞いていません'))
+    check('skipped: 段4 に「知識は読んでいません」（「今回は 0 件」とは書かない）', sk.text.includes('知識は読んでいません') && !sk.text.includes('今回は 0 件'))
+    check('skipped: 段6 の行は「材料を取得できず」（「判断の記録なし」とは書かない）', sk.text.includes('材料を取得できず') && !sk.text.includes('判断の記録なし'))
+    const aiPlan = sk.plan.find(p => p.key === 'ai')
+    check('skipped: 再生の計画で段5は「考えている」時間を置かない（gather 0・think 0.6 秒）', aiPlan?.steps.map(s => `${s.key}:${s.ms}`).join(',') === 'gather:0,think:600', JSON.stringify(aiPlan))
+
+    // 旧記録: 変更前と同じ文が出る（「打ち切られ」の文は今回は変えない決まり）
+    const em = render('empty')
+    const to = render('timeout')
+    check('empty: 段6 は変更前どおり「AI の返事が打ち切られ、この回の判断は記録なし（返事はあったが判断を1件も読めなかった（empty）・…）」',
+      em.text.includes('AI の返事が打ち切られ、この回の判断は記録なし（返事はあったが判断を1件も読めなかった（empty）・返事あり(stop=end_turn, 20字)だが判断を1件も救出できず）'))
+    check('timeout: 段6 は変更前どおり「…（時間切れで打ち切り（timeout）・Claude timed out after 40000ms）」',
+      to.text.includes('AI の返事が打ち切られ、この回の判断は記録なし（時間切れで打ち切り（timeout）・Claude timed out after 40000ms）'))
+    check('empty / timeout: 段5 の返事の行と表（終わり方・判断の数）は変更前どおり出る',
+      [em.text, to.text].every(t => t.includes('返事:') && t.includes('終わり方') && t.includes('判断の数')))
+    check('empty / timeout: 「AI は呼ばなかった」「AI には聞いていません」は出ない', [em.text, to.text].every(t => !t.includes('AI は呼ばなかった') && !t.includes('AI には聞いていません')))
+    check('empty / timeout: 段5 の計画は変更前どおり think 1.8 秒', [em.plan, to.plan].every(p => p.find(x => x.key === 'ai')?.steps.find(s => s.key === 'think')?.ms === 1800))
   }
 }
 

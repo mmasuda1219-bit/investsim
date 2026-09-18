@@ -1,7 +1,11 @@
 // AI の運用エンジン（lib/ai-trader/engine.ts）を、取得元・保存・AI を偽物に差し替えて「取れないとき」の振る舞いを
-// 検査する。2026-09-17 architect 計画の②（7a: 比べる起点に実データの印）で作った。③（0銘柄なら AI を呼ばない）の
-// 節は同じ土台（下の harness）にそのまま足す。
+// 検査する。2026-09-17 architect 計画の②（7a: 比べる起点に実データの印）で作り、③（0銘柄なら AI を呼ばない）の
+// 節を同じ土台（下の harness）に足した（2026-09-18）。
 //
+//  - ③: 材料を取得できた銘柄が 0 件の回は AI（CLI の spawn も SDK も）を呼ばず、ai.stopReason === 'skipped'・
+//    段は candidates → contexts → knowledge → ai → trade の 5 つ・knowledgeShown は []・tickCount と equityHistory は進む
+//  - ③: 1 銘柄でも取れた回は今までどおり AI を 1 回呼ぶ（止める条件を広げていない）
+//  - ③ 静的: 分岐は runTick の contexts 段の直後にあり、知識の読み込みと askClaude より前。'skipped' は engine.ts に手書きしない
 //  - 7a: startSession で SPY が取れたら benchmarkStart ＝ その価格・benchmarkBasis === 'real-v1'
 //  - 7a: SPY が取れなかったら benchmarkStart === null・benchmarkBasis のキー自体が無い（undefined でも入れない）
 //  - 7a: runTick の後も印は変わらない（取れた場合・取れなかった場合の両方）
@@ -17,12 +21,15 @@
 //  - ANTHROPIC_API_KEY は読み込む前に消す（API 経路に入らない）。念のため '@anthropic-ai/sdk' も module.registerHooks で
 //    「呼ばれたら数える」偽物へ向ける（動的 import なので Module._load では止まらない。無い Node では SKIP）。
 //    CLI 経路の spawn も「呼ばれたら数えて、検査用の返事を返す」偽物
-//  - globalThis.fetch はどの import より先に「呼ばれたら記録して失敗」に差し替える（最後に 0 回を確かめる）
+//  - globalThis.fetch は「呼ばれたら記録して失敗」に差し替える（最後に 0 回を確かめる）。ただし tsx は import を
+//    ファイルの先頭に巻き上げる（書いた位置に関係なく、下の代入より先に読まれる）ので、先頭で import してよいのは
+//    純データ・純関数（types / benchmark-basis / memory / universe / tick-record）だけ。engine.ts のように読み込み時に
+//    通信・保存・環境変数へ触りうるものは loadEngine の遅延 require で、差し替えが済んでから読む
 // 差し替えで返す値は検査用の合成値で、製品コードには入れない（原則9の範囲内）。
 //
 // 実行: npx tsx scripts/check-engine-unavailable.ts
 
-// ── 0. 通信の遮断と鍵の削除（どの import より先。差し替えが効かなくても外へ出ない・本物の鍵を使わない） ──
+// ── 0. 通信の遮断と鍵の削除（上の import はすべて純データ・純関数なので、ここより先に読まれても外へ出ない） ──
 const realFetch = globalThis.fetch
 const fetchCalls: string[] = []
 globalThis.fetch = (async (input: unknown) => {
@@ -42,10 +49,11 @@ import { EventEmitter } from 'events'
 import childProcess from 'child_process'
 import type { StockQuote, HistoricalBar, FundamentalsData, InvestorId } from '../types'
 import type { AISession } from '../lib/ai-trader/engine'
-// 純データ・純関数だけ（読み込んでも通信・保存はしない）
+// 純データ・純関数だけ（読み込んでも通信・保存はしない。副作用のある lib をここに足さないこと＝上の注釈）
 import { BENCHMARK_BASIS } from '../lib/ai-trader/benchmark-basis'
 import { createLearningMemory } from '../lib/ai-trader/memory'
 import { UNIVERSE, TICK_CANDIDATE_COUNT } from '../lib/ai-trader/universe'
+import { skippedTickAI, AI_SKIPPED_NOTE, AI_SKIPPED_KNOWLEDGE_NOTE, type TickRecord } from '../lib/ai-trader/tick-record'
 
 let passed = 0
 let failed = 0
@@ -90,10 +98,12 @@ const FUNDAMENTALS: FundamentalsData = { pe: 20, roe: 0.2, debtToEquity: 40 }
 const market = {
   spyFails: false,     // SPY だけ取れない（起点・比較点）
   quotesFail: false,   // SPY 以外の全銘柄が取れない（③ の「0銘柄」に使う）
+  okOnly: null as string | null, // この 1 銘柄だけ取れて他は全滅（③ の「1銘柄でも取れたら呼ぶ」に使う）
   spyPrice: 650,
   log: [] as string[], // 'quote:SYM' / 'history:SYM' / 'fundamentals:SYM'
 }
 const unavailable = (symbol: string) => new Error(`Real quote unavailable for ${symbol} — yahoo2: 429 / yahoodirect: 429`)
+const symbolFails = (symbol: string) => market.quotesFail || (market.okOnly != null && symbol !== market.okOnly)
 const marketStub = {
   getQuote: async (symbol: string, opts?: { allowMock?: boolean }): Promise<StockQuote> => {
     if (opts?.allowMock !== false) throw new Error(`allowMock:false が外れている (getQuote ${symbol})`)
@@ -102,14 +112,14 @@ const marketStub = {
       if (market.spyFails) throw unavailable(symbol)
       return { ...QUOTE, symbol, name: 'SPDR S&P 500 ETF', price: market.spyPrice, change: null, changePercent: null }
     }
-    if (market.quotesFail) throw unavailable(symbol)
+    if (symbolFails(symbol)) throw unavailable(symbol)
     const idx = Math.max(0, UNIVERSE.indexOf(symbol))
     return { ...QUOTE, symbol, name: `${symbol} Inc.`, price: 100 + idx, changePercent: ((idx * 7) % 11) - 5, change: 1 }
   },
   getHistory: async (symbol: string, _period: string, opts?: { allowMock?: boolean }): Promise<HistoricalBar[]> => {
     if (opts?.allowMock !== false) throw new Error(`allowMock:false が外れている (getHistory ${symbol})`)
     market.log.push(`history:${symbol}`)
-    if (market.quotesFail) throw unavailable(symbol)
+    if (symbolFails(symbol)) throw unavailable(symbol)
     return HISTORY
   },
   getFundamentals: async (symbol: string, opts?: { allowMock?: boolean }): Promise<FundamentalsData> => {
@@ -257,11 +267,14 @@ async function rejects(p: Promise<unknown>): Promise<string | null> {
 function fresh(where: string) {
   market.spyFails = false
   market.quotesFail = false
+  market.okOnly = null
   market.spyPrice = 650
   market.log = []
   ai.mode = 'reply'
   console.log(`■ ${where}`)
 }
+// AI を呼ぶはずの runTick / 呼ばないはずの runTick を数え、最後に spawn の回数と突き合わせる
+let expectedSpawns = 0
 const spyQuotes = () => market.log.filter(l => l === 'quote:SPY').length
 // runTick の中の SPY の問い合わせ: 候補の走査（UNIVERSE に SPY が入っていれば 1 回。偽物は前日比 null を返すので候補には
 // 選ばれない）＋ ベンチマークの比較点（benchmarkStart があるときだけ 1 回。tick の最後の市場呼び出し）
@@ -283,7 +296,8 @@ async function stubWorks(engine: Engine) {
   check('ANTHROPIC_API_KEY・Supabase の鍵は消えている（API 経路・Supabase 経路に入らない）',
     process.env.ANTHROPIC_API_KEY === undefined && process.env.SUPABASE_SERVICE_ROLE_KEY === undefined && process.env.NEXT_PUBLIC_SUPABASE_URL === undefined)
   if (typeof registerHooks === 'function' && hooks != null) {
-    check("'@anthropic-ai/sdk' の resolve フックが登録できた（Node 23.5 以上）", true, `node ${process.version}`)
+    // 情報行（到達すれば必ず成り立つので check には数えない）。効いているかは最後の「SDK 0 回・漏れ 0 件」で確かめる
+    console.log(`  info '@anthropic-ai/sdk' の resolve フックを登録した（Node 23.5 以上・node ${process.version}）`)
   } else {
     skip("'@anthropic-ai/sdk' の resolve フック（module.registerHooks）が無い Node。鍵を消しているので API 経路には入らないが、動的 import の差し替えは無い", `node ${process.version}`)
   }
@@ -340,6 +354,7 @@ async function basisAfterTick(engine: Engine) {
   fresh('7a: 印のあるセッションに runTick — 印はそのまま・benchmarkPct は起点 650 と比べた値')
   market.spyPrice = 663 // (663 - 650) / 650 = +2.00%
   const spawnBefore = ai.spawnCalls
+  expectedSpawns++
   const after = await quietly(() => engine.runTick(s.id))
   check('AI（claude CLI の偽物）が 1 回呼ばれた（tick が最後まで走った）', ai.spawnCalls === spawnBefore + 1, `${ai.spawnCalls - spawnBefore} 回`)
   check(`判断が候補の数（${TICK_CANDIDATE_COUNT}）だけ返り tickCount は 1`, after.decisions.length === TICK_CANDIDATE_COUNT && after.tickCount === 1, `${after.decisions.length} 件 / tickCount=${after.tickCount}`)
@@ -354,6 +369,7 @@ async function basisAfterTick(engine: Engine) {
   market.spyFails = false // tick の時点では SPY が取れる
   market.spyPrice = 663
   const spawnBefore2 = ai.spawnCalls
+  expectedSpawns++
   const after2 = await quietly(() => engine.runTick(n.id))
   check('AI が 1 回呼ばれた（tick が最後まで走った）', ai.spawnCalls === spawnBefore2 + 1)
   check("'benchmarkBasis' in session === false のまま", !('benchmarkBasis' in after2), j(Object.keys(after2)))
@@ -367,6 +383,7 @@ async function basisAfterTick(engine: Engine) {
 
   fresh('7a: 印のあるセッションで tick の SPY が取れない回 — 印は消えず、その回の benchmarkPct だけ出ない')
   market.spyFails = true
+  expectedSpawns++
   const after3 = await quietly(() => engine.runTick(s.id))
   check("印は 'real-v1' のまま（取れない回に消さない）", after3.benchmarkBasis === 'real-v1', j(after3.benchmarkBasis))
   check('benchmarkStart は 650 のまま', after3.benchmarkStart === 650)
@@ -395,6 +412,7 @@ async function oldSessionUntouched(engine: Engine) {
   store.rows.set(old.id, JSON.stringify(old))
   market.spyPrice = 663 // (663 - 567.8) / 567.8 = +16.77%
   const spawnBefore = ai.spawnCalls
+  expectedSpawns++
   const after = await quietly(() => engine.runTick(old.id))
   check('AI が 1 回呼ばれた（tick が最後まで走った）', ai.spawnCalls === spawnBefore + 1)
   check("'benchmarkBasis' in session === false（補完で足していない）", !('benchmarkBasis' in after), j(Object.keys(after)))
@@ -406,6 +424,7 @@ async function oldSessionUntouched(engine: Engine) {
 
   fresh('7a: 旧セッションで tick の SPY も取れない回 — それでも印は足されない')
   market.spyFails = true
+  expectedSpawns++
   const after2 = await quietly(() => engine.runTick(old.id))
   check("'benchmarkBasis' in session === false のまま", !('benchmarkBasis' in after2))
   check('benchmarkStart は 567.8 のまま・その回の benchmarkPct は無し', after2.benchmarkStart === 567.8 && after2.equityHistory[2]?.benchmarkPct === undefined, j(after2.equityHistory))
@@ -471,7 +490,9 @@ function staticChecks() {
   check('runTick に benchmarkBasis が出てこない', !/benchmarkBasis|BENCHMARK_BASIS/.test(runTick))
   check('印が無いときはキーごと持たない（条件付きの spread）', startSession.includes('...(benchmarkBasis !== undefined ? { benchmarkBasis } : {})'))
   check('AISession の benchmarkBasis は任意項目（?:）', /benchmarkBasis\?:\s*BenchmarkBasis/.test(engineSrc))
-  check('benchmarkStart の決め方は変えていない（benchmarkStart = spy.price）', tryBody.includes('benchmarkStart = spy.price') && count(body, /\bbenchmarkStart\s*=(?!=)/g) === 2 /* 初期化 null と spy.price */)
+  // 代入は 2 件: startSession の `benchmarkStart = spy.price`（try の中）と、runTick の旧セッション補完 `session.benchmarkStart = null`
+  check('benchmarkStart の決め方は変えていない（代入は startSession の spy.price と runTick の補完 null の 2 件）',
+    tryBody.includes('benchmarkStart = spy.price') && runTick.includes('session.benchmarkStart = null') && count(body, /\bbenchmarkStart\s*=(?!=)/g) === 2)
 
   console.log('■ 静的: benchmark-basis.ts は型と定数だけ（import・副作用なし）')
   const basisSrc = stripComments(code('lib/ai-trader/benchmark-basis.ts'))
@@ -487,18 +508,124 @@ function staticChecks() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
+// 6. ③: 材料を取得できた銘柄が 0 件の回は AI を呼ばない（2026-09-17 決定）
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 保有 1 銘柄（AAPL）のセッション。40 銘柄の前日比が全滅すると候補は [] になり、分析対象は保有の AAPL だけ。
+// その AAPL の材料（日足）も取れなければ「材料 0 件」＝呼ばない回になる
+function heldSession(id: string): AISession {
+  const s = oldSession()
+  return {
+    ...s, id, tickCount: 0, benchmarkStart: null, equityHistory: [],
+    cash: 97000, totalValue: 100000,
+    holdings: { AAPL: { shares: 10, avgCost: 300, name: 'Apple Inc.', entryAt: '2026-09-10T14:00:00.000Z', entryReasoning: '検査用', entryTechnicals: '', entryFundamentals: '' } },
+  }
+}
+const stageNames = (t: TickRecord | undefined) => (t?.stages ?? []).map(s => s.name).join(',')
+const stageOf = (t: TickRecord | undefined, name: string) => t?.stages.find(s => s.name === name)
+
+async function skipWhenNoMaterials(engine: Engine) {
+  fresh('③: 40 銘柄の前日比も、保有 AAPL の材料も全滅 — AI を呼ばず、記録は stopReason \'skipped\'・段は 5 つ')
+  const held = heldSession('session_1758200000000')
+  store.rows.set(held.id, JSON.stringify(held))
+  market.quotesFail = true
+  const spawnBefore = ai.spawnCalls
+  const sdkBefore = ai.sdkConstructed + ai.sdkCalls
+  const knowledgeBefore = side.knowledgeListCalls
+  const upsertsBefore = store.upserts
+  const warnsBefore = warns.length
+  const after = await quietly(() => engine.runTick(held.id))
+  const tick = after.ticks?.[0]
+  check('AI は呼ばれていない（CLI の spawn 0 回・SDK 0 回）', ai.spawnCalls === spawnBefore && ai.sdkConstructed + ai.sdkCalls === sdkBefore, `spawn +${ai.spawnCalls - spawnBefore}`)
+  check('知識も読みに行っていない（listKnowledge 0 回）', side.knowledgeListCalls === knowledgeBefore, `+${side.knowledgeListCalls - knowledgeBefore}`)
+  check('前提: 前日比が取れた銘柄 0・候補 0・分析対象は保有の AAPL だけ・材料 0/1',
+    !!tick && tick.universe.every(r => !r.ok) && tick.selected.length === 0 && j(tick.heldAdded) === '["AAPL"]'
+    && tick.contexts.length === 1 && !!tick.contexts[0].error, j({ selected: tick?.selected, heldAdded: tick?.heldAdded, contexts: tick?.contexts.map(c => c.error) }))
+  check("ai.stopReason === 'skipped'・model 'none'・所要 0・渡した 0・返事 0・トークンと文字数は null（tick-record.ts の skippedTickAI と同じ形）",
+    j(tick?.ai) === j(skippedTickAI()), j(tick?.ai))
+  check('段は candidates → contexts → knowledge → ai → trade の 5 つ（並びを保つ）', stageNames(tick) === 'candidates,contexts,knowledge,ai,trade', stageNames(tick))
+  check(`段 knowledge は ok:true・note「${AI_SKIPPED_KNOWLEDGE_NOTE}」`, stageOf(tick, 'knowledge')?.ok === true && stageOf(tick, 'knowledge')?.note === AI_SKIPPED_KNOWLEDGE_NOTE, j(stageOf(tick, 'knowledge')))
+  check(`段 ai は ok:false・note「${AI_SKIPPED_NOTE}」`, stageOf(tick, 'ai')?.ok === false && stageOf(tick, 'ai')?.note === AI_SKIPPED_NOTE, j(stageOf(tick, 'ai')))
+  check('段 candidates・contexts は ok:false（取れていない事実を残す）', stageOf(tick, 'candidates')?.ok === false && stageOf(tick, 'contexts')?.ok === false)
+  check('段 trade は約定 0 件・評価額の株価取得に失敗 1 銘柄（取得単価で代用）', stageOf(tick, 'trade')?.ok === true && stageOf(tick, 'trade')?.note === '約定0件・評価額の株価取得に失敗1銘柄（取得単価で代用）', stageOf(tick, 'trade')?.note)
+  check('knowledgeShown は []（AI に何も見せていない）・記録の knowledge も []', j(after.knowledgeShown) === '[]' && j(tick?.knowledge) === '[]')
+  check("tickCount は 0 → 1・equityHistory は 1 点（'empty' の回と同じ数え方で進む）", after.tickCount === 1 && after.equityHistory.length === 1, `tickCount=${after.tickCount} eq=${after.equityHistory.length}`)
+  check('評価額は取得単価で代用（現金 97,000 ＋ 10 株 × 300 ＝ 100,000）・benchmarkPct は無し（起点 null）',
+    after.totalValue === 100000 && after.equityHistory[0].benchmarkPct === undefined, j(after.equityHistory))
+  check('判断は増えない・約定も無い・decisionIds は []', after.decisions.length === 0 && after.trades.length === 0 && j(tick?.decisionIds) === '[]')
+  check('watchlist はこの回の分析対象（AAPL）のまま（失敗 tick のように前の値へ戻さない＝進んだ回）', j(after.watchlist) === '["AAPL"]', j(after.watchlist))
+  check('記録は 1 回保存され finishedAt がある（保存は偽物・ファイル不変）', store.upserts === upsertsBefore + 1 && !!tick?.finishedAt && fileHash(SESSIONS_FILE) === sessionsHashBefore)
+  check('サーバーのログに 1 行（console.warn）残る', warns.slice(warnsBefore).some(w => w.includes(AI_SKIPPED_NOTE)), j(warns.slice(warnsBefore)))
+  check('tick の最後に SPY を問い合わせていない（起点 null）・通信 0 回', benchmarkNotQuotedInTick() && fetchCalls.length === 0)
+
+  fresh('③: 保有なし・40 銘柄が全滅 — 分析対象そのものが 0 件でも同じく呼ばない')
+  const bare = { ...heldSession('session_1758200000001'), holdings: {}, cash: 100000 }
+  store.rows.set(bare.id, JSON.stringify(bare))
+  market.quotesFail = true
+  const spawnBefore2 = ai.spawnCalls
+  const after2 = await quietly(() => engine.runTick(bare.id))
+  const tick2 = after2.ticks?.[0]
+  check('AI は呼ばれていない', ai.spawnCalls === spawnBefore2)
+  check("分析対象 0・材料 0/0・ai.stopReason 'skipped'・段 5 つ", tick2?.contexts.length === 0 && tick2?.ai?.stopReason === 'skipped' && stageNames(tick2) === 'candidates,contexts,knowledge,ai,trade')
+  check('段 contexts の note は 0/0', stageOf(tick2, 'contexts')?.note === '0/0銘柄の材料を取得', stageOf(tick2, 'contexts')?.note)
+  check('tickCount 1・約定 0 件（評価額の失敗も 0 銘柄）', after2.tickCount === 1 && stageOf(tick2, 'trade')?.note === '約定0件')
+
+  fresh('③: 1 銘柄（MSFT）だけ取れた回 — 今までどおり AI を 1 回呼ぶ（止める条件を広げない）')
+  market.okOnly = 'MSFT'
+  const spawnBefore3 = ai.spawnCalls
+  const knowledgeBefore3 = side.knowledgeListCalls
+  expectedSpawns++
+  const after3 = await quietly(() => engine.runTick(held.id))
+  const tick3 = after3.ticks?.[0]
+  check('AI が 1 回呼ばれた', ai.spawnCalls === spawnBefore3 + 1, `+${ai.spawnCalls - spawnBefore3}`)
+  check('知識も読みに行った（listKnowledge 1 回）', side.knowledgeListCalls === knowledgeBefore3 + 1)
+  check('候補は MSFT の 1 件・保有 AAPL は材料が取れず外れ・材料 1/2', j(tick3?.selected) === '["MSFT"]' && j(tick3?.heldAdded) === '["AAPL"]'
+    && tick3?.contexts.filter(c => !c.error).length === 1 && stageOf(tick3, 'contexts')?.note === '1/2銘柄の材料を取得', j({ selected: tick3?.selected, note: stageOf(tick3, 'contexts')?.note }))
+  check("ai.stopReason は 'cli'（呼んだ）・渡した 1・返事 1", tick3?.ai?.stopReason === 'cli' && tick3?.ai?.decisionsExpected === 1 && tick3?.ai?.decisionsReturned === 1, j(tick3?.ai))
+  check('プロンプトに渡した銘柄は MSFT だけ（AAPL は無い）', /【MSFT】/.test(ai.prompts[ai.prompts.length - 1] ?? '') && !/【AAPL】/.test(ai.prompts[ai.prompts.length - 1] ?? ''))
+  check('判断 1 件（MSFT）・tickCount 1 → 2', after3.decisions.length === 1 && after3.decisions[0].symbol === 'MSFT' && after3.tickCount === 2)
+  check("段 knowledge の note は普通の形（「0件から0件を提示」）で、skipped の note ではない", stageOf(tick3, 'knowledge')?.note === '0件から0件を提示', stageOf(tick3, 'knowledge')?.note)
+  check('段は candidates → contexts → knowledge → ai → trade', stageNames(tick3) === 'candidates,contexts,knowledge,ai,trade')
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 7. ③ 静的: 分岐の置き場所と、'skipped' を手書きしていないこと
+// ══════════════════════════════════════════════════════════════════════════════════════════
+function staticChecksSkip() {
+  console.log("■ ③ 静的: 分岐は runTick の contexts 段の直後・知識の読み込みと askClaude より前。'skipped' は engine.ts に手書きしない")
+  const engineSrc = stripComments(code('lib/ai-trader/engine.ts'))
+  const runTick = fnBody(engineSrc, 'export async function runTick(')
+  const at = (s: string) => runTick.indexOf(s)
+  const importLine = engineSrc.match(/^import \{[^}]*skippedTickAI[^}]*\} from '\.\/tick-record'/m)?.[0] ?? ''
+  check("skippedTickAI・AI_SKIPPED_NOTE・AI_SKIPPED_KNOWLEDGE_NOTE は './tick-record' から import", importLine.includes('skippedTickAI') && importLine.includes('AI_SKIPPED_NOTE') && importLine.includes('AI_SKIPPED_KNOWLEDGE_NOTE'))
+  check("engine.ts に 'skipped' の文字列を手書きしていない（形は tick-record.ts が正）", !/['"]skipped['"]/.test(engineSrc))
+  check('分岐 `const aiSkipped = enriched.length === 0` が runTick にある', at('const aiSkipped = enriched.length === 0') > -1)
+  check('分岐は contexts 段を積んだ直後で、knowledge 段・loadKnowledgePoolSafely・askClaude より前',
+    at("makeStage('contexts'") > -1 && at("makeStage('contexts'") < at('const aiSkipped')
+    && at('const aiSkipped') < at('loadKnowledgePoolSafely()') && at('const aiSkipped') < at("makeStage('knowledge'") && at('const aiSkipped') < at('askClaude(session, enriched'))
+  check('知識の読み込みと選択は aiSkipped のとき飛ばす', runTick.includes('aiSkipped ? [] : await loadKnowledgePoolSafely()') && runTick.includes('aiSkipped ? [] : selectKnowledgeForDecision('))
+  check('askClaude は aiSkipped のとき呼ばず skippedTickAI() を結果にする', /aiSkipped\s*\?\s*\{ decisions: \[\], ai: skippedTickAI\(\)[^}]*note: AI_SKIPPED_NOTE \}\s*:\s*await askClaude\(session, enriched, selectedKnowledge\)/.test(runTick))
+  check('knowledge 段の note は aiSkipped のとき AI_SKIPPED_KNOWLEDGE_NOTE', runTick.includes('aiSkipped ? AI_SKIPPED_KNOWLEDGE_NOTE :'))
+  check('console.warn を 1 行出す', /if \(aiSkipped\) \{\s*console\.warn\(`\[ai-trader\] \$\{AI_SKIPPED_NOTE\}/.test(runTick))
+  check('skippedTickAI の使用は runTick の 1 回だけ', count(engineSrc.replace(importLine, ''), /\bskippedTickAI\b/g) === 1 && count(runTick, /\bskippedTickAI\b/g) === 1)
+  check('askClaude 自体には 0 件の早期 return を足していない（呼ばれたら必ず聞く。止めるのは runTick の 1 か所）',
+    !/stockData\.length === 0/.test(fnBody(engineSrc, 'async function askClaude(')))
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
 async function main() {
   const engine = loadEngine()
   await stubWorks(engine)
   await basisOnStart(engine)
   await basisAfterTick(engine)
   await oldSessionUntouched(engine)
+  await skipWhenNoMaterials(engine)
   staticChecks()
+  staticChecksSkip()
 
   console.log('■ 最後にもう一度: 通信 0 回・Anthropic API 0 回・ファイル不変')
   check('通信（fetch）は 0 回', fetchCalls.length === 0, j(fetchCalls))
   check('Anthropic API（SDK）は作られても呼ばれてもいない', ai.sdkConstructed === 0 && ai.sdkCalls === 0 && sdkLeaked.length === 0, j({ constructed: ai.sdkConstructed, calls: ai.sdkCalls, leaked: sdkLeaked }))
-  check('AI の呼び出し（CLI の偽物）は runTick の回数（5）と同じ', ai.spawnCalls === 5, String(ai.spawnCalls))
+  check(`AI の呼び出し（CLI の偽物）は「AI を呼ぶはずの runTick」の回数（${expectedSpawns}）と同じ（呼ばない回は数えない）`, ai.spawnCalls === expectedSpawns, String(ai.spawnCalls))
   check('ANTHROPIC_API_KEY は最後まで無い', process.env.ANTHROPIC_API_KEY === undefined)
   check('data/sessions.json は 1 バイトも変わっていない', fileHash(SESSIONS_FILE) === sessionsHashBefore, `${sessionsHashBefore} → ${fileHash(SESSIONS_FILE)}`)
   check('知識の使用記録は呼ばれていない（判断に knowledgeRefs が無い）', side.knowledgeUsageCalls === 0 && side.knowledgeListCalls > 0)

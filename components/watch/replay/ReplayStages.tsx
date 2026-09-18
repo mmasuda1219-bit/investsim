@@ -18,6 +18,7 @@ import type { ChangeBasisMark } from '@/lib/ai-trader/replay-model'
 import { PROVENANCE_LABEL, LEGACY_CHANGE_NOTE, showsLegacyChangeNote } from '@/lib/ai-trader/replay-model'
 import { UNIVERSE_META, TICK_CANDIDATE_COUNT } from '@/lib/ai-trader/universe'
 import { CLAUDE_TIMEOUT_MS, DECISION_MAX_TOKENS } from '@/lib/ai-trader/ai-config'
+import { AI_SKIPPED_STOP_REASON } from '@/lib/ai-trader/tick-record'
 import type { FundamentalsData } from '@/types'
 import ReplayChart, { fmtPrice, type ReplayMarker } from './ReplayChart'
 import { type PhaseState, type StagePlan, stageState, stepProgress, revealCount } from './useReplayClock'
@@ -100,9 +101,10 @@ export function planFor(model: ReplayModel): StagePlan[] {
         return { key: st.key, steps: [{ key: 'items', ms: st.items.value.length > 0 ? 800 : 0 }] }
       case 'ai': {
         const chips = aiChips(st, model).symbols.length
+        // AI を呼ばなかった回は「考えている」時間を置かず、文を読む短い間だけ（0.6 秒）
         return { key: st.key, steps: [
           { key: 'gather', ms: chips > 0 ? (seven ? 600 : 800) : 0 },
-          { key: 'think', ms: seven ? 1400 : 1800 },
+          { key: 'think', ms: st.skipped ? 600 : seven ? 1400 : 1800 },
         ] }
       }
       case 'decisions':
@@ -141,6 +143,8 @@ function stopReasonLabel(r: string): string {
     case 'error': return '呼び出しに失敗（error）'
     case 'empty': return '返事はあったが判断を1件も読めなかった（empty）'
     case 'cli': return 'ローカルの CLI 経路（cli）'
+    // 呼ばなかった回は段5・段6が別の文を出すのでここには来ないが、英語のまま出さないよう和文にしておく
+    case AI_SKIPPED_STOP_REASON: return 'AI を呼ばなかった'
     default: return r
   }
 }
@@ -548,6 +552,15 @@ function Knowledge({ st, s, phase }: { st: KnowledgeStage; s: number; phase: Pha
   if (st.items.provenance === 'none') {
     return <p className="mt-2 text-small text-ink-2"><Note>{st.items.note ?? 'この回に提示した知識は記録なし'}</Note></p>
   }
+  // AI を呼ばなかった回は読みにも行っていない（「0件を選んだ」と書くと事実と違う）
+  if (st.skipped) {
+    return (
+      <p className="mt-2 text-small text-ink-2">
+        AI を呼ばないため、知識は読んでいません。
+        <span className="text-muted"> 呼ぶ回は、蓄えた知識を最大 60 件読み、そこから最大 6 件を選ぶ仕組みです。</span>
+      </p>
+    )
+  }
   return (
     <>
       <p className="mt-2 text-small text-ink-2">
@@ -586,6 +599,17 @@ function Ai({ st, s, model, phase }: { st: AiStage; s: number; model: ReplayMode
     : 'トークンと終わり方も記録なし'
   // 返事の行に出すものが無い（4つとも記録なしで、見出しの印が全部言っている）ときは、行ごと出さない
   const replyLine = !(answered && processNone && processNote == null)
+
+  // AI を呼ばなかった回（材料を取得できた銘柄が0件・2026-09-17）: 渡した札も返事の行もモデル・終わり方の表も出さない
+  // （呼んでいないものを「打ち切り」「記録なし」と書かない）。stopReason の英語は画面に出さない
+  if (st.skipped) {
+    return (
+      <p className="mt-2 text-small text-ink-2">
+        <b className="font-semibold text-ink">AI は呼ばなかった。</b>
+        <span className="text-muted"> 材料を取得できた銘柄が0件だったため、知識も読まず、AI に何も渡していません。費用も待ち時間も使っていません。</span>
+      </p>
+    )
+  }
 
   return (
     <>
@@ -673,13 +697,18 @@ function Decisions({ st, s, phase }: { st: DecisionsStage; s: number; phase: Pha
           AI の返事が打ち切られ、この回の判断は記録なし（{stopReasonLabel(st.failure.stopReason)}{st.failure.note ? `・${st.failure.note}` : ''}）
         </p>
       )}
+      {st.skipped && (
+        <p className="mt-2 text-small text-ink-2">
+          材料が0件のため AI には聞いていません。<Note>判断が無いのは、返事が無かったからではなく、聞いていないからです</Note>
+        </p>
+      )}
 
       {st.rows.length > 0 && (
         <ul className="mt-2" aria-label="銘柄ごとの判断">
           {st.rows.map((r, i) => (
             <li key={r.symbol} className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-border py-2 text-small first:border-t-0 ${REVEAL} ${on(i < shown)}`}>
               <span className="w-16 font-semibold text-ink tabular-nums">{r.symbol}</span>
-              {r.action ? <ActionPill action={r.action} /> : <span className="text-muted">判断の記録なし</span>}
+              {r.action ? <ActionPill action={r.action} /> : <span className="text-muted">{st.skipped ? '材料を取得できず' : '判断の記録なし'}</span>}
               {r.confidence && <span className="text-caption text-muted">確信度 {CONFIDENCE_LABEL[r.confidence]}</span>}
               {r.price != null && <span className="ml-auto tabular-nums text-ink-2">{fmtPrice(r.symbol, r.price)}</span>}
               {r.held === true && <span className="text-caption text-muted">保有中</span>}

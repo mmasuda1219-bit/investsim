@@ -56,7 +56,9 @@ export interface TickAI {
   inputTokens: number | null
   outputTokens: number | null
   /** API の stop_reason（end_turn / max_tokens …）。失敗時は 'timeout' | 'error'、返事はあったが判断を1件も
-   *  救出できなかったときは 'empty'（元の stop_reason は stage 'ai' の note に残す） */
+   *  救出できなかったときは 'empty'（元の stop_reason は stage 'ai' の note に残す）。
+   *  材料を取得できた銘柄が0件で AI を呼ばなかった回は AI_SKIPPED_STOP_REASON（'skipped'・2026-09-17）。
+   *  これは失敗ではない（返事が無いのは聞いていないから）。読む側は打ち切りと区別すること */
   stopReason: string
   ms: number
   decisionsReturned: number
@@ -181,6 +183,42 @@ export function rankUniverse(
       : { symbol, changePercent: null, ok: false, rank: null }
   })
   return { candidates: ranked.slice(0, Math.max(0, n)).map(r => r.symbol), universe }
+}
+
+/**
+ * 材料を取得できた銘柄が0件の回は AI を呼ばない（2026-09-17 決定「0銘柄なら AI を呼ばない」）。
+ * 呼ばなかった回の TickAI の stopReason。失敗（timeout / error / empty）とは別で、再生画面は失敗扱いにしない。
+ * 画面には英語のまま出さない（読む側で和文にする）。
+ */
+export const AI_SKIPPED_STOP_REASON = 'skipped'
+/** 呼ばなかった回の TickAI.model。実在のモデル名と混ざらない目印 */
+export const AI_SKIPPED_MODEL = 'none'
+/** 段 'knowledge' の note（AI に見せる相手がいないので知識も読まない） */
+export const AI_SKIPPED_KNOWLEDGE_NOTE = 'AI を呼ばないため読まず'
+/** 段 'ai' の note */
+export const AI_SKIPPED_NOTE = '材料を取得できた銘柄が0件のため AI を呼ばず'
+
+/**
+ * AI を呼ばなかった回の TickAI。呼んでいないので所要 0ms・渡した銘柄 0・返事 0。
+ * 文字数・トークンは「無い」のではなく「測っていない」ので null（0 で埋めない・原則9）。
+ */
+export function skippedTickAI(): TickAI {
+  return {
+    model: AI_SKIPPED_MODEL,
+    inputTokens: null,
+    outputTokens: null,
+    stopReason: AI_SKIPPED_STOP_REASON,
+    ms: 0,
+    decisionsReturned: 0,
+    decisionsExpected: 0,
+    promptChars: null,
+    responseChars: null,
+  }
+}
+
+/** この記録は「AI を呼ばなかった回」か（tick が無い・ai が無い・呼んだ回は false）。 */
+export function isAiSkipped(ai: TickAI | null | undefined): boolean {
+  return !!ai && ai.stopReason === AI_SKIPPED_STOP_REASON
 }
 
 /** 段 'candidates' の note。前日比を取れた銘柄が無い回は、保有銘柄だけを分析したことを残す。 */
