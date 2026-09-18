@@ -141,7 +141,8 @@ function stopReasonLabel(r: string): string {
     // 過去の回に当てて表示すると事実と違う数字になる。今の設定値は下の「今の設定:」の行だけが名乗る。
     case 'timeout': return '時間切れで打ち切り（timeout）'
     case 'error': return '呼び出しに失敗（error）'
-    case 'empty': return '返事はあったが判断を1件も読めなかった（empty）'
+    // 'empty' は段6の失敗の行が記録の手掛かりで出し分ける（EMPTY_REPLY_TEXT）ので、ここは英語を出さず事実だけ
+    case 'empty': return '返事はあったが判断を1件も読めなかった'
     case 'cli': return 'ローカルの CLI 経路（cli）'
     // 呼ばなかった回は段5・段6が別の文を出すのでここには来ないが、英語のまま出さないよう和文にしておく
     case AI_SKIPPED_STOP_REASON: return 'AI を呼ばなかった'
@@ -684,6 +685,32 @@ function Ai({ st, s, model, phase }: { st: AiStage; s: number; model: ReplayMode
 
 // ── 段6 判断 ──────────────────────────────────────────────────────────────
 
+/**
+ * 'empty'（返事はあったが判断を1件も読めなかった）の回の失敗の行。記録の中の手掛かり（replay-model の
+ * classifyEmptyReply）で出し分ける（2026-09-18 決定）。「打ち切られ」と書くのは本当に上限で打ち切られた回だけ。
+ * 事実だけを言い、断定しない。英語（empty / max_tokens / end_turn）は出さない。保存値は変えない
+ */
+export const EMPTY_REPLY_TEXT = {
+  /** AI に渡した銘柄が0件だった回（2026-09-17 より前は材料0件でも呼んでいた） */
+  noSymbols: 'AI に渡した銘柄が0件だったため、判断は返ってきませんでした',
+  /** 返事の上限（max_tokens）で打ち切られた回。変更前と同じ「打ち切られ」の文（事実に合う） */
+  maxTokens: 'AI の返事が打ち切られ、この回の判断は記録なし（返事の上限に達して打ち切られ、判断を1件も読めなかった）',
+  /** 終わり方が max_tokens 以外と分かっている回、または手掛かりが無い回。打ち切りと断定しない中立の文 */
+  other: 'AI の返事に、使える判断が1件もありませんでした',
+} as const
+
+/** 段6 の失敗の行の文。'empty' 以外（timeout / error）は変更前の文のまま */
+function failureText(f: NonNullable<DecisionsStage['failure']>): string {
+  switch (f.emptyKind) {
+    case 'no-symbols': return EMPTY_REPLY_TEXT.noSymbols
+    case 'max-tokens': return EMPTY_REPLY_TEXT.maxTokens
+    case 'other':
+    case 'unknown': return EMPTY_REPLY_TEXT.other
+    default:
+      return `AI の返事が打ち切られ、この回の判断は記録なし（${stopReasonLabel(f.stopReason)}${f.note ? `・${f.note}` : ''}）`
+  }
+}
+
 function Decisions({ st, s, phase }: { st: DecisionsStage; s: number; phase: PhaseState }) {
   const pRows = stepProgress(phase, s, 0)
   const pFocus = stepProgress(phase, s, 1)
@@ -694,7 +721,7 @@ function Decisions({ st, s, phase }: { st: DecisionsStage; s: number; phase: Pha
     <>
       {st.failure && (
         <p className="mt-2 text-small text-warning-ink">
-          AI の返事が打ち切られ、この回の判断は記録なし（{stopReasonLabel(st.failure.stopReason)}{st.failure.note ? `・${st.failure.note}` : ''}）
+          {failureText(st.failure)}
         </p>
       )}
       {st.skipped && (
@@ -787,6 +814,8 @@ export default function ReplayStages({ model, phase, history, historyError, mark
         const dim = playing && state === 'pending'
         const last = i === total - 1
         const dot = state === 'done' ? 'border-brand bg-brand' : state === 'active' ? 'border-brand bg-brand-tint' : 'border-border bg-card'
+        // AI を呼ばなかった回の段4・段5は記録の所要 0ms を「実測 0.0秒」と見せない（測っていない・やっていない）
+        const msHidden = (st.key === 'knowledge' || st.key === 'ai') && st.skipped
         return (
           <li
             key={st.key}
@@ -808,7 +837,7 @@ export default function ReplayStages({ model, phase, history, historyError, mark
                   </h3>
                   <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-0.5">
                     <Mark provenance={st.provenance} label={st.sourceLabel} />
-                    {st.ms.provenance === 'record' && st.ms.value != null && (
+                    {!msHidden && st.ms.provenance === 'record' && st.ms.value != null && (
                       <span className="text-caption text-muted tabular-nums">実測 {fmtSec(st.ms.value)}</span>
                     )}
                   </span>

@@ -1097,7 +1097,10 @@ export async function runTick(sessionId: string): Promise<AISession> {
   // 1銘柄でも取れた回は今までどおり呼ぶ（止める条件を広げない）。
   const aiSkipped = enriched.length === 0
   if (aiSkipped) {
-    console.warn(`[ai-trader] ${AI_SKIPPED_NOTE}（分析対象 ${combined.length} 銘柄すべてで材料の取得に失敗）`)
+    // ログの文だけ: 候補も保有も無い回（combined 0件）に「0 銘柄すべてで失敗」と書かない
+    console.warn(`[ai-trader] ${AI_SKIPPED_NOTE}（${combined.length > 0
+      ? `分析対象 ${combined.length} 銘柄すべてで材料の取得に失敗`
+      : '候補も保有銘柄も無く、分析対象が0銘柄'}）`)
   }
 
   // S2(知識配線): knowledge_items未設定/未実行・タイムアウト時は[]にフォールバックする

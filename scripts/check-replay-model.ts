@@ -14,7 +14,11 @@ import {
   type ReplayHistoryBar, type ReplayStage, type CandidatesStage, type MaterialsStage,
   type IndicatorsStage, type KnowledgeStage, type AiStage, type DecisionsStage, type TradesStage,
   LEGACY_CHANGE_NOTE, LEGACY_CHANGE_NOTE_SHORT, LEGACY_CHANGE_NOTE_ZERO, showsLegacyChangeNote,
+  classifyEmptyReply, readStopFromAiNote, type EmptyReplyKind,
 } from '../lib/ai-trader/replay-model'
+import os from 'node:os'
+import crypto from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import {
   emptyTickRecord, makeStage, decisionIdFor, skippedTickAI, AI_SKIPPED_NOTE, AI_SKIPPED_KNOWLEDGE_NOTE,
   type TickRecord,
@@ -988,17 +992,280 @@ console.log('H. 部品の静的描画（ReplayStages を react-dom/server で描
     const aiPlan = sk.plan.find(p => p.key === 'ai')
     check('skipped: 再生の計画で段5は「考えている」時間を置かない（gather 0・think 0.6 秒）', aiPlan?.steps.map(s => `${s.key}:${s.ms}`).join(',') === 'gather:0,think:600', JSON.stringify(aiPlan))
 
-    // 旧記録: 変更前と同じ文が出る（「打ち切られ」の文は今回は変えない決まり）
+    // 旧記録: timeout は変更前と同じ文。empty（stop=end_turn・渡した3銘柄）は 2026-09-18 から出し分けて中立の文（I 節）
     const em = render('empty')
     const to = render('timeout')
-    check('empty: 段6 は変更前どおり「AI の返事が打ち切られ、この回の判断は記録なし（返事はあったが判断を1件も読めなかった（empty）・…）」',
-      em.text.includes('AI の返事が打ち切られ、この回の判断は記録なし（返事はあったが判断を1件も読めなかった（empty）・返事あり(stop=end_turn, 20字)だが判断を1件も救出できず）'))
+    check('empty(stop=end_turn): 段6 は「AI の返事に、使える判断が1件もありませんでした」（2026-09-18〜。打ち切られとは書かない）',
+      em.text.includes('AI の返事に、使える判断が1件もありませんでした') && !/打ち切られ/.test(em.text))
     check('timeout: 段6 は変更前どおり「…（時間切れで打ち切り（timeout）・Claude timed out after 40000ms）」',
       to.text.includes('AI の返事が打ち切られ、この回の判断は記録なし（時間切れで打ち切り（timeout）・Claude timed out after 40000ms）'))
     check('empty / timeout: 段5 の返事の行と表（終わり方・判断の数）は変更前どおり出る',
       [em.text, to.text].every(t => t.includes('返事:') && t.includes('終わり方') && t.includes('判断の数')))
     check('empty / timeout: 「AI は呼ばなかった」「AI には聞いていません」は出ない', [em.text, to.text].every(t => !t.includes('AI は呼ばなかった') && !t.includes('AI には聞いていません')))
     check('empty / timeout: 段5 の計画は変更前どおり think 1.8 秒', [em.plan, to.plan].every(p => p.find(x => x.key === 'ai')?.steps.find(s => s.key === 'think')?.ms === 1800))
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// 静的描画の道具（H と同じ。I / J でも使うので関数に）。next build / next dev は使わない
+type RenderKit = {
+  React: typeof import('react')
+  renderToStaticMarkup: (el: unknown) => string
+  ReplayStages: (props: Record<string, unknown>) => unknown
+  planFor: (m: unknown) => unknown[]
+  completePhase: (plan: unknown[]) => unknown
+  listReplayRounds: typeof listReplayRounds
+  buildReplayModel: typeof buildReplayModel
+}
+/* eslint-disable @typescript-eslint/no-require-imports */
+function loadKit(root: string): RenderKit {
+  const React = require('react') as RenderKit['React']
+  const { renderToStaticMarkup } = require('react-dom/server') as { renderToStaticMarkup: RenderKit['renderToStaticMarkup'] }
+  const stagesMod = require(path.join(root, 'components/watch/replay/ReplayStages')) as { default: RenderKit['ReplayStages']; planFor: RenderKit['planFor'] }
+  const clockMod = require(path.join(root, 'components/watch/replay/useReplayClock')) as { completePhase: RenderKit['completePhase'] }
+  const modelMod = require(path.join(root, 'lib/ai-trader/replay-model')) as { listReplayRounds: RenderKit['listReplayRounds']; buildReplayModel: RenderKit['buildReplayModel'] }
+  return { React, renderToStaticMarkup, ReplayStages: stagesMod.default, planFor: stagesMod.planFor, completePhase: clockMod.completePhase,
+    listReplayRounds: modelMod.listReplayRounds, buildReplayModel: modelMod.buildReplayModel }
+}
+/* eslint-enable @typescript-eslint/no-require-imports */
+/** その kit の replay-model で回を組み、その kit の ReplayStages で描く（完成状態）。回ごとの HTML */
+function renderSession(kit: RenderKit, s: AISession): string[] {
+  const rounds = kit.listReplayRounds(s)
+  return rounds.map(r => {
+    const m = kit.buildReplayModel(s, r, { rounds })
+    const phase = kit.completePhase(kit.planFor(m))
+    return kit.renderToStaticMarkup(kit.React.createElement(kit.ReplayStages as never, { model: m, phase, history: 'ready', markers: [], instant: false }))
+  })
+}
+const htmlText = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+/** data-stage ごとの HTML 片（見出し＋本文）。段の中だけを見るための切り分け */
+function stageHtml(html: string, key: string): string {
+  const i = html.indexOf(`data-stage="${key}"`)
+  if (i < 0) return ''
+  const j = html.indexOf('data-stage="', i + 1)
+  return j < 0 ? html.slice(i) : html.slice(i, j)
+}
+const PROJECT_ROOT = path.resolve(__dirname, '..')
+
+// ══════════════════════════════════════════════════════════════════════════
+console.log("I. 'empty' の旧記録の出し分け（2026-09-18・表示の文だけ。保存値は書き換えない）")
+// gTick('empty') と同じ形で、記録の中の手掛かり（TickAI.decisionsExpected・段 'ai' の note の stop=）だけを変える
+type EmptyVariant = 'no-symbols' | 'max-tokens' | 'end-turn' | 'cli' | 'no-note' | 'stop-unknown'
+const EMPTY_VARIANTS: Array<{ v: EmptyVariant; kind: EmptyReplyKind; expect: string; truncated: boolean }> = [
+  { v: 'no-symbols',   kind: 'no-symbols', expect: 'AI に渡した銘柄が0件だったため、判断は返ってきませんでした', truncated: false },
+  { v: 'max-tokens',   kind: 'max-tokens', expect: 'AI の返事が打ち切られ、この回の判断は記録なし（返事の上限に達して打ち切られ、判断を1件も読めなかった）', truncated: true },
+  { v: 'end-turn',     kind: 'other',      expect: 'AI の返事に、使える判断が1件もありませんでした', truncated: false },
+  { v: 'cli',          kind: 'other',      expect: 'AI の返事に、使える判断が1件もありませんでした', truncated: false },
+  { v: 'no-note',      kind: 'unknown',    expect: 'AI の返事に、使える判断が1件もありませんでした', truncated: false },
+  { v: 'stop-unknown', kind: 'unknown',    expect: 'AI の返事に、使える判断が1件もありませんでした', truncated: false },
+]
+function iTick(v: EmptyVariant): TickRecord {
+  const t = gTick('empty')
+  const ai = t.ai as NonNullable<TickRecord['ai']>
+  const aiStage = t.stages.find(s => s.name === 'ai') as NonNullable<TickRecord['stages'][number]>
+  switch (v) {
+    case 'no-symbols':
+      // 材料0件でも呼んでいた時期の回: 候補なし・保有2銘柄の材料も取れず decisionsExpected 0。AI は空の配列（2字）を返した
+      t.selected = []
+      t.contexts = t.heldAdded.map(symbol => ({ symbol, bars: 0, ma20: null, ma50: null, rsi14: null, macd: null, bb: null, fundamentalsOk: false, newsCount: 0, newsHeadlines: [], error: 'Real quote unavailable' }))
+      t.ai = { ...ai, decisionsExpected: 0, promptChars: 3100, responseChars: 2, outputTokens: 3 }
+      aiStage.note = '返事あり(stop=end_turn, 2字)だが判断を1件も救出できず'
+      break
+    case 'max-tokens':
+      t.ai = { ...ai, outputTokens: 3500, responseChars: 9000 }
+      aiStage.note = '返事あり(stop=max_tokens, 9000字)だが判断を1件も救出できず'
+      break
+    case 'end-turn': break // gTick('empty') そのもの（stop=end_turn, 20字）
+    case 'cli':
+      t.ai = { ...ai, model: 'cli', inputTokens: null, outputTokens: null }
+      aiStage.note = '返事あり(stop=cli, 20字)だが判断を1件も救出できず'
+      break
+    case 'no-note': delete aiStage.note; break
+    case 'stop-unknown': aiStage.note = '返事あり(stop=unknown, 20字)だが判断を1件も救出できず'; break
+  }
+  return t
+}
+{
+  // 純関数
+  check("readStopFromAiNote: engine の note から stop= を読む", readStopFromAiNote('返事あり(stop=max_tokens, 9000字)だが判断を1件も救出できず') === 'max_tokens'
+    && readStopFromAiNote('返事あり(stop=end_turn)だが判断の組み立てに失敗') === 'end_turn' && readStopFromAiNote('3銘柄中 2 件のみ救出 (stop=cli)') === 'cli')
+  check('readStopFromAiNote: 無い・読めない → null', readStopFromAiNote(undefined) === null && readStopFromAiNote(null) === null && readStopFromAiNote('Claude timed out after 40000ms') === null)
+  check("classifyEmptyReply: decisionsExpected 0 は note より優先して 'no-symbols'", classifyEmptyReply({ decisionsExpected: 0 }, '返事あり(stop=max_tokens, 2字)だが…') === 'no-symbols')
+  check("classifyEmptyReply: max_tokens → 'max-tokens'／end_turn・cli → 'other'／無し・unknown → 'unknown'",
+    classifyEmptyReply({ decisionsExpected: 3 }, '返事あり(stop=max_tokens, 9000字)') === 'max-tokens'
+    && classifyEmptyReply({ decisionsExpected: 3 }, '返事あり(stop=end_turn, 20字)') === 'other'
+    && classifyEmptyReply({ decisionsExpected: 3 }, '返事あり(stop=cli, 20字)') === 'other'
+    && classifyEmptyReply({ decisionsExpected: 3 }, undefined) === 'unknown'
+    && classifyEmptyReply({ decisionsExpected: 3 }, '返事あり(stop=unknown, 5字)') === 'unknown')
+
+  let kit: RenderKit | null = null
+  try { kit = loadKit(PROJECT_ROOT) } catch (e) { check('部品を読み込めた', false, e instanceof Error ? e.message : String(e)) }
+  const NO_ENGLISH = /\b(empty|max_tokens|end_turn|skipped|unknown)\b/i
+  for (const { v, kind, expect, truncated } of EMPTY_VARIANTS) {
+    const s: AISession = { ...gBase, ticks: [iTick(v)] }
+    const rounds = listReplayRounds(s)
+    const m = buildReplayModel(s, rounds[0], { rounds })
+    const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    check(`${v}: 段6 failure は stopReason 'empty'・emptyKind '${kind}'`, c6.failure?.stopReason === 'empty' && c6.failure?.emptyKind === kind, JSON.stringify(c6.failure))
+    check(`${v}: skipped ではない・見出し「返ってきた判断　なし」・印「判断は記録されていない」`, c6.skipped === false && c6.title === '返ってきた判断　なし' && c6.sourceLabel === '判断は記録されていない')
+    check(`${v}: session（保存値）を変更しない`, JSON.stringify(s.ticks) === JSON.stringify([iTick(v)]))
+    if (!kit) continue
+    const html = renderSession(kit, s)[0]
+    const text = htmlText(html)
+    const seg6 = htmlText(stageHtml(html, 'decisions'))
+    check(`${v}: 段6 に「${expect}」`, seg6.includes(expect), seg6.slice(0, 200))
+    check(`${v}: 「打ち切られ」が${truncated ? '出る' : '出ない'}（画面全体）`, /打ち切られ/.test(text) === truncated, text.match(/.{0,30}打ち切られ.{0,30}/)?.[0])
+    check(`${v}: 画面に英語の empty / max_tokens / end_turn / skipped / unknown が出ない`, !NO_ENGLISH.test(text), text.match(new RegExp(`.{0,30}${NO_ENGLISH.source}.{0,30}`, 'i'))?.[0])
+    check(`${v}: 段5 の終わり方は「返事はあったが判断を1件も読めなかった」（英語なし）`, htmlText(stageHtml(html, 'ai')).includes('終わり方 返事はあったが判断を1件も読めなかった'))
+    check(`${v}: 「AI は呼ばなかった」「AI には聞いていません」は出ない（呼んだ回）`, !text.includes('AI は呼ばなかった') && !text.includes('AI には聞いていません'))
+  }
+  // 出し分けの実装の守り: 4 つの文は ReplayStages の EMPTY_REPLY_TEXT に集約し、段6 の失敗の行だけがそれを使う
+  const stagesSrc = fs.readFileSync(path.resolve(__dirname, '../components/watch/replay/ReplayStages.tsx'), 'utf8')
+  const codeLines = stagesSrc.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l))
+  const truncLines = codeLines.filter(l => l.includes('打ち切られ'))
+  check('ReplayStages: コード行で「打ち切られ」を書くのは EMPTY_REPLY_TEXT.maxTokens と timeout / error の既定文の 2 行だけ（JSX に直書きしない）',
+    truncLines.length === 2 && truncLines.some(l => l.includes('maxTokens:')) && truncLines.some(l => l.includes('return `AI の返事が打ち切られ、この回の判断は記録なし（${stopReasonLabel'))
+    && !/<p[^>]*>\s*AI の返事が打ち切られ/.test(stagesSrc),
+    truncLines.map(l => l.trim().slice(0, 60)).join(' / '))
+
+  // ③の reviewer の suggestion: skipped の回は段4・段5 の見出しに「実測 0.0秒」を出さず、段4 の見出しも変える
+  {
+    const { m, s } = gModel('skipped')
+    const c4 = stage<KnowledgeStage>(m.stages, 'knowledge')
+    check('skipped: 段4 の見出しは「AI を呼ばないため、知識は読まない」', c4.title === 'AI を呼ばないため、知識は読まない', c4.title)
+    check('skipped: 段4 の ms は記録の 0（モデルは変えず、画面が出さない）', c4.ms.provenance === 'record' && c4.ms.value === 0)
+    if (kit) {
+      const html = renderSession(kit, s)[0]
+      const seg = (k: string) => htmlText(stageHtml(html, k))
+      check('skipped: 段4・段5 の見出しに「実測」が無い', !seg('knowledge').includes('実測') && !seg('ai').includes('実測'), `${seg('knowledge').slice(0, 120)} / ${seg('ai').slice(0, 120)}`)
+      check('skipped: 段1・段2 には「実測」が残る（隠すのは呼ばなかった段だけ）', seg('candidates').includes('実測 3.0秒') && seg('materials').includes('実測 6.0秒'),
+        `${seg('candidates').slice(0, 100)} / ${seg('materials').slice(0, 100)}`)
+      check('skipped: 段4 に見出し「AI を呼ばないため、知識は読まない」', seg('knowledge').includes('AI を呼ばないため、知識は読まない'))
+      check("skipped: 画面に英語の skipped / empty が出ない", !NO_ENGLISH.test(htmlText(html)))
+    }
+    // 変更前の固定文が skipped 以外では残る
+    const { m: mt } = gModel('timeout')
+    check('timeout: 段4 の見出しは変更前どおり「過去に学んだ知識から、今回に関係するものを選ぶ」', stage<KnowledgeStage>(mt.stages, 'knowledge').title === '過去に学んだ知識から、今回に関係するものを選ぶ')
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// 変更前の版（BASELINE_COMMIT ＝ ③「材料が0件の回は AI を呼ばない」出荷時点。この出し分け（2026-09-18）の直前）の
+// 描画部品を git から一時ディレクトリに取り出し、同じ記録を両方の版で描いて HTML を突き合わせる。
+// 一時ディレクトリは os.tmpdir() 直下に作り、終わったら消す。node_modules は junction（Windows の
+// ディレクトリの近道。中身は複製しない）で借り、消すときは junction だけ外す（先の node_modules には触れない）。
+const BASELINE_COMMIT = '7979c39'
+const BASELINE_FILES = [
+  'components/watch/replay/ReplayStages.tsx', 'components/watch/replay/ReplayChart.tsx', 'components/watch/replay/useReplayClock.ts',
+  'components/chartTheme.ts',
+  'lib/ai-trader/replay-model.ts', 'lib/ai-trader/tick-record.ts', 'lib/ai-trader/universe.ts', 'lib/ai-trader/ai-config.ts',
+  'lib/ai-trader/fundamentals-parse.ts',
+]
+console.log(`J. 'empty' 以外の旧記録（timeout / error / 判断つき / 一部打ち切り / tick なし）の描画は変更前（${BASELINE_COMMIT}）とバイト一致`)
+function withBaselineKit<T>(fn: (kit: RenderKit) => T): T | null {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${BASELINE_COMMIT}^{commit}`], { cwd: PROJECT_ROOT, stdio: 'ignore' })
+  } catch {
+    console.log(`  未実行: git で ${BASELINE_COMMIT} を読めない（浅い複製か git なし）`)
+    return null
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'investsim-replay-baseline-'))
+  const dirPosix = dir.replace(/\\/g, '/')
+  const junction = path.join(dir, 'node_modules')
+  try {
+    for (const f of BASELINE_FILES) {
+      const src = execFileSync('git', ['show', `${BASELINE_COMMIT}:${f}`], { cwd: PROJECT_ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
+      // '@/…' は tsconfig の paths（cwd 基準）で今の版に解決されてしまうので、取り出した木の絶対パスに書き換える。
+      // tsx は tsconfig の jsx: react-jsx をプロジェクトの中のファイルにしか当てないため、外に置いた .tsx は古い方式
+      // （React.createElement）に変換される。React を読み込んでおけばどちらの方式でも動く（描画結果は同じ）
+      const rewritten = (f.endsWith('.tsx') ? "import React from 'react'\n" : '') + src.replace(/from '@\//g, `from '${dirPosix}/`)
+      const out = path.join(dir, f)
+      fs.mkdirSync(path.dirname(out), { recursive: true })
+      fs.writeFileSync(out, rewritten)
+    }
+    fs.symlinkSync(path.join(PROJECT_ROOT, 'node_modules'), junction, 'junction')
+    return fn(loadKit(dir))
+  } finally {
+    // junction を先に外してから残りを消す（rmSync は junction の先に入らないが、念のため順序で守る）
+    try { fs.unlinkSync(junction) } catch { try { fs.rmdirSync(junction) } catch { /* 作られていない */ } }
+    let junctionGone = false
+    try { fs.lstatSync(junction) } catch { junctionGone = true }
+    if (junctionGone) fs.rmSync(dir, { recursive: true, force: true })
+    else console.log(`  警告: ${junction} を外せなかったので一時ディレクトリを残す`)
+  }
+}
+/** 判断つき（end_turn・3/3）／一部打ち切り（max_tokens・2/3）／error の tick を gTick('empty') の形から作る */
+function jTick(kind: 'error' | 'decided' | 'partial'): { tick: TickRecord; decisions: AIDecision[]; records: AISession['learning']['allDecisions'] } {
+  const t = gTick('empty')
+  const ai = t.ai as NonNullable<TickRecord['ai']>
+  const decidedAt = new Date(G_T + 21_200).toISOString()
+  const syms = kind === 'partial' ? ['TSLA', 'CVX'] : ['TSLA', 'CVX', 'XOM']
+  const mkDecision = (symbol: string, i: number): AIDecision => ({
+    symbol, name: symbol, action: i === 0 ? 'watch' : 'hold', price: 100 + i, change: 1.5 - i, changeBasis: 'prev-close-v1',
+    reasoning: `検査用の理由 ${symbol}`, newsInfluence: '', news: [], technicals: '上昇トレンド（価格>MA20>MA50）・RSI55中立。',
+    fundamentals: 'PER=20.6x | ROE=12.2% | fmt=2', confidence: 'medium', sources: [], knowledgeRefs: [], tickId: t.id, decidedAt,
+  })
+  const mkRecord = (symbol: string, i: number) => ({
+    id: `d_${symbol}_${G_T}`, timestamp: new Date(G_T + 21_202).toISOString(), symbol, action: (i === 0 ? 'watch' : 'hold') as 'watch' | 'hold', price: 100 + i,
+    confidence: 'medium' as const, reasoning: `検査用の理由 ${symbol}`, technicals: '上昇トレンド（価格>MA20>MA50）・RSI55中立。',
+    fundamentals: 'PER=20.6x | ROE=12.2% | fmt=2', newsHeadlines: ['[1h前] x (y)'],
+  })
+  const aiStage = t.stages.find(s => s.name === 'ai') as NonNullable<TickRecord['stages'][number]>
+  if (kind === 'error') {
+    t.ai = { ...ai, inputTokens: null, outputTokens: null, stopReason: 'error', ms: 1200, responseChars: null }
+    aiStage.ok = false; aiStage.note = 'Error: 500 Internal Server Error'
+    t.stages = t.stages.filter(s => s.name !== 'trade')
+    return { tick: t, decisions: [], records: [] }
+  }
+  t.ai = { ...ai, outputTokens: kind === 'partial' ? 3500 : 2800, stopReason: kind === 'partial' ? 'max_tokens' : 'end_turn', decisionsReturned: syms.length, responseChars: 4000 }
+  t.changeBasis = 'prev-close-v1'
+  aiStage.ok = true
+  if (kind === 'partial') aiStage.note = '3銘柄中 2 件のみ救出 (stop=max_tokens)'; else delete aiStage.note
+  t.decisionIds = syms.map(s => decisionIdFor(s, decidedAt))
+  return { tick: t, decisions: syms.map(mkDecision), records: syms.map(mkRecord) }
+}
+function jSession(kind: 'timeout' | 'error' | 'decided' | 'partial' | 'no-tick' | 'empty' | 'skipped'): AISession {
+  if (kind === 'no-tick') return { ...gBase, ticks: [] }
+  if (kind === 'timeout' || kind === 'empty' || kind === 'skipped') return { ...gBase, ticks: [gTick(kind)] }
+  const { tick, decisions, records } = jTick(kind)
+  return {
+    ...gBase, ticks: [tick], decisions, lastTickAt: tick.finishedAt as string, tickCount: 73,
+    learning: { ...gBase.learning, allDecisions: [...records, ...gBase.learning.allDecisions] },
+  }
+}
+{
+  const cur = loadKit(PROJECT_ROOT)
+  const kinds = ['timeout', 'error', 'decided', 'partial', 'no-tick'] as const
+  const curHtml = Object.fromEntries(kinds.map(k => [k, renderSession(cur, jSession(k))])) as Record<typeof kinds[number], string[]>
+  const curEmpty = renderSession(cur, jSession('empty'))
+  const curSkipped = renderSession(cur, jSession('skipped'))
+  check('判断つき: 段6 は 3/3 で失敗なし（比較の題材が意図どおり）', (() => {
+    const s = jSession('decided'); const r = listReplayRounds(s); const m = buildReplayModel(s, r[0], { rounds: r }); const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    return c6.failure === null && c6.returned === 3 && c6.expected.value === 3 && c6.rows.filter(x => x.provenance === 'record').length === 3
+  })())
+  check('一部打ち切り: 段6 は 2/3・失敗なし・段5 の終わり方は「返事の上限で打ち切り（max_tokens）」のまま（empty ではないので変えない）', (() => {
+    const s = jSession('partial'); const r = listReplayRounds(s); const m = buildReplayModel(s, r[0], { rounds: r }); const c6 = stage<DecisionsStage>(m.stages, 'decisions')
+    return c6.failure === null && c6.returned === 2 && c6.expected.value === 3 && htmlText(curHtml.partial[0]).includes('終わり方 返事の上限で打ち切り（max_tokens）')
+  })())
+  check('error: 段6 は変更前どおり「AI の返事が打ち切られ、この回の判断は記録なし（呼び出しに失敗（error）・Error: 500 Internal Server Error）」',
+    htmlText(curHtml.error[0]).includes('AI の返事が打ち切られ、この回の判断は記録なし（呼び出しに失敗（error）・Error: 500 Internal Server Error）'))
+  check('tick なし: 回が 1 つ描ける', curHtml['no-tick'].length === 1 && (curHtml['no-tick'][0].match(/data-stage="/g) ?? []).length === 6)
+
+  const base = withBaselineKit(kit => ({
+    html: Object.fromEntries(kinds.map(k => [k, renderSession(kit, jSession(k))])) as Record<typeof kinds[number], string[]>,
+    empty: renderSession(kit, jSession('empty')),
+    skipped: renderSession(kit, jSession('skipped')),
+  }))
+  if (base) {
+    const md5 = (s: string) => crypto.createHash('md5').update(s).digest('hex').slice(0, 12)
+    for (const k of kinds) {
+      const same = curHtml[k].length === base.html[k].length && curHtml[k].every((h, i) => h === base.html[k][i])
+      check(`${k}: 変更前（${BASELINE_COMMIT}）と HTML がバイト一致（${curHtml[k].length} 回・md5 ${curHtml[k].map(md5).join(',')}）`, same,
+        same ? '' : `今 ${curHtml[k].map(md5).join(',')} / 前 ${base.html[k].map(md5).join(',')}`)
+    }
+    // 比較が本物であることの確認: 出し分けの対象（empty）と skipped は変更前と違う HTML になる
+    check("検査の妥当性: 'empty'（stop=end_turn）は変更前と HTML が違う（変更前は「打ち切られ…（empty）」）", curEmpty[0] !== base.empty[0] && /打ち切られ/.test(htmlText(base.empty[0])) && !/打ち切られ/.test(htmlText(curEmpty[0])))
+    check("検査の妥当性: 'skipped' は変更前と HTML が違う（段4 の見出し・実測の札）", curSkipped[0] !== base.skipped[0] && htmlText(stageHtml(base.skipped[0], 'knowledge')).includes('実測 0.0秒') && !htmlText(stageHtml(curSkipped[0], 'knowledge')).includes('実測'))
   }
 }
 

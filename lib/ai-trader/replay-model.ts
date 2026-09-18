@@ -273,8 +273,11 @@ export interface DecisionsStage extends StageBase {
   /** AI に渡した銘柄数（engine の decisionsExpected＝材料の取得に成功した数）。tick が無い回は none（watchlist は取得失敗の銘柄も含む） */
   expected: Sourced<number | null>
   focus: FocusDecision | null
-  /** 失敗した tick（timeout / error / empty）。判断は記録されていない。AI を呼ばなかった回（skipped）は失敗ではなく null */
-  failure: { stopReason: string; note: string | null } | null
+  /**
+   * 失敗した tick（timeout / error / empty）。判断は記録されていない。AI を呼ばなかった回（skipped）は失敗ではなく null。
+   * emptyKind は stopReason が 'empty' の回だけ持つ（classifyEmptyReply）。timeout / error には無い（旧来の形のまま）
+   */
+  failure: { stopReason: string; note: string | null; emptyKind?: EmptyReplyKind } | null
   /** AI を呼ばなかった回（AiStage.skipped と同じ）。判断が無いのは聞いていないから */
   skipped: boolean
 }
@@ -326,6 +329,34 @@ export interface ReplayModel {
 
 /** 失敗として扱う stopReason。AI を呼ばなかった回（'skipped'・tick-record.ts の AI_SKIPPED_STOP_REASON）は入れない */
 const FAILED_STOP_REASONS = new Set(['timeout', 'error', 'empty'])
+
+/**
+ * 'empty'（返事はあったが判断を1件も読めなかった）の回の内訳。表示の出し分け専用（2026-09-18 決定
+ * 「旧記録の『AI の返事が打ち切られ』を、記録の中の手掛かりで出し分ける」）。保存値は書き換えない。
+ *  - 'no-symbols': AI に渡した銘柄が0件（TickAI.decisionsExpected === 0）。2026-09-17 より前は材料0件でも
+ *                  呼んでいて、AI は空の配列を返すので必ず 'empty' になった（今は 'skipped' で呼ばない）
+ *  - 'max-tokens': 返事の上限（max_tokens）で打ち切られた。「打ち切られ」が事実に合うのはこれだけ
+ *  - 'other':      終わり方が記録にあり、max_tokens ではない（end_turn / cli など＝書式崩れ・JSON でない返事）
+ *  - 'unknown':    終わり方の手掛かりが無い（段 'ai' の note が無い・stop= が読めない・'unknown'）
+ * 終わり方は TickAI には無く、engine.ts の askClaude が段 'ai' の note に `返事あり(stop=<stop_reason>…)` の形で
+ * 残すだけ。構造化された decisionsExpected を note の文字列より先に見る。
+ */
+export type EmptyReplyKind = 'no-symbols' | 'max-tokens' | 'other' | 'unknown'
+
+/** 段 'ai' の note から元の stop_reason を読む（engine.ts の `stop=…` の形）。無ければ null */
+export function readStopFromAiNote(note: string | null | undefined): string | null {
+  if (typeof note !== 'string') return null
+  const m = /stop=([A-Za-z_]+)/.exec(note)
+  return m ? m[1] : null
+}
+
+/** 'empty' の回の内訳（上の EmptyReplyKind）。'empty' 以外の回には使わない */
+export function classifyEmptyReply(ai: { decisionsExpected: number }, aiNote: string | null | undefined): EmptyReplyKind {
+  if (ai.decisionsExpected === 0) return 'no-symbols'
+  const stop = readStopFromAiNote(aiNote)
+  if (stop == null || stop === 'unknown') return 'unknown'
+  return stop === 'max_tokens' ? 'max-tokens' : 'other'
+}
 /** finishedAt が無い（保存前に落ちた）tick の窓 */
 const TICK_WINDOW_FALLBACK_MS = 10 * 60_000
 /** 最後に成功した回と session.lastTickAt がこれ以上離れていたら tickNumber を付けない */
@@ -794,8 +825,12 @@ export function buildReplayModel(
   const focusSymbol = pickFocus(round, held)
   const focusDecision = focusSymbol ? decisions.find(d => d.symbol === focusSymbol) ?? null : null
   const focusCtx = focusSymbol ? tick?.contexts.find(c => c.symbol === focusSymbol && !c.error) ?? null : null
-  const failure = tick?.ai && FAILED_STOP_REASONS.has(tick.ai.stopReason)
-    ? { stopReason: tick.ai.stopReason, note: tick.stages.find(s => s.name === 'ai')?.note ?? null }
+  const aiNote = tick?.stages.find(s => s.name === 'ai')?.note ?? null
+  // 'empty' の回だけ内訳（emptyKind）を足す。timeout / error は従来の形のまま（キーも増やさない）
+  const failure: DecisionsStage['failure'] = tick?.ai && FAILED_STOP_REASONS.has(tick.ai.stopReason)
+    ? tick.ai.stopReason === 'empty'
+      ? { stopReason: tick.ai.stopReason, note: aiNote, emptyKind: classifyEmptyReply(tick.ai, aiNote) }
+      : { stopReason: tick.ai.stopReason, note: aiNote }
     : null
   // AI を呼ばなかった回（材料0件・2026-09-17）。失敗ではないので failure とは別（両方 true にはならない）
   const skipped = isAiSkipped(tick?.ai)
@@ -943,7 +978,8 @@ export function buildReplayModel(
       : none([], 'この回に提示した知識は記録に残っていない')
   const knowledge: KnowledgeStage = {
     key: 'knowledge', no: 4,
-    title: '過去に学んだ知識から、今回に関係するものを選ぶ',
+    // AI を呼ばなかった回は読みにも行っていない（段5の見出しと同じく、呼ばない回は見出しでも言う）
+    title: skipped ? 'AI を呼ばないため、知識は読まない' : '過去に学んだ知識から、今回に関係するものを選ぶ',
     provenance: knowledgeItems.provenance,
     sourceLabel: PROVENANCE_LABEL[knowledgeItems.provenance],
     ms: stageMs(tick, 'knowledge'),
