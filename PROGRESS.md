@@ -20,6 +20,32 @@
 
 ---
 
+## 2026-09-17-20 投資家ルールブック担当（S1・S2）
+
+- **今日のゴール**: 投資家ごとに理念とルールを出典つきの『ルールブック』にまとめ、名人欄を『買う/買わない』の札からルールごとの判定と問いに変える。当面バフェット1人（他4人は出典照合後）。テクニカルは含まない。
+- **やったこと**:
+  - 09-17: strategist/legal-compliance/designer/researcher に設計依頼。researcher がバフェット出典10項目を一次資料で照合（6照合済み・3要修正・2項目は一次資料で未検出、載せない）。architect S1〜S5 計画を作成。オーナー決定4点確認: (1)読み直しは「理由の書き方」の側面だけで構造は不変、(2)AI への入力は理由の文章のみで人格は注入しない、(3)名人5人の▲買い札をやめてルール表示へ転換、(4)呼び名は「{姓}の考え方で読み直す」に統一。計画オーナー承認（人間ゲート①）→ builder S1 着手。
+  - S1（投資家ルールブック実装）: 新規 `lib/investors/rulebooks/{types,buffett,evaluate,index,forbidden}.ts` の5ファイル。バフェット1冊だけ。`scripts/check-rulebook.ts` 471件 PASS。reviewer critical 0。
+  - 09-17-18 デザイン段階: designer が3案提示（表＋数直線 vs ノート＋書き込み罫など）→ MC が実際に両案描いた比較ページ。**オーナー選択**: 数字は案C（表と数直線併記）、問いは案B（ノート風・罫線・手書き可能な見た目）。
+  - S2（名人欄をルールに転換）: builder が新規コンポーネント `NumberLine`・`QuestionRail`・`RulebookView`、既存更新 `app/watch/client.tsx`（名人欄を判断の直後へ移動・人格の caption）・`components/MasterSignals.tsx`・`components/InvestorPanel.tsx`・`app/api/signals/[symbol]/route.ts`・`app/page.tsx`・`app/simulate/page.tsx`。指標名 ROE/D/E/FCF を併記。免責を2分割。出典の年を末尾に。reviewer W1〜W4・S2/S4/S8 の軽微修正指摘を反映（warning 0・critical 0）。
+  - 別セッション 1b との協調: トップページの API 失敗表示（三点形式・再読み込みボタン）と軽い `/api/ai-session/latest`（persona 入り）への切り替え対応。
+  - 09-20: オーナー出荷承認（人間ゲート②）→ `.next/dev` の古い生成物で build 失敗 → 削除・再 build 成功・tsc 0・check 34本 PASS。コミット `643b839`（S1）・`acc5d9e`（S2）→ push origin/main → Vercel 本番デプロイ完了。
+  - 本番確認: `/`・`/watch`・`/api/ai-session/latest`・`/api/signals/{symbol}` すべて 200。旧札「▲ 買い」「強度」0件消滅。API がルールブックの判定を返す。
+  - 09-20 ログイン補強: オーナー報告で本番ログイン後に「サーバーに接続できない」＋住所が localhost に変わる問題を調査。x-forwarded-host 優先・localhost 時に NEXT_PUBLIC_SITE_URL 利用・細工は捨てる対応を `lib/auth/callback-base.ts` に実装。`scripts/check-auth-callback.ts` 35項目検証。コミット `01d2819`・push 実施中。
+- **現在の状態**:
+  - S1・S2 本番公開済み。
+  - ログイン補強 `01d2819` は Vercel 反映中。
+  - 🔴 **ログインの根本原因は未確定**（Supabase の Site URL / Redirect URLs か callback の origin か判定不可）。
+- **次の一手**:
+  1. オーナーが Supabase Dashboard → Authentication → URL Configuration で Site URL を `https://investsim-nine.vercel.app`、Redirect URLs に `https://investsim-nine.vercel.app/auth/callback` と `/**` を追加 → 本番でログイン試行。
+  2. HISTORY.md に S1/S2 の章を追記（MC 担当）。
+  3. S3（/trade の読み直し・売買の理由を投資家ルールで軸立て）着手前に、オーナーが Supabase で 0004〜0007 の適用状況確認・0008 実行。別セッション 1b へ連絡。
+- **未解決・ブロッカー**:
+  - 🔴 ログインの根本原因（オーナーの Supabase 設定変更待ち）。
+  - S3 の DB マイグレーション（オーナーの手作業待ち）。
+
+---
+
 ## 2026-09-18
 
 - **今日のゴール**: 実データが取得できないときに架空の数字で埋めていた経路を塞ぎ、失敗を「無かったこと」にする表示を正す（原則9）。
