@@ -2,6 +2,13 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-09-20: ログイン後の戻り先は `x-forwarded-host` を優先し、本番で localhost に落ちないようにする
+- 背景: オーナー報告「本番でログインすると『サーバーに接続できない』と出て、住所が急に localhost に変わる」。ログインは ①Google → ②Supabase が「戻り先」へ → ③`/auth/callback` が元のページへ、の3段。②は戻り先が Supabase の Redirect URLs 一覧に無いと**黙って Site URL（初期値 `http://localhost:3000`）へ戻す**。③は `new URL(req.url).origin` を土台にしており、プロキシ（Vercel）の後ろでは内部の住所になりうる。外からは②の登録内容を確かめられない（`/auth/v1/authorize` は redirect_to を Google へ素通しし、判定は戻り後）
+- 決定: ③をコードで補強（`lib/auth/callback-base.ts`）: development → origin／`x-forwarded-host` が妥当なホスト名なら `${x-forwarded-proto ?? https}://host`／それ以外 origin／結果が localhost・127.0.0.1・[::1] なら `NEXT_PUBLIC_SITE_URL` があればそれ、無ければ warn。ヘッダはホスト名の文字だけ通す（スキーム・パス・改行が混ざれば捨てる＝オープンリダイレクトにしない）。②は**オーナーが Supabase Dashboard → Authentication → URL Configuration で Site URL を `https://investsim-nine.vercel.app`、Redirect URLs に `https://investsim-nine.vercel.app/auth/callback` と `/**` を追加**（コードでは直せない）
+- 却下: `window.location.origin`（`login/page.tsx`）を変える（本番では既に正しい）／`req.url` を信じ続ける（Supabase 公式の Next.js SSR 例も forwarded-host を優先）
+- 不変条件: 戻り先は `safeNextPath` を通った同一サイト内のパスだけ／`x-forwarded-host` は `HOST_PATTERN` に合う値だけ採用
+- 検証: 新規 `scripts/check-auth-callback.ts` 35件 PASS・tsc 0・build 成功。**根本原因（②か③か）は本番で未確認**。オーナーが Supabase の設定を直した後に本番でログインして確かめる
+
 ## 2026-09-18: 名人欄の見た目を「数字は表と数直線（案C）／問いはノートと書き込み罫（案B）」にする
 - 背景: S2（ルールごとの行・レビュー合格・未公開）を見たオーナーが「とっても堅苦しい」「なにかの書類みたいに見えて読む気がうせる」「言葉はいい、多分デザイン」。designer の分析: 8行が同じ形の反復・文字の大小差が 16:14 しかない・PC で1行60字超・数字が本文と同じ 14px に埋もれる・状態の語が右端に浮く・色が実質1.5色。加えて**指標名が画面に出ていない**（148.8% が ROE だと分からない）バグ
 - 決定（オーナー選択 2026-09-18）: 3案（A 余白の読み物／B 書き込むノート／C 編集的で大胆）を実際に描いて提示（比較ページ https://claude.ai/artifact/94GQeVemoanMgEQUfStGC9 ）。**「数字で確かめること」は案C**（表1つ・実測値 24px・目盛り付きの細い数直線）、**「あなたが答えること」は案B**（左の縦線＋中空の丸印・問いだけ 18px・各問いの下に書き込みの罫と `/trade` への導線）。濃紺のベタ帯（案C）は採らない。免責は文言を変えずに「ご本人とは無関係です」を人物像の直下、共通の免責を末尾に分ける。出典の年の並び（1979–2017）を末尾に置く

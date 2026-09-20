@@ -337,6 +337,13 @@ Step 1・2・2b は完了済み（公開・動作確認まで）。オーナー�
 - **2026-09-18 トップの切り替え完了**（`/api/ai-session/latest`・`isSessionSummary`＋`isDecision` で形を確かめ、壊れた成功も error に）。reviewer 出荷可 → 指摘2点（古い注釈・要素検査）も修正済み。`check-signals-undecidable` 171 PASS・tsc 0。**S1＋S2 の実装・レビュー・修正はすべて完了、オーナーの公開承認待ち**
 - **次の一手**: オーナーの公開承認（人間ゲート②）→ S1＋S2 をコミット（上の対象ファイルだけ stage・DECISIONS/DESIGN/NEXT-STEPS は差分がこちらの行だけか確認）→ 1b に知らせる → push 前に `git log origin/main..HEAD` を確認 → 公開 → HISTORY.md に1段落 → S3（/trade の読み直し。着手前にオーナーが Supabase で 0004〜0007 の適用状況を確認）
 
+### 🔴 ログインが localhost に飛ぶ（2026-09-20 オーナー報告・対応中）
+
+- 症状: 本番でログインすると「サーバーに接続できない」、住所が localhost に変わる
+- **オーナーの手作業（最有力の原因・コードでは直せない）**: https://supabase.com/dashboard/project/ndrstuepugzgiwycsyrf/auth/url-configuration で Site URL を `https://investsim-nine.vercel.app`、Redirect URLs に `https://investsim-nine.vercel.app/auth/callback` と `https://investsim-nine.vercel.app/**` を追加（`http://localhost:3000/**` は開発用に残す）→ Save → スマホで本番のログインを試す
+- コード側の補強（`lib/auth/callback-base.ts`・DECISIONS 2026-09-20）は公開済み。保険として Vercel の環境変数に `NEXT_PUBLIC_SITE_URL=https://investsim-nine.vercel.app` を入れると、万一の経路でも本番へ戻る
+- 未確認: 原因が②（Supabase の登録）か③（callback の origin）か。オーナーの「localhost が出たのは Google の直後か、サイトに一度戻ってからか」の答えで切り分ける
+
 ### 積み残し（記録のみ・優先順）
 
 0. **（2026-09-17 architect・範囲外で発見）/simulate の D/E 単位ずれ**: `lib/simulation.ts:118,176` が Yahoo の D/E（%表記）を原値のまま `analyze()` に渡している。09-11 の単位修正は `app/api/signals/[symbol]/route.ts` だけだった → /simulate ではバフェット・グレアム・リンチの「借金が少ない」条件が一度も成り立たない。ルールブックの S2 とは別の小スライスで直す。**追記（別セッション investsim-9e が d80fd4c 後に確認）**: 現在の行は `lib/simulation.ts:176`・`:309`。`dalio.ts:21,26` の `> 2.0` に 78.4 等が入り、/simulate のダリオはほぼ全銘柄で「過剰」。**investsim-9e のトラックで「積み残し29（/simulate の空の財務→偽の様子見）」と一緒に直す案**（S2 の後・オーナー判断）
