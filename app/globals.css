@@ -38,6 +38,8 @@
        --success    on card 5.34 / --success-tint 4.77
        --danger     on card 5.52 / --danger-tint 4.82
        --warning-ink on --warning-tint 5.75
+       --axis       on card 2.70 / bg 2.54 / surface 2.38（図形の線だけ。2026-09-18 builder 実測）
+       --rule-line  on card 1.51 / bg 1.42 / surface 1.33（区切り線 1.3 以上。同上）
        --border     on card 1.62 / surface 1.43 / brand-tint 1.39
        --border-input on card 3.59 / surface 3.16
    ──────────────────────────────────────────────────────────────────── */
@@ -70,6 +72,8 @@
   /* 線 */
   --border:        #C3CCD8;   /* カードの輪郭・行の区切り */
   --border-input:  #7C889B;   /* 入力欄・副ボタンの輪郭 */
+  --axis:          #8D9FB8;   /* 数直線の軸・目盛り（白の上 2.70。部品の輪郭 3:1 には届かないので図形の線にだけ使い、文字には使わない）。2026-09-18 */
+  --rule-line:     #C9D3E0;   /* ノートの罫・レールの縦線・表の行の区切り（白の上 1.51・区切り線 1.3 以上）。2026-09-18 */
 
   /* モーダルの下敷き。地の色（--ink）を 32% で敷く */
   --scrim:         rgb(13 23 37 / 0.32);
@@ -102,6 +106,8 @@
   --color-panel:        var(--panel);
   --color-border:       var(--border);
   --color-border-input: var(--border-input);
+  --color-axis:         var(--axis);
+  --color-rule-line:    var(--rule-line);
   --color-muted:        var(--muted);
   --color-ink:          var(--ink);
   --color-ink-2:        var(--ink-2);

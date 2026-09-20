@@ -1,36 +1,40 @@
 import { NextResponse } from 'next/server'
 import { getQuote, getHistory, getFundamentals } from '@/lib/market'
 import { findStock } from '@/lib/market/universe'
-import investors from '@/lib/investors'
-import type { Signal } from '@/types'
+import { US_UNIVERSE } from '@/lib/market/us-universe'
+import { RULEBOOK_INVESTOR_IDS, getRulebook, publishedRules, evaluate, type RulebookResult } from '@/lib/investors/rulebooks'
 
-// GET /api/signals/:symbol — 名人5人（バフェット／ソロス／リンチ／グレアム／ダリオ）の判定。
+// GET /api/signals/:symbol — 名人のルールブックに、この銘柄の財務データを当てた結果（2026-09-17 S2）。
 //
-// allowMock:false は外さないこと（原則9）。/watch の名人の区画（MasterSignals）と銘柄詳細の
-// InvestorPanel がここを読む。既定の allowMock:true のままだと、実データ3経路が全滅したときに
-// providers/mock の«乱数の株価・架空の財務»で判定が作られ、利用者はそれを名人の判断だと思って読む。
-// 取れないときは値を作らず 502 で止める。画面側（MasterSignals.tsx／InvestorPanel.tsx）は
-// 「シグナルを取得できませんでした」を出す前提で書かれている。
+// 旧: lib/investors/*.ts の analyze() で5人の「▲買い／◇様子見」の札を返していた。いまは lib/investors/rulebooks/ の
+// evaluate()（純関数）でルールごとの状態（目安を満たす／目安を満たさない／判定できない）を返す。analyze() は
+// /simulate の売買判定専用として残す（DECISIONS.md 2026-09-17「投資家の定義を rulebooks に一本化」）。
+// 出すのはルールブックがある投資家（当面バフェット）の、一次資料で照合済みの出典を持つルールだけ（publishedRules）。
 //
-// 財務データだけ取れないとき（2026-09-17 スライス2）: lib/market の getFundamentals は allowMock:false でも
-// throw せず空 `{}` を返す（yahoodirect は全項目 undefined の `{ pe: undefined, … }` を返すこともある）。
-// 各モデルの `if (!fundamentals)` は `{}` を真値として素通りし、hold／「○○基準を満たす指標が不足」を返す。
-// これは画面で「◇ 様子見」＝本物の判断に見える。そこで、財務を材料にする名人には analyze() を呼ばず、
-// `undecidable` に理由を入れて「判定できません」と返す（オーナー決定: 4人を消すのではなく、材料が無い
-// ときに判断を保留する態度そのものを利用者に見せる。原則11）。応答の形は既存の { symbol, signals } に
-// `undecidable` を足すだけ（既存のキーの意味は変えない）。
+// 応答: { symbol, rulebooks: { [id]: { version, checks } }, undecidable? }
+//   - checks は RuleCheck[]（データルールだけ。言葉のルールは画面側がルールブックから読む）
+//   - undecidable は「財務データがまったく取れなかった投資家 id → 理由の文」。画面はこの文を一覧の手前に1回出す
+//   - 判定できないルールが1つでもあれば no-store（一時的な失敗を5分間 CDN に残さない。理由の詳細は旧版の注釈と同じ:
+//     取得元のサーバー内キャッシュ（yahoo2 30分・yahoodirect 1時間）は別で、lib/ はスライス5の対象）
+//
+// allowMock:false は外さないこと（原則9）。既定の allowMock:true のままだと、実データ3経路が全滅したときに
+// providers/mock の«架空の財務»で判定が作られる。取れないときは値を作らず 502 で止める。
+// getQuote / getHistory は判定には使わないが、銘柄が実在しデータ源が生きていることの確認として残す
+// （取れなければ catch → 502 ＋ listed）。scripts/check-previous-close.ts が3つの呼び出しの文字列を固定している。
+//
+// 単位: D/E は Yahoo 原値の%表記のまま evaluate() に渡す（換算は lib/investors/rulebooks/evaluate.ts だけ。ここで /100 しない）。
 
-// 財務データを材料にする名人。lib/investors/*.ts の analyze() の引数で裏取りした（2026-09-17）:
-//   buffett.ts:11 / lynch.ts:11 / graham.ts:11 / dalio.ts:11 … analyze({ fundamentals })  → 財務だけを読む
-//   soros.ts:33                                              … analyze({ quote, history }) → 株価だけを読む
-// モデルを増やす・引数を変えるときはここも直す。scripts/check-signals-undecidable.ts が、この一覧と
-// 各モデルの analyze() の引数の食い違いを検査する。
-const FUNDAMENTALS_INVESTOR_IDS: ReadonlySet<string> = new Set(['buffett', 'lynch', 'graham', 'dalio'])
-
-// 画面にそのまま出す文。「判定できません」の札は画面側が付けるので、ここは理由と態度を書く。
+// 画面にそのまま出す文。「判定できない」の語は画面側が付けるので、ここは理由と態度を書く。
 // 文の形は DESIGN.md §6-12 の三点（何が起きたか／データはどうなったか／どうすればいいか）。
 const NO_FUNDAMENTALS_REASON =
-  '財務データ（PER・ROE など）を取得できなかったため、判定できません。材料が無いときは、無理に判断せず保留にします。時間をおいて再読み込みしてください。'
+  '財務データ（ROE・負債比率など）を取得できなかったため、判定できません。材料が無いときは、無理に判断せず保留にします。時間をおいて再読み込みしてください。'
+
+// 業種はローカルの一覧から引く（外部 API を増やさない）。綴りは一覧ごとに違う（us-universe.ts 'Financials'、
+// data/universe.json 'Finance'）が、ルールブックの excludeSectors が両方を持つ。どちらにも無ければ undefined
+// （日本株・ETF など）→ 業種で除外するルール（B4）は 'unknown-sector' で判定できない、に倒す。
+function sectorOf(symbol: string): string | undefined {
+  return US_UNIVERSE.find(s => s.symbol === symbol)?.sector ?? findStock(symbol)?.sector
+}
 
 export async function GET(
   req: Request,
@@ -40,7 +44,7 @@ export async function GET(
   const symbol = rawSymbol.toUpperCase()
 
   try {
-    const [quote, history, fundamentals] = await Promise.all([
+    const [, , fundamentals] = await Promise.all([
       getQuote(symbol, { allowMock: false }),
       getHistory(symbol, '1y', { allowMock: false }),
       getFundamentals(symbol, { allowMock: false }),
@@ -49,40 +53,21 @@ export async function GET(
     // 「取れた」＝値が1つでも入っている。`{}`（3経路の全滅・yahoo2 の schema gap）も、キーはあるが全項目
     // undefined のオブジェクト（yahoodirect が空の応答を写したもの）も「取れていない」とみなす。
     const hasFundamentals = Object.values(fundamentals).some(v => v != null)
+    const sector = sectorOf(symbol)
 
-    // 単位の変換（2026-09-11）: `FundamentalsData.debtToEquity` は Yahoo 原値の%表記（78.4 ＝ 0.78倍。
-    // 規約は types/index.ts に明記）。一方 lib/investors/*.ts の5モデルの閾値は倍率で書かれている
-    // （dalio `> 2.0`／graham `< 0.5`／lynch `< 0.3` など）ので、渡す手前で /100 して倍率に直したコピーを渡す。
-    // 元オブジェクトは変えない（スクリーニング側 lib/backtest は%前提のまま正しい）。
-    const fundamentalsForModels =
-      fundamentals.debtToEquity == null
-        ? fundamentals
-        : { ...fundamentals, debtToEquity: fundamentals.debtToEquity / 100 }
-
-    const signals: Record<string, Signal> = {}
+    const rulebooks: Record<string, RulebookResult> = {}
     const undecidable: Record<string, string> = {}
-    for (const investor of investors) {
-      if (!hasFundamentals && FUNDAMENTALS_INVESTOR_IDS.has(investor.id)) {
-        undecidable[investor.id] = NO_FUNDAMENTALS_REASON
-        continue
-      }
-      // 財務が無いときは `{}` ではなく undefined を渡す（株価だけで判定する名人には関係ないが、
-      // 「無い」を「空の表」に見せかけない）。財務があるときは従来どおり。
-      signals[investor.id] = investor.analyze({
-        quote, history, fundamentals: hasFundamentals ? fundamentalsForModels : undefined,
-      })
+    for (const id of RULEBOOK_INVESTOR_IDS) {
+      const book = getRulebook(id)
+      if (!book) continue
+      const published = { ...book, rules: publishedRules(book) }
+      rulebooks[id] = { version: book.version, checks: evaluate(published, fundamentals, { sector }) }
+      if (!hasFundamentals) undecidable[id] = NO_FUNDAMENTALS_REASON
     }
 
-    const anyUndecidable = Object.keys(undecidable).length > 0
-    return NextResponse.json(anyUndecidable ? { symbol, signals, undecidable } : { symbol, signals }, {
-      // 判定できない名人が1人でもいる応答は CDN に残さない（no-store）。5分の s-maxage のままだと、
-      // 財務の取得が一時的に失敗しただけの状態が5分間「判定できません」として全利用者に配られる。
-      // 5人とも判定できた応答は従来どおり5分。
-      // ただし no-store が効くのは CDN（Vercel の手前の共有キャッシュ）だけで、取得元のサーバー内キャッシュは別
-      // （reviewer W2・2026-09-17）: lib/market/providers/yahoo2.ts の yf2GetFundamentals は空の `{}` もそのまま
-      // writeCache し、readCache は `{}` を真値として返す（FUNDAMENTALS_TTL_MS＝30分）。yahoodirect.ts の fetch も
-      // `next: { revalidate: 3600 }` で、空の応答が最大1時間残りうる。つまり取得元が復旧しても、同じサーバー
-      // （プロセス）からは最大30分〜1時間「判定できません」が返り続けうる。ここでは直さない（lib/ はスライス5の対象）。
+    const anyUndecidable = Object.values(rulebooks).some(r => r.checks.some(c => c.state === 'undecidable'))
+    const body = Object.keys(undecidable).length > 0 ? { symbol, rulebooks, undecidable } : { symbol, rulebooks }
+    return NextResponse.json(body, {
       headers: {
         'Cache-Control': anyUndecidable ? 'no-store' : 'public, s-maxage=300, stale-while-revalidate=60',
       },

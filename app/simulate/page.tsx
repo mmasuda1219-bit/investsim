@@ -157,6 +157,9 @@ export default function SimulatePage() {
               )
             })}
           </div>
+          {/* /watch・銘柄詳細の名人欄はルールブック（lib/investors/rulebooks）。ここは lib/investors/*.ts の analyze() の
+              簡易版の条件で、別物であることを1行で断る（オーナー決定 2026-09-17） */}
+          <p className="text-small text-ink-2 mt-2">このページの投資家の条件は簡易版で、ルールブックとは別のものです。</p>
         </div>
 
         {/* Universe + Capital */}

@@ -2,49 +2,43 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import type { Signal } from '@/types'
-import { INVESTOR_META } from '@/lib/investors/registry'
+import { RULEBOOK_INVESTOR_IDS, getRulebook, type RuleCheck, type Rulebook, type RulebookResult } from '@/lib/investors/rulebooks'
+import { RulebookView } from '@/components/investors/RulebookView'
 
 /**
- * 「名人はいまどう見ているか」— 選んだ銘柄に対する5人の現在シグナルと、その理由。
+ * 「名人はいまどう見ているか」— 選んだ銘柄を、投資家のルールブック（公開された考え方をルールにしたもの）に当てた結果。
  *
- * 置き場所の経緯: これは旧トップページにあった「投資家別リアルタイム判断」で、
- * トップをLP化した際に行き場を失っていた。オーナー定義の「見る＝AIや名人が、
- * いまの相場をどう見て、なぜそう判断したかを読む」に照らすと、ここが正しい住所。
- *
- * 表示名・色・並び順は `lib/investors/registry` が単一の出所（画面ごとの
- * 独自定義を作らない）。色はTailwindの動的クラス名だとビルド時に消えるため、
- * hexをインラインスタイルで当てる。
+ * 2026-09-17 S2: 5人の売買の札・頭文字の色付きの四角・格言をやめ、ルールブックがある投資家（当面バフェット）を出す。
+ * 2026-09-18: 見た目を「数字は表と数直線（案C）／問いはノートと書き込み罫（案B）」に作り直し（RulebookView）。
+ * 判定は /api/signals/[symbol] がルールブックの純関数で行い、ここは応答を読んで並べるだけ（AI 不使用）。
+ * 取得の仕組み（useRulebookSignals）は銘柄詳細の InvestorPanel と共用。
  */
 
 const PRESET_SYMBOLS = ['AAPL', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
 
-// 方向の札は無彩色＋記号のピル型（DESIGN.md §6-5: --surface の面＋--ink の文字、radius-full）。
-// 買い＝緑・売り＝赤で運ばない（DECISIONS 2026-09-10）。枠線は付けない（切り分け3b-2）。
-const ACTION_LABEL: Record<Signal['action'], string> = {
-  buy: '▲ 買い', sell: '▼ 売り', hold: '◇ 様子見',
-}
-const ACTION_BADGE = 'rounded-full bg-surface px-2.5 text-small font-semibold text-ink whitespace-nowrap'
-
-// /api/signals/[symbol] の応答。判定は signals の下に名人の id ごとに入っている。
-// 旧: 応答全体を state に入れて signals[m.id] をトップレベルで引き、5人とも常に「判定なし」だった（DECISIONS 2026-09-14）。
-// undecidable は「判定できなかった名人の id → 理由の文」（2026-09-17 スライス2）。財務データが取れないとき、
-// 財務を材料にする4人はここに入り signals には入らない。判定できない名人がいないときはキー自体が無い。
+// /api/signals/[symbol] の応答。rulebooks は投資家 id → { version, checks }。
+// undecidable は「財務データがまったく取れなかった投資家 id → 理由の文」（無ければキー自体が無い）。
 type SignalsResponse = {
   symbol: string
-  signals: Record<string, Signal>
+  rulebooks: Record<string, RulebookResult>
   undecidable?: Record<string, string>
+  error?: unknown
 }
 
-// 応答が不正（signals が無い・配列・null）なら空＝従来どおり「判定なし」。
-// 1人分の形が壊れていても描画（sig.reasons.length など）で落ちないよう、その人だけ外す。
-function readSignals(d: Partial<SignalsResponse> | null): Record<string, Signal> {
-  const raw: unknown = d?.signals
+const RULE_STATES = new Set<RuleCheck['state']>(['meets', 'misses', 'read', 'undecidable'])
+
+// 応答が不正（rulebooks が無い・配列・null）なら空。1人分の形が壊れていても、その人だけ外して描画で落ちない。
+export function readRulebooks(d: Partial<SignalsResponse> | null): Record<string, RulebookResult> {
+  const raw: unknown = d?.rulebooks
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return {}
-  const out: Record<string, Signal> = {}
-  for (const [id, s] of Object.entries(raw as Record<string, Partial<Signal> | null>)) {
-    if (!s || !(s.action === 'buy' || s.action === 'sell' || s.action === 'hold') || !Array.isArray(s.reasons)) continue
-    out[id] = { ...s, action: s.action, reasons: s.reasons.filter((r): r is string => typeof r === 'string') } as Signal
+  const out: Record<string, RulebookResult> = {}
+  for (const [id, r] of Object.entries(raw as Record<string, Partial<RulebookResult> | null>)) {
+    if (!r || typeof r.version !== 'string' || !Array.isArray(r.checks)) continue
+    const checks = r.checks
+      .filter((c): c is RuleCheck => c != null && typeof c === 'object' && typeof c.ruleId === 'string' && RULE_STATES.has(c.state))
+      // JSON 経由で observed.value が null になっていたら observed ごと落とす（「0.0%」と描かないため。reviewer S2）
+      .map(c => (Number.isFinite(c.observed?.value) ? c : { ruleId: c.ruleId, state: c.state, reason: c.reason }))
+    out[id] = { version: r.version, checks }
   }
   return out
 }
@@ -61,8 +55,8 @@ function readUndecidable(d: Partial<SignalsResponse> | null): Record<string, str
 }
 
 // 画面に出す取得失敗の文。HTTP の番号や取得元の生の英語（«Real quote unavailable for AAPL — yahoo2: …»）は
-// 出さない（NEXT-STEPS 積み残し14）。原因は API の応答本文（error）とサーバーのログにある。
-// 502 ＝ データ源（Yahoo Finance など）が返せなかった（app/api/signals/[symbol]/route.ts の catch）。
+// 出さない。原因は API の応答本文（error）とサーバーのログにある（DESIGN.md §6-12: 何が起きたか／データは
+// どうなったか／どうすればいいか）。502 ＝ データ源（Yahoo Finance など）が返せなかった。
 const MSG_UPSTREAM = 'データ源（Yahoo Finance など）から、この銘柄の値を受け取れませんでした。'
 const MSG_SERVER = 'サーバーから判定の結果を受け取れませんでした。'
 const MSG_NETWORK = 'サーバーに接続できないか、応答を読めませんでした。'
@@ -70,42 +64,56 @@ class HttpError extends Error {
   constructor(status: number) { super(status === 502 ? MSG_UPSTREAM : MSG_SERVER) }
 }
 
-export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: string }) {
-  const [symbol, setSymbol] = useState(initialSymbol)
-  const [signals, setSignals] = useState<Record<string, Signal> | null>(null)
-  const [undecidable, setUndecidable] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+export type RulebookSignals = {
+  symbol: string
+  loading: boolean
+  error: string | null
+  results: Record<string, RulebookResult> | null
+  undecidable: Record<string, string>
+  receivedAt: Date | null
+}
+const idle = (symbol: string): RulebookSignals => ({ symbol, loading: true, error: null, results: null, undecidable: {}, receivedAt: null })
+
+/**
+ * /api/signals/[symbol] を読む。銘柄が変わった直後は、前の銘柄の結果を返さず「読み込み中」を返す
+ * （state の銘柄と引数の銘柄の比較で決める。effect の中で同期に setState しない: react-hooks/set-state-in-effect）。
+ */
+export function useRulebookSignals(symbol: string): RulebookSignals {
+  const [state, setState] = useState<RulebookSignals>(() => idle(symbol))
 
   useEffect(() => {
     let alive = true
-    setLoading(true); setError(null); setSignals(null); setUndecidable({})
     fetch(`/api/signals/${encodeURIComponent(symbol)}`)
-      .then(r => (r.ok ? r.json() : Promise.reject(new HttpError(r.status))))
-      .then((d: Partial<SignalsResponse> | null) => {
-        if (alive) { setSignals(readSignals(d)); setUndecidable(readUndecidable(d)) }
+      .then(async r => {
+        const d = (await r.json().catch(() => null)) as Partial<SignalsResponse> | null
+        if (!r.ok || !d || d.error) throw new HttpError(r.status)
+        return d
       })
-      .catch((e: unknown) => { if (alive) setError(e instanceof HttpError ? e.message : MSG_NETWORK) })
-      .finally(() => { if (alive) setLoading(false) })
+      .then(d => {
+        if (alive) setState({ symbol, loading: false, error: null, results: readRulebooks(d), undecidable: readUndecidable(d), receivedAt: new Date() })
+      })
+      .catch((e: unknown) => {
+        if (alive) setState({ ...idle(symbol), loading: false, error: e instanceof HttpError ? e.message : MSG_NETWORK })
+      })
     return () => { alive = false }
   }, [symbol])
 
-  // 判定できない名人（signals に無く、undecidable に理由がある人）。理由が全員同じなら、行ごとに同じ文を
-  // くり返さず一覧の手前に1回だけ出す（sharedWhy）。名人ごとに理由が違うときは sharedWhy を作らず各行に出す
-  // （スライス5で「名人ごとに必要な項目が違う」形に変える計画があるため。凝った仕組みにしない）。
-  // 2026-09-14 の再生画面で「記録なし」の重複を減らしたのと同じ方針（MC 指摘・2026-09-17）。
-  const pending = signals ? INVESTOR_META.filter(m => !signals[m.id] && undecidable[m.id]) : []
-  const sharedWhy =
-    pending.length > 0 && pending.every(m => undecidable[m.id] === undecidable[pending[0].id])
-      ? undecidable[pending[0].id]
-      : undefined
+  return state.symbol === symbol ? state : idle(symbol)
+}
+
+export const RULEBOOKS: Rulebook[] = RULEBOOK_INVESTOR_IDS.map(id => getRulebook(id)).filter((b): b is Rulebook => b != null)
+
+export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: string }) {
+  // initialSymbol が後から変わっても useState は追わない。呼び出し側が key で作り直す（app/watch/client.tsx）。
+  const [symbol, setSymbol] = useState(initialSymbol)
+  const { loading, error, results, undecidable, receivedAt } = useRulebookSignals(symbol)
 
   return (
-    <section className="space-y-2">
-      {/* 見出しは帯の外（灰の上）に small/--muted（DESIGN.md §6-6） */}
+    <section id="master-signals" aria-labelledby="master-signals-heading" className="space-y-4">
+      {/* 節の見出しは h2（20px/600）。small/--muted では弱すぎて読む気にならない（オーナー指摘 2026-09-18） */}
       <div className="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
-        <h2 className="text-small text-muted">名人はいまどう見ているか</h2>
-        <span className="text-caption text-muted">同じ銘柄を、5人の考え方で判定した結果です</span>
+        <h2 id="master-signals-heading" className="text-h2 text-ink">名人はいまどう見ているか</h2>
+        <span className="text-small text-muted">公開された考え方をルールにして、この銘柄の財務データに当てた結果です</span>
       </div>
 
       {/* 銘柄の選択は選択チップ（§6-18: 角丸 6px、選択中は --brand-tint の下地＋--brand の枠）。
@@ -123,97 +131,25 @@ export function MasterSignals({ initialSymbol = 'AAPL' }: { initialSymbol?: stri
           </button>
         ))}
         <Link
-          href={`/stocks/${symbol}`}
+          href={`/stocks/${encodeURIComponent(symbol)}`}
           className="inline-flex min-h-11 items-center rounded-field px-1 text-small text-brand hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
         >
           {symbol} の詳細
         </Link>
-        <Link
-          href={`/trade?symbol=${encodeURIComponent(symbol)}`}
-          className="inline-flex min-h-11 items-center rounded-field px-1 text-small text-brand hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
-        >
-          この銘柄で自分も判断してみる →
-        </Link>
       </div>
 
-      {/* 読み込み中・エラーも枠で囲わず白い帯に。文字は左揃え（§2・§6-12） */}
-      {loading && (
-        <p className="bg-card rounded-card px-4 py-5 text-small text-muted">
-          判定中…
-        </p>
-      )}
-
-      {!loading && error && (
-        // 取得できなかったことは --warning-ink で書く（§5-1 色のルール）。
-        <div className="bg-card rounded-card px-4 py-5 space-y-1">
-          <p className="text-body text-warning-ink">シグナルを取得できませんでした</p>
-          <p className="text-body text-ink-2 max-w-[42rem]">{error} 実データが取れないときは、代わりの数字を作らずここで止めます。時間をおいて再読み込みしてください。</p>
-        </div>
-      )}
-
-      {!loading && !error && signals && sharedWhy && (
-        // 判定できない名人の理由が全員同じとき、一覧の手前に1回だけ。見た目は上の「シグナルを取得できませんでした」と
-        // 同じ型（枠なしの白い帯・左揃え・見出しは --warning-ink、説明は --ink-2）。新しい見せ方は作らない。
-        <div className="bg-card rounded-card px-4 py-5 space-y-1">
-          <p className="text-body text-warning-ink">{pending.map(m => m.label).join('・')}は判定できません</p>
-          <p className="text-body text-ink-2 max-w-[42rem]">{sharedWhy}</p>
-        </div>
-      )}
-
-      {!loading && !error && signals && (
-        // 旧: 同形カード5枚の格子（DESIGN.md §10 P1.5）。A アプリ型の帯1本に、名人1人＝1行で並べる。
-        // 行の区切りは文字の左端から始まる 1px の --border（§6-6）。帯の中に帯を入れない。
-        <ul className="bg-card rounded-card">
-          {INVESTOR_META.map(m => {
-            const sig = signals[m.id]
-            // 材料が無くて判定できない（財務データが取れない等）。「判定なし」＋哲学の文だと何か言っているように
-            // 読めるので使わず、取得できなかったことを --warning-ink で書く（§5-1 色のルール。上の
-            // 「シグナルを取得できませんでした」と同じ型: 見出しは --warning-ink、説明は --ink-2）。
-            const why = sig ? undefined : undecidable[m.id]
-            return (
-              <li key={m.id} className="mx-4 border-t border-border first:border-t-0 py-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="w-6 h-6 rounded-field grid place-items-center text-caption font-semibold text-ink"
-                    style={{ backgroundColor: m.color }}
-                  >
-                    {m.initial}
-                  </span>
-                  <span className="text-body font-semibold text-ink">{m.label}</span>
-                  {sig ? (
-                    <span className={`ml-auto ${ACTION_BADGE}`}>
-                      {ACTION_LABEL[sig.action]}
-                    </span>
-                  ) : why ? (
-                    <span className="ml-auto text-small text-warning-ink whitespace-nowrap">判定できません</span>
-                  ) : (
-                    <span className="ml-auto text-small text-muted">判定なし</span>
-                  )}
-                </div>
-
-                {sig && sig.reasons.length > 0 ? (
-                  <ul className="space-y-1">
-                    {sig.reasons.slice(0, 3).map((r, i) => (
-                      <li key={i} className="text-small text-ink-2">・{r}</li>
-                    ))}
-                  </ul>
-                ) : why ? (
-                  // 理由が全員同じなら上の帯に1回だけ書いてあるので、行には札だけ残す。違う理由が混ざるときは行ごとに出す。
-                  // どちらでも m.philosophy（投資哲学の文）は出さない（何か言っているように読めるため）。
-                  sharedWhy ? null : <p className="text-small text-ink-2 max-w-[42rem]">{why}</p>
-                ) : (
-                  <p className="text-small text-muted">{m.philosophy}</p>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
-
-      <p className="text-small text-ink-2 max-w-[42rem]">
-        これは各投資家の公開された考え方をルール化して現在の数値に当てた計算結果であり、本人の見解でも、売買の推奨でもありません。
-      </p>
+      {RULEBOOKS.map(book => (
+        <RulebookView
+          key={book.investorId}
+          book={book}
+          symbol={symbol}
+          loading={loading}
+          error={error}
+          checks={results?.[book.investorId]?.checks ?? (results ? [] : null)}
+          why={undecidable[book.investorId]}
+          receivedAt={receivedAt}
+        />
+      ))}
     </section>
   )
 }

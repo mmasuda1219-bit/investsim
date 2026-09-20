@@ -9,6 +9,7 @@ import type { InvestorId, HistoricalBar } from '@/types'
 import type { TradeMarker } from '@/components/AITradeChart'
 import TradeLog, { pairRoundTrips, fmtPrice, fmtMoneySigned, isJPSymbol } from '@/components/watch/TradeLog'
 import { MasterSignals } from '@/components/MasterSignals'
+import { INVESTOR_META_BY_ID } from '@/lib/investors/registry'
 import { MarketOverview } from '@/components/MarketOverview'
 import ProcessReplay from '@/components/watch/replay/ProcessReplay'
 import DecisionCard from '@/components/watch/DecisionCard'
@@ -502,11 +503,18 @@ export function AISessionClient() {
 
         <section className="space-y-2">
           {/* 見出しは帯の外（灰の上）に small/--muted（§6-6） */}
-          <div className="flex items-baseline justify-between gap-4 flex-wrap">
+          <div className="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
             <h2 className="text-small text-muted">
               {decisionsFromLatestTick || watchlist.length === 0 ? 'この回のAIの判断' : '最後に記録されたAIの判断'}
             </h2>
-            <span className="text-caption text-muted tabular-nums">{latestDecisions.length}件</span>
+            {/* どの人格（投資家の考え方）で判断したかを読者に見せる（2026-09-17 S2・DESIGN §6-11）。
+                session.persona は engine.ts の AISession に元からある項目で、無ければ汎用の人格。 */}
+            <span className="text-caption text-muted">
+              {session.persona
+                ? `${INVESTOR_META_BY_ID[session.persona]?.label ?? session.persona}の考え方で判断`
+                : '特定の投資家の考え方は使っていません'}
+            </span>
+            <span className="ml-auto text-caption text-muted tabular-nums">{latestDecisions.length}件</span>
           </div>
 
           {latestDecisions.length === 0 ? (
@@ -563,6 +571,11 @@ export function AISessionClient() {
           ここにあるのは、AIが仮想資金で行った売買判断の記録です。読む人への推奨ではありません。
           AIの読み筋を教材として読み、自分ならどう考えるかを比べるために使ってください。
         </p>
+
+        {/* 名人の考え方（ルールブック）。「見る」＝AIと名人の判断を読む面なので、AIの判断の直下に置く
+            （旧: ページ最下部の運用の記録の後ろ。2026-09-17 S2）。
+            key: chartSymbol が後から決まっても MasterSignals の useState 初期値は追わないので、作り直す。 */}
+        <MasterSignals key={chartSymbol || 'AAPL'} initialSymbol={chartSymbol || undefined} />
       </div>
 
       {/* ここから下は補助情報。判断を読み終えた人が «で、結果はどうなったのか» を
@@ -1102,10 +1115,6 @@ export function AISessionClient() {
             </div>
           )}
         </section>
-
-        {/* 名人のシグナル。「見る」＝AIと名人の判断を読む面なので、AIの下に並べる。
-            旧: max-w-screen-2xl の別の包み。いまは運用の記録と同じ中央 760px の列の中に置く。 */}
-        <MasterSignals initialSymbol={chartSymbol || undefined} />
       </div>
     </div>
   )

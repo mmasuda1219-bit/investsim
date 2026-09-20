@@ -294,7 +294,52 @@ Step 1・2・2b は完了済み（公開・動作確認まで）。オーナー�
 4. 単位の規約を全体で倍率に統一するか（C1・スクリーニングが再取得まで空になる）
 5. **事業の芯（`marketing/CORE.md`・2026-09-11 起草）の5つの決定**: 北極星を「自分で決めた降りる条件を守れた割合」にするか／最初の5人の集め方／アクセス解析の導入（＋プライバシーポリシー）／「なぜ作ったか」のオーナー自身の体験／MARKETING.md の改訂。**出発点の実測: 本番の登録2（運営側とみられる）・売買記録1・過去取引0・アクセス解析なし＝実利用者ゼロ・計測ゼロ**。成果を掲げられるのは測った後
 
+### 🟦 進行中: 投資家の「ルールブック」と理由の読み直し（2026-09-17 オーナー要望・計画前）
+
+- **要望**: 投資家の判断が「買うと言うか言わないか」だけで弱い → 投資家ごとに理念とルールの「ルールブック」を作り人物像を固める／利用者が書いた理由を、その投資家の目線でルールに照らして文章で返す／/watch の投資家の判断も同様に強化（「最初のページ」＝/watch と designer が確認）
+- **3部署の調査で分かった事実**:
+  - バフェットの基準が3か所で食い違う: `lib/investors/buffett.ts:19` PER<15（実はグレアム寄り）／`lib/backtest/investor-presets.ts:71` PER≤35／`lib/ai-trader/personas.ts:39`「PERの安さより質」。人格文は buffett と汎用のみ
+  - 「言うか言わないか」に見える直接原因: `buffett.ts:26-44` 等は**満たした条件しか理由の行を作らない**＝満たさない・データが無い条件が画面から消える。/watch の人格（`engine.ts:272`）は読者の画面のどこにも出ていない。`MasterSignals` はページ最下部（`client.tsx:1108`）
+  - 「ご本人とは無関係です」の1文が画面に無い（DESIGN §6-11 違反）。格言の「」斜体・頭文字の色付き四角が本人の言葉／似顔絵に見える
+  - `DECISIONS.md:237`「理由の内容の良し悪しを判定しない」を書き換える ADR が要る
+- **3部署が一致した推奨（オーナー未承認）**: 読み直しは**記録した後だけ**・1記録1回・会話なし／三人称（「私なら」禁止）／点数・合否・N件成立・買え売れを出さない。状態は「触れている／触れていない／判定できない」の語だけ（色の札なし）／利用者が1人を選ぶ／`/review/backfill` の実際の保有には付けない／ルールごとに一次出典を researcher が照合するまで出荷しない／定義は `lib/investors/rulebooks/{id}.ts` に一本化し analyze・personas はそこから生成／AI 出力はコードで後段検査（引用が利用者の文の部分一致か・ルールIDが実在か・禁止語）
+- **2026-09-17 オーナー決定**: ①**A＝「理由の書き方」への読み直しに絞る**（銘柄の価値・売買・保有には触れない）②**A＝まず AI には理由の文章だけを渡す**（財務データは渡さない。データとの照合は弁護士確認の後に検討）③**A＝名人5人の「▲買い／◇様子見」札をやめ、ルールごとの一覧にする**。④画面での呼び名は未回答 → **暫定で「{姓}の考え方で読み直す」**（人間ゲート①で変更可）
+- **2026-09-17 MC が architect（計画＋ADR）と researcher（バフェットの出典を一次資料で照合）へ並列で依頼**
+- **researcher 照合結果（2026-09-17・バークシャー公式の手紙原文／Owner's Manual）**: 手紙は対象年度で呼ぶ（「2014年の手紙」＝2015年2月付）
+  - **そのまま出せる**: B1 能力の輪（1996「Common Stock Investments」`circle of competence`。重心は「境界を知ること」）／B2 堀（2007 p.6「Businesses – The Great, the Good and the Gruesome」）／B4 借金控えめ（Owner's Manual 原則7 p.19。主語はバークシャー自身の財務方針と注記）／B5 価格と価値（2008 p.5＝**グレアムの言葉の引用と明記**、1989「Mistakes of the First Twenty-five Years」`wonderful company at a fair price`）／B8 先送りしない（2014 p.17-18「Investments」テスコ・"dawdling"、補強 2008 p.5）／嫌うもの1 借金で株を買う（2017 p.10）／嫌うもの2 短期予想（1992 `fortune tellers`・直前の見出しは未確定）／「10年持つ気が無いなら10分も」（1996「Common Stock Investments」）
+  - **直せば出せる**: B3 は「好む会社」なら買収基準（2014 p.23「Acquisition Criteria」(3)）を併記（1979 `undue leverage` は経営成績の物差しの話）／B6 は **1996年に "Mr. Market" は無い**→外す。1987 `Mr. Market`（趣旨は「相場の気分を利用せよ」）＋予想の否定は 2008 p.4・2014 p.19 に差し替え／**B7 は要約がずれ**: オーナー利益＝報告利益＋減価償却等−競争力維持に必要な設備投資。「FCF 黒字」とは別の考え方で、原文は設備投資を引かないキャッシュフローを誤りと警告 → strategist が要約とデータルールを見直す
+  - **出せない**: 「ルール1: 損をするな…」「分散は無知に対する防御」＝バークシャーの一次資料で見つからず（後者は 2014 p.19 がむしろ分散を勧めており趣旨が逆）
+  - 注意: Owner's Manual に著作権表示。英語原文を製品に載せる範囲は legal-compliance に確認。PDF は取得ツールでは読めず保存ファイルを直接読む必要あり
+- **スライス案（MC）**: 1 ルールブックの型＋判定関数＋バフェット1冊（出典照合）→ 2 /watch 名人欄をルール行に・人格名を表示・無関係の1文（AI 不使用）→ 3 /trade の読み直し（バフェット）＋/review で読み返し → 4 engine の AI 判断にルール照合と再生の段 → 5 残り4人（ダリオ・ソロスを個別株に使うかはその時に判断）
+- **architect 計画（2026-09-17・人間ゲート①で提示済み・未承認）**:
+  - 方針: `lib/investors/rulebooks/`（データだけ）＋純関数 `evaluate.ts` を正とする。**`analyze()` は /simulate 専用に残し作り直さない**（作り直すとバックテスト結果と売買の札が戻る）。出典照合済みのルールだけ出す（`publishedRules`）
+  - **S1**（画面・DB 変更なし）: `rulebooks/{types,buffett,evaluate,index,forbidden}.ts` 新規＋`scripts/check-rulebook.ts`（ID 固定・字数・禁止語・D/E は `yahooPct` のみ・境界値 ROE 0.15/D/E 50/FCF 0・照合待ちが公開に入らない・画面が rulebooks を直接 import しない）。`op` に `gt`、`RuleCheck.state: meets|misses|read|undecidable`。**researcher 結果の反映: B3 出典併記・B6 は1996年を外す・B7 は要約をオーナー利益に合わせ FCF は「近似」と明記**
+  - **S2**（AI 不使用・DB 変更なし）: `/api/signals/[symbol]` を evaluate に置換（応答 `rulebooks:{[id]:{version,checks}}`、`FUNDAMENTALS_INVESTOR_IDS` と /100 のコピー削除）／`MasterSignals`・`InvestorPanel` の札・色付き四角・格言を削除しルール行へ（積み残し18・20・21・22 を同時に解消）／`client.tsx` 名人欄を :565 の後へ・人格名 caption／`app/page.tsx:162` caption／`components/{investors/RuleCheckList,investors/InvestorLens,ui/Disclaimer}.tsx` 新規／`check-signals-undecidable.ts` の正規表現検査を振る舞い比較に置換し「既知の穴」を反転。合格: 1280/390 × 通常・mock 全滅・一部欠け で横はみ出し0・旧札0件・tsc/build/check 全 PASS・reviewer critical 0
+  - **S3**（DB 変更あり 0008 `reason_readings`）: 練習場の記録（`source='practice'`）だけ・`past` は決済済みでも断る／1記録1回（unique）／銘柄の記号と社名を「この銘柄」に伏せ字（他社名は残す）／「触れていない」はコードが決め、検査で捨てた項目は「判定できない」／note・問いに数字が入ったら捨てる／全部外れたら `rejected` を保存し引き直させない。合格: 検査用の理由30本を実際の AI に通し MC と legal が出力を読む。**着手前にオーナーが Supabase で 0004〜0007 の適用状況を確認し 0008 を実行**（確認用 SQL は architect 出力の §5。`to_regclass` で ai_usage_counters・trades・trades.source を確認）
+  - **S4**: personas をルールブックから生成・engine に `rules`/`basis`・`AIDecision.ruleChecks?`・DecisionCard/再生に表示。`memory.ts` は触らない。本番3回で max_tokens 打ち切りが出たらルール件数を2以下に
+  - **S5**: 残り4人（出典照合つき）・`investor-presets.ts` に ruleId
+  - リスク上位: 禁止語の検査では意味での踏み込みを止められない（note 40字・数字禁止・30本の人の目で担保）／本番 DB の 0003〜0007 適用状況が未確認／一本化のつもりが「4つ目の定義」になる
+  - DECISIONS 追記案2件（名人欄をルール行へ・読み直しの不変条件）＋ :239・:178 への改訂の行 → **承認後に記録**
+- **2026-09-17 オーナーが計画を承認（人間ゲート①）**: 名人欄は当面バフェット1人／/simulate に「簡易版の条件で、ルールブックとは別」と注記（S2 で）／読み直しは練習場の売買だけ（実際の取引は売却済みでも付けない）／呼び名「{姓}の考え方で読み直す」で確定。DECISIONS.md 冒頭に2エントリ＋過去エントリ2か所に改訂の行を記録済み
+- **S1 を builder に依頼中（2026-09-17）**: 新規ファイルのみ・コミットしない。MC 起案のバフェット B1〜B8 の文言（title/plain/question・出典の位置）を渡した。sector が引けない銘柄数（B4 が常に判定できなくなる）の報告を依頼
+- **S1 完了（2026-09-17・未コミット）**: `lib/investors/rulebooks/{types,buffett,evaluate,index,forbidden}.ts`＋`scripts/check-rulebook.ts`（430 PASS・tsc 0・build 成功・既存 check 30本 PASS）。**reviewer: critical 0・S1 は出荷可**。warning 2件（W1 自己資本マイナスで D/E が負になり B4 を満たしてしまう→`gte 0` を追加／W2 出典の年の検査が常に真→url のファイル名と年の一致を検査）を S2 の前に直す。suggestion のうち S3・S5 送り: 禁止語の部分一致（「立ち上がる」が「上がる」に当たる）／Owner's Manual の版／ROE が純利益と自己資本の両方マイナスで正になる／`forbidden.ts` に裸の「割安」「割高」が無い（S3 で legal と決める）。調査で判明: `data/universe.json` は sector 'Finance'・`us-universe.ts` は 'Financials'・Yahoo は 'Financial Services'。/watch 監視40銘柄のうち日本株7・ETF 2 は sector が無く B4 は常に判定できない
+- **別セッション investsim-9e（allowMock スライス5・6 担当）と調整済み**: S2 を先に進め、9e は `app/api/signals/[symbol]/route.ts`・`app/watch/client.tsx` を S2 のコミットまで触らない。9e は engine.ts・yahoo2.ts・TradingChart.tsx・app/api/chart/route.ts・ai-session の chart route・check-previous-close.ts を触る。**同じローカルブランチなので、どちらかの push でもう一方のコミットも本番に出る → こちらはオーナー承認（ゲート②）までコミットしない・push 前に `git log origin/main..HEAD` を確認**。DECISIONS/NEXT-STEPS は双方 Edit の文字列置換だけで書く。`scripts/check-previous-close.ts` は route.ts と app/simulate/page.tsx の文字列を検査している（壊さない）
+- **S2 を builder に依頼中（2026-09-17）**: W1・W2 の修正→変更前の画面を撮影→S2 実装→変更後を撮影（scratchpad/s2/）
+- **S2 完了・reviewer 合格（2026-09-17・critical 0・warning 0・未コミット）**。比較ページ https://claude.ai/artifact/V2fiVpnuHPHBd8Etwb7NxH 。**オーナー判断「とっても堅苦しい・書類みたいで読む気がうせる・言葉はいい、デザインの問題」→ 見た目を作り直す**。designer の3案を MC が描いた比較 https://claude.ai/artifact/94GQeVemoanMgEQUfStGC9 から、**2026-09-18 オーナー選択: 数字の部分は案C（表＋数直線）、問いの部分は案B（ノート＋書き込み罫）**（DECISIONS.md 2026-09-18）。builder に作り直しを依頼中（見本 `scratchpad/s2/looks.html` が正、撮影は `after2-*.png`）
+- 別セッションは investsim-1b に改名（旧 9e）。2026-09-18 に origin/main を 5808fad まで push（こちらの行は含まず）。`scripts/check-yahoo2-cache.ts` が増えた
+- **S2 に追加（2026-09-18・1b からの依頼・1b によればオーナー承認済み）**: トップ `app/page.tsx` が取得失敗を「まだAIの判断記録がありません」と見せていた（オーナーの友だちがスマホで遭遇）→ `error` 状態を新設（§6-12 の三点形式＋「もう一度読み込む」・`--warning-ink`）。**fetch 先は `/api/ai-session` のまま**。1b が軽い API `GET /api/ai-session/latest` を作成中で、**1b から「本番に出た」と連絡が来てから切り替える**（先に切り替えると本番で 404）。latest に `persona` を足すよう 1b に依頼済み（無いとトップの人格の caption が消える）→ 1b が承諾（成功の3形すべてで `persona` キーあり・判断0件なら null）。**切り替えるときは `scripts/check-signals-undecidable.ts:445`（「トップは /api/ai-session のまま」を確かめている検査）も反転させること**（1b の builder が指摘・こちらの担当ファイル）
+- **見た目の作り直し完了（2026-09-18・未コミット）**: 比較ページ（同じ URL・Version 3）でオーナーに提示中（人間ゲート②）。**reviewer: critical 0・出荷可**。公開前に直す W1（`check-signals-undecidable.ts:519` が未追跡の `marketing/RULES.md` を読み、別環境で異常終了）・W2（「9/18 時点」→「9/18 取得」。財務は直近決算の値）・W4（640〜700px で数直線が縮み 12px 未満）＋小修正 S2・S4・S8・DESIGN.md の1行×3 を builder に依頼中
+- **S2 レビューの後回し（S3〜S5 で）**: S1 数直線の位置計算を純関数にして振る舞い検査に（今は文面一致の検査が約70件）／S3 出どころの年に画面に出ない avoids の出典（1992・2017）が入る／**S5 投資家を足すと /watch の MasterSignals が全員分並び、数直線が1画面2本を超える**（1人選ぶ形にするか検査を横断に）／S6 390px で表を block にしたので読み上げで表として扱われない（role を付ける）
+- **コミット時の注意**: 作業ツリーに別セッションの `lib/ai-trader/engine.ts`・`app/api/ai-session/latest/`・`lib/ai-trader/benchmark-basis.ts`・`scripts/check-ai-session-latest.ts`・`scripts/check-engine-unavailable.ts`、および `.claude/`・`marketing/` が混在。**`git add -A` を使わず本スライスのファイルだけを stage**
+- **2026-09-18 レビュー指摘の修正完了**（W1 未追跡ファイルは existsSync で skip／W2「9/18 取得」／W4 `sm:min-w-[168px]` で 640・700px も数直線 160px を維持／S2・S4・S8・DESIGN.md の1行×3）。`check-signals-undecidable` 165・`check-rulebook` 471・check 34本全 PASS・tsc 0・build 成功
+- **2026-09-18 1b の軽い API `/api/ai-session/latest` が本番に出た（7806869・origin/main）→ トップの取得先の切り替えと `check-signals-undecidable.ts:445` の反転を builder に依頼中（S2 のコミットに含める）**
+- **S2 のコミット対象（こちらの分だけ）**: `DECISIONS.md` `DESIGN.md` `NEXT-STEPS.md`（いずれも作業ツリーとHEADの差がこちらの行だけか確認してから）、`app/api/signals/[symbol]/route.ts` `app/globals.css` `app/page.tsx` `app/simulate/page.tsx` `app/watch/client.tsx` `components/InvestorPanel.tsx` `components/MasterSignals.tsx` `components/investors/` `components/ui/` `lib/investors/rulebooks/` `scripts/check-rulebook.ts` `scripts/check-signals-undecidable.ts`。**含めない**: `.claude/`（音声秘書）・`marketing/`・`lib/ai-trader/engine.ts`・`lib/ai-trader/tick-record.ts`（1b の③作業中）
+- **2026-09-18 トップの切り替え完了**（`/api/ai-session/latest`・`isSessionSummary`＋`isDecision` で形を確かめ、壊れた成功も error に）。reviewer 出荷可 → 指摘2点（古い注釈・要素検査）も修正済み。`check-signals-undecidable` 171 PASS・tsc 0。**S1＋S2 の実装・レビュー・修正はすべて完了、オーナーの公開承認待ち**
+- **次の一手**: オーナーの公開承認（人間ゲート②）→ S1＋S2 をコミット（上の対象ファイルだけ stage・DECISIONS/DESIGN/NEXT-STEPS は差分がこちらの行だけか確認）→ 1b に知らせる → push 前に `git log origin/main..HEAD` を確認 → 公開 → HISTORY.md に1段落 → S3（/trade の読み直し。着手前にオーナーが Supabase で 0004〜0007 の適用状況を確認）
+
 ### 積み残し（記録のみ・優先順）
+
+0. **（2026-09-17 architect・範囲外で発見）/simulate の D/E 単位ずれ**: `lib/simulation.ts:118,176` が Yahoo の D/E（%表記）を原値のまま `analyze()` に渡している。09-11 の単位修正は `app/api/signals/[symbol]/route.ts` だけだった → /simulate ではバフェット・グレアム・リンチの「借金が少ない」条件が一度も成り立たない。ルールブックの S2 とは別の小スライスで直す。**追記（別セッション investsim-9e が d80fd4c 後に確認）**: 現在の行は `lib/simulation.ts:176`・`:309`。`dalio.ts:21,26` の `> 2.0` に 78.4 等が入り、/simulate のダリオはほぼ全銘柄で「過剰」。**investsim-9e のトラックで「積み残し29（/simulate の空の財務→偽の様子見）」と一緒に直す案**（S2 の後・オーナー判断）
 
 1. **S2 注釈つきテクニカル図**（オーナーの参照画像の代替）: `AIDecision` に `decidedAt` `techSignals` `technicalsAt` `fundamentalsData` `newsArticles`（AIに渡した3件のみ＋取得件数）を追加。時間軸共有の上下パネルを縦の帯が貫く。旧判断は `memory.ts` の `DecisionRecord` から時刻を復元（symbol+action+price+reasoning 完全一致・1件のときだけ）。**リッチ項目は直近24件に限定**（data-engineer）。designer 仕様は 9/09 の設計に全部ある
 2. **S3 ニュースの元記事リンク**: legal-compliance が2回とも利用上限で着手前に停止。**先に法務を通す**（見出し転載の範囲・並置の助言性・リンク先の免責）

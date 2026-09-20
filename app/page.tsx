@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { NAV } from '@/components/SiteNav'
+import { INVESTOR_META_BY_ID } from '@/lib/investors/registry'
+import type { InvestorId } from '@/types'
 
 /**
  * トップページ＝ランディング。
@@ -28,14 +30,24 @@ interface Decision {
   name: string
   action: 'buy' | 'sell' | 'hold' | 'watch'
   reasoning: string
-  confidence: 'high' | 'medium' | 'low'
 }
+/**
+ * GET /api/ai-session/latest の応答（app/api/ai-session/latest/route.ts・2026-09-18）。
+ *  記録あり: { lastTickAt, tickCount, persona, decisions（最大3件） }／記録なし: { lastTickAt: null, tickCount: 0, persona: null, decisions: [] }
+ * 旧: /api/ai-session がセッション全体（343KB）を返し、スマホの遅い回線で取得しきれなかった。
+ */
 interface SessionSummary {
-  id: string
-  lastTickAt: string
+  lastTickAt: string | null
   tickCount: number
-  pnlPct: number
+  /** 判断に使った投資家の人格。null なら特定の投資家の考え方は使っていない */
+  persona: InvestorId | null
   decisions: Decision[]
+}
+
+// どの考え方で判断したか（2026-09-17 S2・DESIGN §6-11）。app/watch/client.tsx の見出し行と同じ文言。
+function personaCaption(persona: InvestorId | null | undefined): string {
+  const label = persona ? INVESTOR_META_BY_ID[persona]?.label : undefined
+  return label ? `${label}の考え方で判断` : '特定の投資家の考え方は使っていません'
 }
 
 // 方向の札は無彩色＋記号（DESIGN.md §6-5）。買い＝緑・売り＝赤で運ばない（DECISIONS 2026-09-10）。
@@ -44,6 +56,22 @@ const ACTION_LABEL: Record<Decision['action'], string> = {
   buy: '▲ 買い', sell: '▼ 売り', hold: '＝ 保有継続', watch: '◇ 様子見',
 }
 const ACTION_BADGE = 'shrink-0 rounded-full bg-surface px-2 text-caption font-semibold text-ink'
+
+/** 判断1件の形。action は ACTION_LABEL のキーのどれか（札の文字が引けない値を通さない） */
+function isDecision(v: unknown): v is Decision {
+  if (v == null || typeof v !== 'object') return false
+  const d = v as Record<string, unknown>
+  return typeof d.symbol === 'string' && typeof d.name === 'string' && typeof d.reasoning === 'string'
+    && typeof d.action === 'string' && d.action in ACTION_LABEL
+}
+
+/** 応答の形を確かめる。形が違えば（要素が壊れていても）失敗（error）として扱い、「まだ無い」にも ready にも倒さない */
+function isSessionSummary(v: unknown): v is SessionSummary {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return false
+  const o = v as Record<string, unknown>
+  return Array.isArray(o.decisions) && o.decisions.every(isDecision) && typeof o.tickCount === 'number'
+    && (o.lastTickAt == null || typeof o.lastTickAt === 'string')
+}
 
 function formatWhen(iso: string): string {
   const t = Date.parse(iso)
@@ -56,29 +84,51 @@ function formatWhen(iso: string): string {
   return `${Math.floor(h / 24)}日前`
 }
 
+// 取得の打ち切り。スマホの弱い回線で応答が返らないとき、いつまでも薄い枠のままにしない
+// （2026-09-18: オーナーの友人がスマホで「取得できなかった」。当時は失敗を「まだ無い」と見せていた）。
+const FETCH_TIMEOUT_MS = 15_000
+
+/**
+ * 状態は4つ（DESIGN §6-12）:
+ *  loading … 薄い枠／ready … 直近3件／empty … 200 で判断が 0 件のときだけ「まだ無い」／
+ *  error   … HTTP が ok でない・JSON で読めない・回線の失敗・時間切れ。**失敗を「記録が無い」と見せない**（原則9 の隣）
+ * 取得先は軽い /api/ai-session/latest（最新1件・判断3件・4項目だけ。2026-09-18 に一覧の /api/ai-session から切り替え済み）。
+ */
+type HomeState = 'loading' | 'ready' | 'empty' | 'error'
+
 export default function Home() {
   const [session, setSession] = useState<SessionSummary | null>(null)
-  const [state, setState] = useState<'loading' | 'ready' | 'empty'>('loading')
+  const [state, setState] = useState<HomeState>('loading')
+  // 「もう一度読み込む」で +1 して effect を走らせ直す
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let alive = true
-    fetch('/api/ai-session')
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((list: SessionSummary[]) => {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS)
+    // 軽い API（最新1件・判断3件・4項目だけ）。一覧の /api/ai-session は読まない（2026-09-18 切り替え）
+    fetch('/api/ai-session/latest', { signal: ctrl.signal })
+      .then(async r => {
+        if (!r.ok) throw new Error(String(r.status))
+        // 本文が JSON でない（途中で切れた応答・HTML のエラーページ）も失敗として扱う
+        return r.json() as Promise<unknown>
+      })
+      .then((body: unknown) => {
         if (!alive) return
-        // 最後に動いたセッションを1件だけ。無ければ正直に「まだ無い」と出す。
-        const latest = Array.isArray(list) && list.length
-          ? [...list].sort((a, b) => Date.parse(b.lastTickAt) - Date.parse(a.lastTickAt))[0]
-          : null
-        if (latest && Array.isArray(latest.decisions) && latest.decisions.length) {
-          setSession(latest); setState('ready')
+        // 形が違う（decisions が配列でない等）は失敗として扱う。200 で decisions が空のときだけ「まだ無い」と出す
+        if (!isSessionSummary(body)) throw new Error('unexpected shape')
+        if (body.decisions.length > 0) {
+          setSession(body); setState('ready')
         } else {
           setState('empty')
         }
       })
-      .catch(() => { if (alive) setState('empty') })
-    return () => { alive = false }
-  }, [])
+      .catch(() => { if (alive) setState('error') })
+      .finally(() => clearTimeout(timer))
+    return () => { alive = false; clearTimeout(timer); ctrl.abort() }
+  }, [attempt])
+
+  const retry = () => { setSession(null); setState('loading'); setAttempt(n => n + 1) }
 
   return (
     // 地（--surface）。layout.tsx の <main> は max-w-6xl（1152px）で中央に絞られているので、
@@ -159,7 +209,7 @@ export default function Home() {
             <h2 className="text-small text-muted">AIは、いまこう考えています</h2>
             {state === 'ready' && session && (
               <span className="text-caption text-muted tabular-nums">
-                {formatWhen(session.lastTickAt)}・{session.tickCount}回目の判断
+                {formatWhen(session.lastTickAt ?? '')}・{session.tickCount}回目の判断・{personaCaption(session.persona)}
               </span>
             )}
           </div>
@@ -186,6 +236,23 @@ export default function Home() {
               <Link href="/watch" className="inline-block text-small text-brand hover:underline">
                 「見る」を開く →
               </Link>
+            </div>
+          )}
+
+          {/* 失敗: 何が起きたか／データはどうなったか／どうすればいいか（§6-12）。--warning-ink の見出し＋--ink-2 の説明
+              （スライス1・2の「取得できない値」の帯と同じ型: 白い帯・枠線なし・左揃え）。赤い枠は使わない。 */}
+          {state === 'error' && (
+            <div role="status" className="bg-card rounded-card px-4 py-5 space-y-1">
+              <p className="text-body text-warning-ink">AIの判断記録を読み込めませんでした</p>
+              <p className="text-body text-ink-2 max-w-[42rem]">記録は消えていません。通信やサーバーの一時的な問題です。</p>
+              <p className="text-body text-ink-2 max-w-[42rem]">時間をおいて、もう一度読み込んでください。</p>
+              <button
+                type="button"
+                onClick={retry}
+                className="inline-flex min-h-11 items-center rounded-field text-small text-brand hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+              >
+                もう一度読み込む
+              </button>
             </div>
           )}
 
