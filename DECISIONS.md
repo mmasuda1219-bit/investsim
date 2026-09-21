@@ -7,7 +7,7 @@
 - 決定: ③をコードで補強（`lib/auth/callback-base.ts`）: development → origin／`x-forwarded-host` が妥当なホスト名なら `${x-forwarded-proto ?? https}://host`／それ以外 origin／結果が localhost・127.0.0.1・[::1] なら `NEXT_PUBLIC_SITE_URL` があればそれ、無ければ warn。ヘッダはホスト名の文字だけ通す（スキーム・パス・改行が混ざれば捨てる＝オープンリダイレクトにしない）。②は**オーナーが Supabase Dashboard → Authentication → URL Configuration で Site URL を `https://investsim-nine.vercel.app`、Redirect URLs に `https://investsim-nine.vercel.app/auth/callback` と `/**` を追加**（コードでは直せない）
 - 却下: `window.location.origin`（`login/page.tsx`）を変える（本番では既に正しい）／`req.url` を信じ続ける（Supabase 公式の Next.js SSR 例も forwarded-host を優先）
 - 不変条件: 戻り先は `safeNextPath` を通った同一サイト内のパスだけ／`x-forwarded-host` は `HOST_PATTERN` に合う値だけ採用
-- 検証: 新規 `scripts/check-auth-callback.ts` 35件 PASS・tsc 0・build 成功。**根本原因（②か③か）は本番で未確認**。オーナーが Supabase の設定を直した後に本番でログインして確かめる
+- 検証: 新規 `scripts/check-auth-callback.ts` 35件 PASS・tsc 0・build 成功。コミット `01d2819`（公開済み）。**2026-09-21 決着: オーナーが Supabase の URL Configuration を直した直後に本番でログイン成功、別アカウントでも成功 → 原因は②（Site URL / Redirect URLs が初期値 `http://localhost:3000` のまま）で確定**。③は原因ではなかったが、プロキシ経由の保険として残す。教訓: 外部サービスの設定はコードの検査では守れない。OAuth・決済・メール等を足すときは「本番で1回通す」を出荷条件にする
 
 ## 2026-09-18: 名人欄の見た目を「数字は表と数直線（案C）／問いはノートと書き込み罫（案B）」にする
 - 背景: S2（ルールごとの行・レビュー合格・未公開）を見たオーナーが「とっても堅苦しい」「なにかの書類みたいに見えて読む気がうせる」「言葉はいい、多分デザイン」。designer の分析: 8行が同じ形の反復・文字の大小差が 16:14 しかない・PC で1行60字超・数字が本文と同じ 14px に埋もれる・状態の語が右端に浮く・色が実質1.5色。加えて**指標名が画面に出ていない**（148.8% が ROE だと分からない）バグ
