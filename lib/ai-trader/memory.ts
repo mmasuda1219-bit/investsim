@@ -121,9 +121,14 @@ export function recordDecisions(
   decisions: DecisionRecord[]
 ): void {
   memory.allDecisions.unshift(...decisions)
-  // Keep last 500 decisions
-  if (memory.allDecisions.length > 500) {
-    memory.allDecisions = memory.allDecisions.slice(0, 500)
+  // 2026-09-24 応急処置: 上限 500 → 1500。ここが現存する判断の最大の保管場所で、
+  // 本番実測（同日）は 361/500・最古 2026-07-14・1tick あたり約3.7件・自動tickは1日3回。
+  // つまり約12日で上限に達し、7月からの判断が古い順に消え始める状態だった。
+  // セッションは blob 丸ごと上書き保存（store.ts:60）なので、溢れた分は履歴としても残らない。
+  // 「まねる」のお手本を過去の判断から作る方針（オーナー決定 2026-09-24）の材料そのものなので止める。
+  // 本筋は判断1件1行の追記専用テーブルへ移すこと（S0）。そこまでの出血止め。
+  if (memory.allDecisions.length > 1500) {
+    memory.allDecisions = memory.allDecisions.slice(0, 1500)
   }
 }
 

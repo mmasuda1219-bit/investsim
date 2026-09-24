@@ -1165,7 +1165,11 @@ export async function runTick(sessionId: string): Promise<AISession> {
     d.decidedAt = decidedAt
   }
   record.decisionIds = decisions.map(d => decisionIdFor(d.symbol, decidedAt))
-  session.decisions = [...decisions, ...session.decisions].slice(0, 50)
+  // 2026-09-24 応急処置: 上限 50 → 200。セッションは blob 丸ごと上書き保存（store.ts:60）なので、
+  // ここで配列から溢れた判断は Supabase 側にも履歴が残らず完全に消える。「まねる」のお手本を
+  // 過去の判断から作る方針（オーナー決定 2026-09-24）が決まったため、材料が減るのを止める。
+  // 本筋は判断1件1行の追記専用テーブルへ移すこと（S0）。そこまでの出血止め。
+  session.decisions = [...decisions, ...session.decisions].slice(0, 200)
 
   const tradeStartMs = Date.now()
 
