@@ -14,7 +14,27 @@
 >
 > **出荷済み（2026-09-24）**: `b8d9eb4` AIの判断が上限で消えるのを止める応急処置（`memory.ts` 500→1500・`engine.ts` 50→200）。本番6回連続200で正常確認済み。**期限は消えたが本筋はS0。**
 >
-> **調査は全部そろった（2026-09-24 夜）。architect・designer(色)・designer(棚卸し) の3本とも受領済みで、下に記録がある。残るはオーナーの承認だけ。**
+> ## 🚢 S1 出荷済み（2026-09-25）— 次は S0
+>
+> **出荷**: `16940d4`（S1 本体）＋ `d68b0d8`（`/learn` の追い出し）。本番の全7ページ 200・新入口画面・旧文言の消滅・免責の差し替え・検索結果の説明文まで確認済み。検査 **2744 PASS / 0 FAIL**。
+>
+> **次の一手 = S0（AIの判断を1件1行の追記専用テーブルへ）**。`0008` は空いている（1b 確認済み）。
+> 1. `supabase/migrations/0008_ai_decisions.sql`（列: id, session_id, symbol, name, action, price, change, reasoning, confidence, technicals, fundamentals, news, knowledge_refs, tick_id, decided_at。RLS 有効・ポリシー無し＝service-role のみ）
+> 2. `lib/ai-trader/decision-store.ts`（`store.ts` と同じ `hasServiceRole()` 分岐）／`engine.ts` の保存段で append 1回（**失敗しても tick を落とさない**・blob は据え置き）
+> 3. `app/api/ai-decisions/route.ts`（期間・銘柄・action・件数で絞る）
+> 4. `scripts/backfill-ai-decisions.ts`（現存分の救出・`(symbol, timestamp)` で重複排除・1回きり）
+> 5. `scripts/check-ai-decisions.ts`
+> 6. `app/watch/client.tsx` に1行「これまでの判断 N件（最古 YYYY-MM-DD）」
+> **人間ゲート②で見せるもの**: backfill 後の件数と**最古の判断の日付**（「7月の判断」が本当に残っているかがここで判明する）／本番で手動 tick を1回回して件数が増えること／`/api/ai-session` の応答が変わっていないこと。
+> **⚠️ オーナーの手作業が要る唯一のスライス**: Supabase の SQL Editor で `0008` を実行。**その前に 0003〜0007 が適用済みかの確認も必要**（未適用だと `/review/backfill` が動かず S3 の設計が崩れる）。着手前に手順を出すこと。
+>
+> **その後**: S2 まねる（お手本をAI判断に・**`verify-learn-3c1.mjs` 6件／`3c2.mjs` 2件の赤もここで直す**＝S1b が消したタブを押しに行くタイムアウト。3c1 の3か所は skip 化で済むが 3c2 の (2b) は「クイックで prepare」への作り替えで qa が要る。`AnalyzeBanner.tsx:21` の h1「名人の条件を過去に当てる」も同時に）→ S3 書く → S4 ふりかえり → S5 `/watch` とチャート（**`/watch` への `<Disclaimer>` 追加もここ**・4f と合意済み）→ S6 `/stocks` → S7 後始末（`:root` 一本化・`app/layout.tsx:55-56`・`<body class="bg-background">`・`app/icon.svg`・死んだファイル削除・OGP画像）。
+>
+> **S1 スコープ外の既存挙動（別スライスで拾う）**: `/trade`・`/review` を未ログインで開くと `/api/portfolio` の 401 がコンソールに出る（画面は正常・qa 発見）。
+>
+> ---
+>
+> **調査は全部そろった（2026-09-24 夜）。architect・designer(色)・designer(棚卸し) の3本とも受領済みで、下に記録がある。**
 >
 > ### 📋 実装計画（機能の作り直しと見た目の作り直しを1本に統合したもの・人間ゲート①待ち）
 >
