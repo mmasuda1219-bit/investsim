@@ -858,9 +858,17 @@ export default function AnalyzePage() {
             プレビュー/AIレポート生成ボタンは reviewer指摘により Config ラッパー
             の外（クイックと同じ位置）に移設した — 詳細は下の「Pro/Investor
             2-stage buttons」ブロックを参照。 ── */}
-        <div className={mode === 'investor' ? 'space-y-6' : 'hidden'}>
-          <InvestorModelPicker onConditionChange={handleInvestorConditionChange} />
-        </div>
+        {/* 2026-09-25 S1b の追い出し: 名人を隠している間は hidden でも DOM に残さない。
+            本番の /learn のソースに「投資家モデル（1つ選択）」と投資家名が出ていたため
+            （タブは消えているので画面には出ず押せもしないが、ソースには残る）。
+            上の S-B1 の「内部stateを保つためアンマウントしない」は mode を investor に
+            できる場合の話で、タブが無い間は切り替え自体が起きないので当たらない。
+            true に戻せば従来どおり hidden 切替で mount される。 */}
+        {SHOW_INVESTOR_MODELS && (
+          <div className={mode === 'investor' ? 'space-y-6' : 'hidden'}>
+            <InvestorModelPicker onConditionChange={handleInvestorConditionChange} />
+          </div>
+        )}
         </div>
 
         {/* ── S5a: 銘柄指定なし（自動スクリーニング）。キャッシュ済みユニバース

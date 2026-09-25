@@ -60,6 +60,10 @@ check('/learn: ANALYZE_MODE_TABS は配列の書き換えではなく SHOW_INVES
     && learn.includes("{ id: 'investor', label: '投資家モデル' }"))
 check(`/learn: 実際のタブに investor が${SHOW_INVESTOR_MODELS ? 'ある' : '無い'}（定数と一致）`, ANALYZE_MODE_TABS.some(t => t.id === 'investor') === SHOW_INVESTOR_MODELS, ANALYZE_MODE_TABS.map(t => t.id).join(','))
 check("/learn: 投資家モデルのパネル（mode === 'investor' の hidden 切替）と InvestorModelPicker は残っている", learn.includes("mode === 'investor' ? 'space-y-6' : 'hidden'") && learn.includes('<InvestorModelPicker'))
+// 2026-09-25: hidden（display:none）だけだと DOM とソースに「投資家モデル（1つ選択）」と投資家名が残る。
+// 出荷後に本番 /learn の HTML で実際に見つかったので、他の3か所と同じ {SHOW_INVESTOR_MODELS && ( … )} に揃えた。
+check('/learn: InvestorModelPicker のパネルも {SHOW_INVESTOR_MODELS && ( … )} の内側（隠している間は DOM に出さない）',
+  /\{SHOW_INVESTOR_MODELS && \(\s*<div className=\{mode === 'investor' \? 'space-y-6' : 'hidden'\}>/.test(learn))
 
 console.log('■ 名人の本体は HEAD と比べて無変更')
 // `[symbol]` を git の pathspec が文字クラスと読まないよう :(literal) を付ける
