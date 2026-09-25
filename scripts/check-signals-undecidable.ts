@@ -13,6 +13,8 @@
 //  - 画面側: MasterSignals / InvestorPanel が旧札・色付きの四角・格言を持たず RulebookView（人物像 → ご本人とは無関係 → 表と数直線 →
 //    問いのレール → 出典の年 → 共通の免責。2026-09-18 オーナー選択）を使う。RuleCheckList の値の書式（ROE 16.2%・D/E 0.78倍・
 //    FCF プラス）。数直線の規則（塗り分けゾーン無し・範囲外は文字）。Disclaimer の文言が marketing/RULES.md §2(a) の短い版と一致
+//  - 2026-09-25 S1b: /watch の名人欄は lib/features.ts の SHOW_INVESTOR_MODELS で出し分ける。期待値は同じ定数から導く
+//    （true: 従来の3件＝並び順・key・ちょうど2か所／false: 分岐の内側にだけ・部品 MasterSignals.tsx は HEAD と無変更・import は残る）
 //
 // 実ネットワーク不要: `@/lib/market`（取得元）だけを Module._load で差し替え、route.ts の GET をそのまま呼ぶ。
 // 差し替えで返す値は検査用の合成値で、製品コードには入れない（原則9の範囲内）。`server-only` は Next の外では
@@ -23,12 +25,14 @@
 import fs from 'fs'
 import path from 'path'
 import Module from 'module'
+import { spawnSync } from 'child_process'
 import type { StockQuote, HistoricalBar, FundamentalsData } from '../types'
 import { getRulebook, publishedRules, evaluate, type RuleCheck, type DataRule } from '../lib/investors/rulebooks'
 import { US_UNIVERSE } from '../lib/market/us-universe'
 import { describeCheck, formatObserved, formatThreshold } from '../components/investors/RuleCheckList'
 import { sourceYears } from '../components/investors/RulebookView'
 import { DISCLAIMER_TEXT, INVESTOR_DISCLAIMER_TEXT } from '../components/ui/Disclaimer'
+import { SHOW_INVESTOR_MODELS } from '../lib/features'
 
 let passed = 0
 let failed = 0
@@ -407,7 +411,10 @@ function clientChecks() {
   const rulesPath = path.join(ROOT, 'marketing/RULES.md')
   if (fs.existsSync(rulesPath)) {
     const rules = fs.readFileSync(rulesPath, 'utf8')
-    const shortVersion = /\*\*短い版[^\n]*\n> ([^\n]+)/.exec(rules)?.[1]?.trim()
+    // 行頭固定（^ と m）。2026-09-24 に RULES.md へ Instagram 向けの注記
+    // 「> - **短い版（約120字）** … Instagram 用には作り直しが必要」が入り、行頭固定でないと
+    // そちらを先に拾って次行（別の文）を比べてしまい、正しい定義があるのに赤くなっていた（reviewer W2・2026-09-25）
+    const shortVersion = /^\*\*短い版[^\n]*\n> ([^\n]+)/m.exec(rules)?.[1]?.trim()
     check('Disclaimer: 文言が marketing/RULES.md §2(a) の短い版と一字も違わない', shortVersion != null && DISCLAIMER_TEXT === shortVersion, `rules=${shortVersion}`)
   } else {
     console.log('  情報: marketing/RULES.md が無いので文言一致は省略')
@@ -433,19 +440,37 @@ function clientChecks() {
 
   console.log('■ /watch・トップ・/simulate')
   const watch = code('app/watch/client.tsx')
-  const msAt = watch.indexOf("<MasterSignals key=")
-  const lowerAt = watch.indexOf('max-w-[760px] mx-auto mt-12')
-  check('/watch: 名人欄は判断の免責の直後（下半分の運用の記録より前）', msAt > -1 && lowerAt > -1 && msAt < lowerAt, `MasterSignals@${msAt} lower@${lowerAt}`)
-  check('/watch: MasterSignals は key で作り直す（既定銘柄が useState の初期値で固定されない）', watch.includes("<MasterSignals key={chartSymbol || 'AAPL'}"))
-  // 2か所: セッションが無いときの画面（元からある `<MasterSignals />`）と、セッションがあるときの判断の免責の直後
-  check('/watch: MasterSignals は2か所（セッション無しの画面＋判断の直後）で、旧のページ最下部には無い',
-    watch.split('<MasterSignals').length - 1 === 2 && watch.includes('<MasterSignals />') && !watch.includes('<MasterSignals initialSymbol='))
+  // 2026-09-25 S1b: 名人欄は lib/features.ts の SHOW_INVESTOR_MODELS で出し分ける（DECISIONS 2026-09-24 決定(2)）。
+  // 期待値をベタ書きせず同じ定数から導く: true なら従来の3件（並び順・key・ちょうど2か所）、false なら
+  // 「分岐の内側にだけ」「部品は HEAD と無変更」「import は残る」の3件。件数はどちらでも3で、定数を戻せば検査も一緒に戻る
+  if (SHOW_INVESTOR_MODELS) {
+    const msAt = watch.indexOf("<MasterSignals key=")
+    const lowerAt = watch.indexOf('max-w-[760px] mx-auto mt-12')
+    check('/watch: 名人欄は判断の免責の直後（下半分の運用の記録より前）', msAt > -1 && lowerAt > -1 && msAt < lowerAt, `MasterSignals@${msAt} lower@${lowerAt}`)
+    check('/watch: MasterSignals は key で作り直す（既定銘柄が useState の初期値で固定されない）', watch.includes("<MasterSignals key={chartSymbol || 'AAPL'}"))
+    // 2か所: セッションが無いときの画面（元からある `<MasterSignals />`）と、セッションがあるときの判断の免責の直後
+    check('/watch: MasterSignals は2か所（セッション無しの画面＋判断の直後）で、旧のページ最下部には無い',
+      watch.split('<MasterSignals').length - 1 === 2 && watch.includes('<MasterSignals />') && !watch.includes('<MasterSignals initialSymbol='))
+  } else {
+    const watchCode = stripComments(watch)
+    const msTotal = watchCode.split('<MasterSignals').length - 1
+    const msGuarded = (watchCode.match(/\{SHOW_INVESTOR_MODELS && \(\s*<MasterSignals\b/g) ?? []).length
+    check('/watch（隠し中）: <MasterSignals は SHOW_INVESTOR_MODELS && の分岐の内側にだけ現れる（2か所とも・定数を @/lib/features から import）',
+      msTotal === 2 && msGuarded === 2 && watchCode.includes("from '@/lib/features'"), `total=${msTotal} guarded=${msGuarded}`)
+    const diff = spawnSync('git', ['diff', '--quiet', 'HEAD', '--', ':(literal)components/MasterSignals.tsx'], { cwd: ROOT })
+    check('/watch（隠し中）: 部品 components/MasterSignals.tsx は HEAD と比べて無改修（git diff --quiet）', diff.status === 0, diff.error ? String(diff.error) : `exit ${diff.status}`)
+    check('/watch（隠し中）: MasterSignals の import は残っている（定数を true に戻せば復活する）', watch.includes("import { MasterSignals } from '@/components/MasterSignals'"))
+  }
   check('/watch: 見出し行に人格の caption（{姓}の考え方で判断／特定の投資家の考え方は使っていません）',
     watch.includes('の考え方で判断') && watch.includes('特定の投資家の考え方は使っていません') && watch.includes('session.persona'))
-  const top = code('app/page.tsx')
-  check('トップ: 同じ caption（persona が来ていれば姓、null なら汎用の文）', top.includes('persona: InvestorId | null') && top.includes('の考え方で判断') && top.includes('特定の投資家の考え方は使っていません'))
+  // 2026-09-25 S1a: トップページはルートグループ app/(night)/ に移動した（URL は / のまま）
+  const top = code('app/(night)/page.tsx')
   // 2026-09-18: 取得の失敗を「まだ無い」と見せない（オーナーの友人がスマホで「取得できなかった」）
   const topCode = stripComments(top)
+  // 2026-09-25 S1c: 人格の caption（{姓}の考え方で判断）はトップから外した（名人を隠している間・本番は persona: null）。
+  // API の形（persona: InvestorId | null）はそのまま受け、lib/investors/registry は読まない
+  check('トップ: persona は API の形のまま受ける（InvestorId | null）が、人格の caption は出さない・registry を読まない',
+    top.includes('persona: InvestorId | null') && !topCode.includes('の考え方で判断') && !topCode.includes("from '@/lib/investors/registry'"))
   check('トップ: 状態は loading / ready / empty / error の4つ', topCode.includes("'loading' | 'ready' | 'empty' | 'error'"))
   const catchLines = topCode.split('\n').filter(l => l.includes('.catch('))
   check("トップ: catch が 'empty' を立てない（失敗は 'error'）", catchLines.length === 1 && !catchLines[0].includes("setState('empty')") && catchLines[0].includes("setState('error')"), catchLines.join(' | '))
@@ -461,7 +486,8 @@ function clientChecks() {
   check('トップ: fetch 先は /api/ai-session/latest（一覧の /api/ai-session は読まない）', topCode.includes("fetch('/api/ai-session/latest', { signal: ctrl.signal })") && !topCode.includes("fetch('/api/ai-session'"))
   check('トップ: 応答の形を確かめる（decisions が配列で各要素も正しい・tickCount が数・lastTickAt は文字列か null）', topCode.includes("Array.isArray(o.decisions) && o.decisions.every(isDecision) && typeof o.tickCount === 'number'") && topCode.includes("o.lastTickAt == null || typeof o.lastTickAt === 'string'"))
   check('トップ: 形が違えば error（throw）、decisions が空なら empty、1件以上なら ready', topCode.includes("if (!isSessionSummary(body)) throw") && topCode.includes('if (body.decisions.length > 0) {') && /setSession\(body\); setState\('ready'\)/.test(topCode))
-  check('トップ: persona は null を受け、null なら汎用の文', topCode.includes('persona: InvestorId | null') && topCode.includes('personaCaption(persona: InvestorId | null | undefined)'))
+  // 2026-09-25 S1c: 見本の見出し行は「いつ・何回目」だけを caption で添える（数字を見出しにしない＝DESIGN §4-2 R3）
+  check('トップ: 見本の見出し行は formatWhen と tickCount 回目だけを caption で添える（R3）', topCode.includes('回目の判断') && /text-caption text-muted tabular-nums">\{when\}・\{session\?\.tickCount\}回目の判断/.test(topCode))
   check('トップ: 旧の一覧の並べ替え（sort by lastTickAt）が無い', !topCode.includes('.sort((a, b) => Date.parse(b.lastTickAt)'))
   check('トップ: decisions の各要素も確かめる（symbol・name・reasoning が文字列、action が ACTION_LABEL のキー。壊れた成功を ready にしない）',
     topCode.includes('o.decisions.every(isDecision)') && topCode.includes("typeof d.symbol === 'string' && typeof d.name === 'string' && typeof d.reasoning === 'string'") && topCode.includes("typeof d.action === 'string' && d.action in ACTION_LABEL"))

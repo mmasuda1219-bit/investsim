@@ -1,6 +1,7 @@
 import { getQuote } from '@/lib/market'
 import { ChartWithControls } from '@/components/ChartWithControls'
 import { InvestorPanel } from '@/components/InvestorPanel'
+import { SHOW_INVESTOR_MODELS } from '@/lib/features'
 import { EarningsPanel } from '@/components/EarningsPanel'
 import { PeriodSelector } from '@/components/PeriodSelector'
 import { RealtimeQuote } from '@/components/RealtimeQuote'
@@ -55,8 +56,10 @@ export default async function StockPage({ params, searchParams }: Props) {
         {/* Chart — client-side async load */}
         <ChartWithControls symbol={symbol} period={period} />
 
-        {/* Investor Panel */}
-        <InvestorPanel symbol={symbol} />
+        {/* Investor Panel（2026-09-25 S1b: lib/features.ts の SHOW_INVESTOR_MODELS で出し分ける。部品は無改修・import も残す） */}
+        {SHOW_INVESTOR_MODELS && (
+          <InvestorPanel symbol={symbol} />
+        )}
 
         {/* Earnings Panel */}
         <EarningsPanel symbol={symbol} />

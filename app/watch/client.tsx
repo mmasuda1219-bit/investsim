@@ -9,6 +9,7 @@ import type { InvestorId, HistoricalBar } from '@/types'
 import type { TradeMarker } from '@/components/AITradeChart'
 import TradeLog, { pairRoundTrips, fmtPrice, fmtMoneySigned, isJPSymbol } from '@/components/watch/TradeLog'
 import { MasterSignals } from '@/components/MasterSignals'
+import { SHOW_INVESTOR_MODELS } from '@/lib/features'
 import { INVESTOR_META_BY_ID } from '@/lib/investors/registry'
 import { MarketOverview } from '@/components/MarketOverview'
 import ProcessReplay from '@/components/watch/replay/ProcessReplay'
@@ -174,7 +175,7 @@ function PageHeader({ session, ticking }: PageHeaderProps) {
   return (
     <header>
       <p className="text-small text-muted">01 見る</p>
-      <h1 className="text-h1 text-ink text-balance">AIと名人の判断を読む</h1>
+      <h1 className="text-h1 text-ink text-balance">AIの判断と、その根拠を読む</h1>
       <p className="mt-1 flex flex-wrap items-center gap-x-3 text-small text-muted">
         <span>Beta</span>
         {session && (ticking ? (
@@ -435,7 +436,9 @@ export function AISessionClient() {
         </div>
       )}
       {/* 名人のシグナル。「見る」＝AIと名人の判断を読む面なので、AIの下に並べる */}
-      <MasterSignals />
+      {SHOW_INVESTOR_MODELS && (
+        <MasterSignals />
+      )}
     </div>
   )
 
@@ -575,7 +578,9 @@ export function AISessionClient() {
         {/* 名人の考え方（ルールブック）。「見る」＝AIと名人の判断を読む面なので、AIの判断の直下に置く
             （旧: ページ最下部の運用の記録の後ろ。2026-09-17 S2）。
             key: chartSymbol が後から決まっても MasterSignals の useState 初期値は追わないので、作り直す。 */}
-        <MasterSignals key={chartSymbol || 'AAPL'} initialSymbol={chartSymbol || undefined} />
+        {SHOW_INVESTOR_MODELS && (
+          <MasterSignals key={chartSymbol || 'AAPL'} initialSymbol={chartSymbol || undefined} />
+        )}
       </div>
 
       {/* ここから下は補助情報。判断を読み終えた人が «で、結果はどうなったのか» を

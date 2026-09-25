@@ -17,8 +17,10 @@ import { SiteNav } from '@/components/SiteNav'
 // 後の実態とも合わないため改称した。
 const SITE_NAME = 'InvestSim'
 const SITE_TITLE = 'InvestSim — 投資判断の練習場'
+// 2026-09-25 S1c: 名人（著名投資家）を画面から隠している間は、検索結果と OGP に出るこの1文にも出さない。
+// 「無料」「リスクゼロ」「上手くなる」は書かない（legal-compliance 2026-09-25・DESIGN.md §7）。
 const SITE_DESC =
-  'AIと著名投資家と自分、どの判断が正しかったかを仮想資金で確かめる練習場。実データ・実通貨で記録し、実決済は一切行いません。'
+  '買う理由を書いて残し、あとで実際の株価と読み返す練習場。仮想資金で、実際のお金は1円も動きません。'
 
 export const metadata: Metadata = {
   // OG画像などの相対URLを絶対URLへ解決するために必須。

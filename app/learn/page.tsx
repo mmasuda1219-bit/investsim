@@ -38,6 +38,7 @@ import {
   INVESTOR_PRESET_IDS,
   getInvestorPresetCondition,
 } from '@/lib/backtest/investor-presets'
+import { SHOW_INVESTOR_MODELS } from '@/lib/features'
 import { describeFundamentalFilter, formatMetricValue } from '@/lib/backtest/fundamental'
 import type { PreparedBundle, PrepareResponse, ReaderProfile } from '@/lib/report/types'
 import { describeCompositeCondition } from '@/lib/report/prompt'
@@ -63,11 +64,17 @@ type AnalyzeScope = 'with-symbol' | 'no-symbol'
 // S5aで銘柄指定なし（自動スクリーニング）を有効化。ただしスクリーニングは
 // quick/investorのみ対応（プロ＝カスタム条件は/api/analyze/screen非対応。
 // UI側は mode==='pro' の場合その旨のメッセージを表示する）。
-export const ANALYZE_MODE_TABS: { id: AnalyzeMode; label: string; disabled?: boolean }[] = [
+const ALL_ANALYZE_MODE_TABS: { id: AnalyzeMode; label: string; disabled?: boolean }[] = [
   { id: 'quick',    label: 'クイック' },
   { id: 'pro',      label: 'プロ' },
   { id: 'investor', label: '投資家モデル' },
 ]
+// 2026-09-25 S1b: 投資家モデルのタブは lib/features.ts の SHOW_INVESTOR_MODELS で出し分ける（DECISIONS 2026-09-24 決定(2)）。
+// 配列を書き換えるのではなくフラグから導く（true に戻せば3タブが元の並びで戻る）。下の投資家モデルのパネル
+// （mode === 'investor' の hidden 切替）と InvestorModelPicker は無改修で残している。
+export const ANALYZE_MODE_TABS = SHOW_INVESTOR_MODELS
+  ? ALL_ANALYZE_MODE_TABS
+  : ALL_ANALYZE_MODE_TABS.filter(t => t.id !== 'investor')
 
 export const ANALYZE_SCOPE_OPTIONS: { id: AnalyzeScope; label: string; disabled?: boolean }[] = [
   { id: 'with-symbol', label: '銘柄指定あり' },
@@ -868,7 +875,8 @@ export default function AnalyzePage() {
             {mode === 'pro' ? (
               <p className="bg-card rounded-card px-4 py-5 text-body text-ink-2">
                 銘柄指定なし（自動スクリーニング）はプロ（カスタム条件）に対応していません。
-                クイックまたは投資家モデルのタブに切り替えてご利用ください。
+                {/* S1b: 名人を隠している間は「投資家モデルのタブ」が存在しないので案内から外す（reviewer W1・2026-09-25） */}
+                クイック{SHOW_INVESTOR_MODELS ? 'または投資家モデル' : ''}のタブに切り替えてご利用ください。
               </p>
             ) : (
               <>

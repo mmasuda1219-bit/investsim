@@ -366,23 +366,34 @@ console.log('■ 画面・API は rulebooks を index（@/lib/investors/rulebook
   }
   // S2 から画面と API が rulebooks を使う。入口は index だけ: 相対パス（'../lib/investors/rulebooks'）や中のファイル直指定
   // （'@/lib/investors/rulebooks/buffett'）は禁止（reviewer S-3。S1 の「参照が無い」検査を S2 に合わせて更新）
+  // 2026-09-25 S1c: 禁止語の一覧（forbidden.ts）だけは index を通さず直接 import してよい2つ目の入口にする。
+  // 理由: index は buffett のルールブック本体を import しており、トップページ（最も人が来る・client component）から
+  // index を読むとルールブックがそのまま入口の JS に入る。forbidden.ts は「画面の文言と AI の出力の禁止語はここ1か所が正」
+  // （DECISIONS 2026-09-17）の横断的な部品であって、ルールブックそのものではない。ルールブック（buffett 等）の直指定は引き続き禁止
+  const INDEX = '@/lib/investors/rulebooks'
+  const FORBIDDEN = '@/lib/investors/rulebooks/forbidden'
   const files = [...walk(path.join(ROOT, 'app')), ...walk(path.join(ROOT, 'components'))]
   const offenders: string[] = []
   const users: string[] = []
+  const forbiddenUsers: string[] = []
   for (const f of files) {
     const src = fs.readFileSync(f, 'utf8')
     const specs = [...src.matchAll(/(?:from\s*|import\s*\(\s*)['"]([^'"]*investors\/rulebooks[^'"]*)['"]/g)].map(m => m[1])
-    if (specs.length > 0) users.push(path.relative(ROOT, f))
-    if (specs.some(s => s !== '@/lib/investors/rulebooks')) offenders.push(`${path.relative(ROOT, f)}: ${specs.join(',')}`)
+    const rel = path.relative(ROOT, f).replace(/\\/g, '/')
+    if (specs.includes(INDEX)) users.push(rel)
+    if (specs.includes(FORBIDDEN)) forbiddenUsers.push(rel)
+    if (specs.some(s => s !== INDEX && s !== FORBIDDEN)) offenders.push(`${rel}: ${specs.join(',')}`)
   }
-  check(`app/ と components/ の ${files.length} ファイルは rulebooks を '@/lib/investors/rulebooks' 経由でだけ import する`, offenders.length === 0, offenders.join(' | '))
+  check(`app/ と components/ の ${files.length} ファイルは rulebooks を '@/lib/investors/rulebooks'（index）か '…/rulebooks/forbidden'（禁止語）経由でだけ import する（相対パス・ルールブック本体の直指定は無い）`, offenders.length === 0, offenders.join(' | '))
   // InvestorPanel は MasterSignals の useRulebookSignals / RULEBOOKS を使うので rulebooks を直接 import しない
-  check('rulebooks を使うのは signals の route・MasterSignals・RuleCheckList・InvestorLens・QuestionRail・RulebookView の6ファイル（InvestorPanel は MasterSignals 経由・NumberLine は純描画）',
-    JSON.stringify(users.map(u => u.replace(/\\/g, '/')).sort()) === JSON.stringify([
+  // 2026-09-25 S1c 修正パス: トップの見本の選び方は lib/entry/samples.ts（純関数）へ切り出し、page.tsx は
+  // そこを import する。app/・components/ から forbidden.ts を直接使うファイルは無くなった（samples.ts は lib/ なので走査外）
+  check('index を使うのは signals の route・MasterSignals・RuleCheckList・InvestorLens・QuestionRail・RulebookView の6ファイル（InvestorPanel は MasterSignals 経由・NumberLine は純描画）。forbidden.ts を直接使う app/・components/ のファイルは無い（トップの選び方は lib/entry/samples.ts 経由）',
+    JSON.stringify(users.sort()) === JSON.stringify([
       'app/api/signals/[symbol]/route.ts', 'components/MasterSignals.tsx',
       'components/investors/InvestorLens.tsx', 'components/investors/QuestionRail.tsx',
       'components/investors/RuleCheckList.tsx', 'components/investors/RulebookView.tsx',
-    ]), users.join(','))
+    ]) && JSON.stringify(forbiddenUsers.sort()) === JSON.stringify([]), `index=${users.join(',')} forbidden=${forbiddenUsers.join(',')}`)
   // rulebooks 自身も server-only や DB・ネットワーク・AI を持ち込まない（純関数と定数だけ）
   const dir = path.join(ROOT, 'lib/investors/rulebooks')
   for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.ts'))) {

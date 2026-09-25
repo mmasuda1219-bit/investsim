@@ -14,6 +14,7 @@
 import { NEEDS_PRESETS, NEEDS_PRESET_IDS, getNeedsPresetCondition } from '../lib/backtest/presets'
 import { parseCompositeCondition, ValidationError } from '../lib/report/validate'
 import { ANALYZE_MODE_TABS, ANALYZE_SCOPE_OPTIONS } from '../app/learn/page'
+import { SHOW_INVESTOR_MODELS } from '../lib/features'
 
 let failures = 0
 function check(name: string, ok: boolean, detail = '') {
@@ -103,15 +104,19 @@ console.log('クイック→レポート入力整合 — symbol/initialCapital �
 // S2でプロモード、S3で投資家モデル、S5aで銘柄指定なし(quick/investorのスクリーニング)
 // が有効化されたため、disabled 期待値は全て更新済み（S1時点の期待値は逆に
 // 「未配線」だったが、これはS2/S3/S5aの承認済みスコープ変更）。
-console.log('ANALYZE_MODE_TABS / ANALYZE_SCOPE_OPTIONS — S5a時点で機能するのはクイック・プロ・投資家モデル × 銘柄指定あり/なし')
+// 2026-09-25 S1b: 投資家モデルのタブは lib/features.ts の SHOW_INVESTOR_MODELS で出し分ける（DECISIONS 2026-09-24 決定(2)）。
+// 期待値はベタ書きせず同じ定数から導く（true なら3タブ・false なら2タブで investor は「無い」。disabled で残すのではない）。
+const expectedModes = SHOW_INVESTOR_MODELS ? ['quick', 'pro', 'investor'] : ['quick', 'pro']
+console.log(`ANALYZE_MODE_TABS / ANALYZE_SCOPE_OPTIONS — 機能するのは ${expectedModes.join('/')} × 銘柄指定あり/なし（SHOW_INVESTOR_MODELS=${SHOW_INVESTOR_MODELS}）`)
 {
-  check('モードは3種（quick/pro/investor）', ANALYZE_MODE_TABS.length === 3)
+  check(`モードは${expectedModes.length}種（${expectedModes.join('/')}）で並びもそのまま`, JSON.stringify(ANALYZE_MODE_TABS.map(t => t.id)) === JSON.stringify(expectedModes), ANALYZE_MODE_TABS.map(t => t.id).join(','))
   const quick = ANALYZE_MODE_TABS.find(t => t.id === 'quick')
   const pro = ANALYZE_MODE_TABS.find(t => t.id === 'pro')
   const investor = ANALYZE_MODE_TABS.find(t => t.id === 'investor')
   check('quick は disabled でない（S1で機能する）', quick !== undefined && !quick.disabled)
   check('pro は disabled でない（S2で機能する）', pro !== undefined && !pro.disabled)
-  check('investor は disabled でない（S3で機能する）', investor !== undefined && !investor.disabled)
+  check(SHOW_INVESTOR_MODELS ? 'investor は disabled でない（S3で機能する）' : 'investor はタブに無い（SHOW_INVESTOR_MODELS=false。disabled で残すのではなく外す）',
+    SHOW_INVESTOR_MODELS ? investor !== undefined && !investor.disabled : investor === undefined)
 
   check('範囲は2種（with-symbol/no-symbol）', ANALYZE_SCOPE_OPTIONS.length === 2)
   const withSymbol = ANALYZE_SCOPE_OPTIONS.find(o => o.id === 'with-symbol')
