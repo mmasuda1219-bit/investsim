@@ -60,6 +60,9 @@ async function handle(req: NextRequest) {
 
   const results: Array<{ id: string; ran: boolean; reason?: string; lockDegraded?: boolean }> = []
   // 経過時間バジェット。maxDuration(60s・Hobby)手前で打ち切り、残りは次回cronが古い順に拾う。
+  // S0（2026-09-25）: runTick は判断の控え（ai_decisions・lib/ai-trader/decision-store.ts）を最終保存より先に
+  // 1回 await する。打ち切り 5 秒付き（APPEND_TIMEOUT_MS）なので、Supabase が応答しない最悪のときは
+  // 1 tick あたり最大 +5 秒がこのバジェットに乗る（複数セッションを回す設計に戻すときは 1本ごとに +5 秒で見積もる）。
   const startedAt = Date.now()
   const TIME_BUDGET_MS = 50_000
   try {

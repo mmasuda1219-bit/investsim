@@ -293,6 +293,9 @@ export interface AISession {
 // 毎リクエスト read→write の素直な形にする。
 export { getSession, listSessions } from './store'
 import { getSession, upsertSession } from './store'
+// S0(2026-09-25): 判断の「消えない控え」。blob（ai_sessions）とは別の追記専用の表 ai_decisions へ1回だけ足す。
+// 失敗・未設定・タイムアウトは decision-store 側で握りつぶす（tick を控えの都合で落とさない）。
+import { appendDecisions } from './decision-store'
 
 /**
  * 値動き（|前日比%|）の大きい順に n 銘柄を選ぶ。走査した40銘柄の結果は `universe`（UNIVERSE の並び順・
@@ -1170,6 +1173,9 @@ export async function runTick(sessionId: string): Promise<AISession> {
   // 過去の判断から作る方針（オーナー決定 2026-09-24）が決まったため、材料が減るのを止める。
   // 本筋は判断1件1行の追記専用テーブルへ移すこと（S0）。そこまでの出血止め。
   session.decisions = [...decisions, ...session.decisions].slice(0, 200)
+  // S0(2026-09-25): 上の配列（上限200）から溢れても消えないよう、同じ判断を ai_decisions（1件1行・追記だけ）にも控える。
+  // blob の保存（この関数の最後の upsertSession）はそのまま。appendDecisions は投げない（失敗は console.error 1行で tick は続行）。
+  await appendDecisions(session.id, decisions, decidedAt)
 
   const tradeStartMs = Date.now()
 
