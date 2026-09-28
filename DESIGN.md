@@ -190,11 +190,11 @@ R9〜R12 は legal-compliance 2026-09-25 が追加。
 
 ### 5-1. 色
 
-**正は暗い地（`[data-theme="night"]`）です。** 2026-09-24 のオーナー決定で、地を `#0A0C10`、主役を青緑 `#2DD4BF` に転換しました（`DECISIONS.md` 2026-09-24）。明暗の切り替えは作りません（§9）。
+**正は暗い地（`app/globals.css` の `:root`）です。** 2026-09-24 のオーナー決定で、地を `#0A0C10`、主役を青緑 `#2DD4BF` に転換しました（`DECISIONS.md` 2026-09-24）。明暗の切り替えは作りません（§9）。S1a のあいだは `[data-theme="night"]` の範囲付きブロックに置いてトップだけを暗くしていましたが、SV1a（2026-09-25）で `:root` に一本化し、全ページが同じ値になりました。
 
 コントラスト比（文字と背景の濃さの差。WCAG 2.1 の式で実測）は、**文字 4.5:1 以上、部品の輪郭 3:1 以上、区切り線 1.3:1 以上**を要件とします。暗い地のトークンは半透明（うっすら透ける指定）が多いので、**必ず `#0A0C10` に重ねたあとの実際の色に直してから比べます**。この計算は `scripts/check-night-theme.ts` が毎回やり直すので、**実測値の正はその出力**です。本書には記録に残っている値だけを載せます。
 
-#### 暗い地のトークン（`[data-theme="night"]`・正）
+#### 暗い地のトークン（`:root`・正）
 
 **面（背景）**
 
@@ -248,8 +248,8 @@ R9〜R12 は legal-compliance 2026-09-25 が追加。
 |---|---|---|---|
 | `--border` | `rgb(255 255 255 / .16)` | カードの輪郭・行の区切り。**暗い地では、面の色ではなくこの線が区切りを担う唯一の手段** | 地の上 **1.54** ／ `--surface` の上 1.33（承認値 `.09` は 1.23 で区切り線 1.3 に届かず調整） |
 | `--border-input` | `rgb(255 255 255 / .40)` | 入力欄・副ボタンの輪郭（部品 3:1 以上） | `--card` の上 3.54 |
-| `--axis` | `rgb(255 255 255 / .30)` | 数直線の軸・目盛り（図形の線だけ。文字には使わない）。明るい地と同じく部品 3:1 には届かないが、値・目安・状態の語が文字で併記されるため WCAG 1.4.11 の必須対象にしない | 検査が毎回計算 |
-| `--rule-line` | `rgb(255 255 255 / .13)` | ノートの罫・レールの縦線・表の行の区切り。**`--bg` と `--card` の上だけ**（`--surface` の上は 1.20 で足りない） | `--card` の上 1.31 |
+| `--axis` | `rgb(255 255 255 / .30)` | 数直線の軸・目盛り（図形の線だけ。文字には使わない）。明るい地と同じく部品 3:1 には届かないが、値・目安・状態の語が文字で併記されるため WCAG 1.4.11 の必須対象にしない（2026-09-18 オーナー選択・DECISIONS.md 参照） | 地の上 2.63 ／ `--card` の上 2.45 |
+| `--rule-line` | `rgb(255 255 255 / .13)` | ノートの罫・レールの縦線・表の行の区切り。**`--bg` と `--card` の上だけ**（`--surface` の上は 1.20 で足りない）（2026-09-18 オーナー選択・DECISIONS.md 参照） | 地の上 1.40 ／ `--card` の上 1.31 |
 
 **その他**
 
@@ -262,12 +262,12 @@ R9〜R12 は legal-compliance 2026-09-25 が追加。
 
 | 系列 | 値 | 線の形 |
 |---|---|---|
-| あなた | `#3468C0` | 実線・太め（2px） |
+| あなた | `#5681DC` | 実線・太め（2px）。旧 `#3468C0` は AI の紫と1型色覚で ΔE 1.9（見分けられない）だったため、同じ色相で明度を上げた（2026-09-28・`scripts/check-chart-palette.ts`） |
 | AI | `#8E5BC4`（紫） | 破線（2px） |
 | 著名投資家 | `#C26A2A`（橙） | 点線（2px） |
 | 基準（元本・指数） | `#7C889B` | 細い実線（1px） |
 
-- 🔴 **この4色は白い地の上での実測で選ばれた値で、暗い地では未検証です。** チャートのスライス（S5）で `dataviz` スキルの `validate_palette.js --mode dark` を `#0A0C10` を面として**必ず再実行**し、落ちた色を差し替えてから使います。それまでは既存の図をそのまま動かし、新しい図を増やしません。
+- ✅ **暗い地で検証済み（2026-09-28）。正は `scripts/check-chart-palette.ts`**（`npx tsx scripts/check-chart-palette.ts`＝`:root` の `--bg` の上、`--bg "#131518"`＝チャートの面の上。両方で全項目 PASS）。かつて記録にあった `validate_palette.js` は失われていて誰も再実行できなかったため、同趣旨の検査をリポジトリの中に作り直した（地とのコントラスト 3:1／系列同士 CIE76 ΔE ≥ 8／1型・2型・3型のシミュレーション後も ΔE ≥ 8／明度の帯／線種の指定）。この検査で「あなた」の青を差し替え、決算マーカーを `--warning-ink` と同値にした。**色を変えるときは必ずこの検査を通す。** 系列は `SERIES` の `{ color, dash, width }` で定義し、色だけでなく線の形でも区別する。
 - 色の定義は `components/chartTheme.ts` の1か所だけに置き、各チャートはそこから読む（§6-14）。
 - 系列が1本だけの図（例: 株価と、その平均線）は、主役の線だけを系列色にし、補助の線は `--muted` の破線・点線＋線の端に名前を書く（色の見分けに頼らない）。
 
@@ -284,31 +284,9 @@ R9〜R12 は legal-compliance 2026-09-25 が追加。
 | 取得できない値は `--warning-ink` の注記で「取得できませんでした」 | 取得できない値を 0 や前回値で黙って埋める |
 | にじみは1画面2つまで・注記の下に敷かない（R5） | 12px の注記や免責をにじみの上に置く |
 
-#### 明るい地の表（移行中。S7 で撤去する）
+#### 明るい地の表（撤去済み）
 
-`:root`（明るい地）は当面そのまま残します。暗くしてあるのは入口画面（`app/(night)/`）と、`/` にいるときの `SiteNav` の2か所だけで、4段階のページはまだ明るいままです。最後のスライス（S7）で `:root` を暗い地へ一本化し、**このまとまりを検査の書き換えと同時に削除します**（`scripts/check-signals-undecidable.ts:432` がこの表の `--axis` と `--rule-line` の行を見ています）。
-使い道の規則（塗りは主ボタンだけ、など）は暗い地と同じで、値だけが違います。
-
-| トークン | 値 | 用途 |
-|---|---|---|
-| `--bg` | `#F6F8FB` | ページの地 |
-| `--card` | `#FFFFFF` | 手前の紙 |
-| `--surface` | `#EDF1F6` | 一段くぼんだ面 |
-| `--brand-tint` | `#E8EEF7` | 現在地・選択中の下地 |
-| `--ink` | `#0D1725` | 本文・見出し・金額（18.00 / 16.92 / 15.87 / 15.44） |
-| `--ink-2` | `#3A4658` | 説明文（9.56 / 8.98 / 8.43 / 8.20） |
-| `--muted` | `#5B677A` | 補足・ラベル・注記（5.73 / 5.38 / 5.05 / 4.91） |
-| `--brand` | `#1A4787` | 主ボタンの塗り・現在地の文字・リンク（9.15 / 8.60 / 8.07 / 7.84） |
-| `--brand-strong` | `#143A6E` | 主ボタンのホバー・押下（11.29） |
-| `--on-brand` | `#FFFFFF` | 紺青の塗りの上の文字 |
-| `--focus` | `#2566B2` | キーボード操作時の枠（5.80 / 5.45 / 5.11 / 4.97） |
-| `--success` / `--success-tint` | `#177A4F` / `#E9F5EF` | 完了（5.34 / 5.02 / 4.71 ／ tint 上 4.77） |
-| `--danger` / `--danger-tint` | `#C03535` / `#FBECEC` | 入力の誤り・元に戻せない操作（5.52 / 5.19 / 4.87 ／ tint 上 4.82） |
-| `--warning-ink` / `--warning-tint` | `#8A5300` / `#FDF3E1` | 注意（6.33 / 5.95 / 5.58 ／ tint 上 5.75） |
-| `--border` | `#C3CCD8` | カードの輪郭・行の区切り（1.62 / 1.52 / 1.43 / 1.39） |
-| `--border-input` | `#7C889B` | 入力欄・副ボタンの輪郭（3.59 / 3.37 / 3.16 / 3.08） |
-| `--axis` | `#8D9FB8` | 数直線の軸・目盛り（図形の線だけ。文字には使わない。部品 3:1 には届かない。数直線の軸は補助図形＝値・目安・状態の語が文字で併記されるため、WCAG 1.4.11 の必須対象にしない）（2026-09-18 オーナー選択・DECISIONS.md 参照） | 2.70 / 2.54 / 2.38 |
-| `--rule-line` | `#C9D3E0` | ノートの罫・レールの縦線・表の行の区切り（区切り線 1.3 以上）（2026-09-18 オーナー選択・DECISIONS.md 参照） | 1.51 / 1.42 / 1.33 |
+明るい地（`#F6F8FB` の地・紺青 `#1A4787`）の表は、SV1a（2026-09-25）で `:root` を暗い地に一本化したときに撤去しました。値が要るときは git の履歴（S1 出荷 `16940d4` 時点の本節）を見てください。使い道の規則（塗りは主ボタンだけ、など）は当時から変わっていません。`scripts/check-signals-undecidable.ts` の検査「globals.css: --axis と --rule-line が :root にある」は、いまは上の暗い地の表の値を見ています。
 
 ### 5-2. 文字
 
@@ -392,7 +370,7 @@ R9〜R12 は legal-compliance 2026-09-25 が追加。
 
 - 浮いているものは、影だけに頼らず **面を `--surface`（一段明るい面）にして地との明るさの差を作る**こと。
 - 2枚目の `0 0 0 1px rgb(255 255 255 / .06)` は**輪郭であって発光ではありません**。色が付いていないので §5-6 の「光る縁取りを使わない」には当たりません。**色の付いた影（発光）を許すのは、主ボタンと選択中カードの2か所だけ**です（§4-2 R1・§5-1）。
-- 明るい地（`:root`）の値は `0 8px 24px rgb(13 23 37 / 0.12)` のままです。S7 で暗い地へ一本化します。
+- `:root`（＝`@theme inline` の `--shadow-float` の生値）もこの2枚重ねです（SV1a・2026-09-25 で一本化。明るい地の `0 8px 24px rgb(13 23 37 / 0.12)` と、`[data-theme="night"] .shadow-float` の上書きは撤去済み）。
 
 ### 5-6. 動き
 
@@ -515,7 +493,7 @@ $101,234.56                   ← display 40px / --ink / tabular-nums
   - **囲い（やらない）**: 中身を強調するためだけに塊を枠で囲うこと。とくに**カードの中にカードを入れない（入れ子禁止）**。輪郭が2重・3重になった時点で「囲い」です。
   - `--border` 以外の色で枠を引いてよいのは、**押せる塊（ボタン・選択肢）、浮いているもの（シート・トースト・検索候補）、入力欄**だけ（2026-09-11 の例外をそのまま維持）。選択中は青緑の枠（§5-1）。
 - 数字タイルの格子は作らない。複数の数字は表1つか、1行の数字にする。
-- **検査の注記**: `scripts/verify-learn-3c2.mjs:106-125` と `scripts/shoot-replay.mjs:77-89` の囲い検出は「4辺に枠線＋角丸＝囲い」で数えているため、半透明カードは必ず引っかかります。**上の「面の輪郭」の定義に合わせて数え方を作り替えるのは `/learn` のスライス（S2）の中で行う**（2026-09-24 designer 棚卸し）。
+- **検査の注記**: `scripts/verify-learn-3c2.mjs` と `scripts/shoot-replay.mjs` の囲い検出（`enclosures()`）は、SV1a（2026-09-25）で上の定義に合わせて作り替えました。「4辺に枠線＋角丸」のうち、**4辺とも 1px で色が `--border`（`rgba(255, 255, 255, 0.16)`）のものは「面の輪郭」として数えない**。それ以外（2px 以上・`--border` 以外の色・辺ごとに違う色）は引き続き「囲い」として数えます。入れ子の輪郭（カードの中のカード）は輪郭の色が同じでも囲いですが、この検査では見ていません（目視の担当）。
 
 ### 6-7. ナビゲーション（4段階）
 
@@ -582,13 +560,13 @@ $101,234.56                   ← display 40px / --ink / tabular-nums
 ### 6-14. チャート
 
 - 系列色と線の形は §5-1 の表のとおり。**色の定義は `components/chartTheme.ts` の1か所だけ**にし、各チャートはそこから読む。
-- 🔴 **`SERIES` の4系列は白い地の上での実測で選ばれた値で、暗い地では未検証です。** チャートのスライス（S5）で `validate_palette.js --mode dark`（面に `#0A0C10` を与える）を**必ず再実行**し、落ちた色を差し替えます。それまで新しい図を増やさないこと。
+- ✅ **`SERIES` は暗い地で検証済み（2026-09-28・`scripts/check-chart-palette.ts`。§5-1 参照）。** 色を変えるときは必ずこの検査を通し、`--bg "#131518"`（チャートの面）でも見ること。
 - 軸の文字は `caption`/`--muted`、軸と目盛りの線は `--axis`（`rgb(255 255 255 / .30)`。図形の線だけで、文字には使わない）。
 - 補助線（グリッド）は **`--border` をそのまま**使う。暗い地の `--border` は 1.54 と区切り線の下限（1.3）に近いので、**「50% に薄める」のような指定を重ねない**（下限を割る）。
 - 最新の点を強調し、その値を線の端にラベルで出す。**光らせない**（色の付いた影を図に使わない。§4-2 R1）。
 - 売買の印は ▲/▼＋「買 178.20」「売 191.40」、色は `--ink`（P8）。
 - **損益を緑・赤で塗り分けない。** ゼロの基準線からの向きと `--ink` 系の明るさの差で表す（§6-4）。
-  - ⚠️ 既存の違反: `components/StockChart.tsx` の RSI 70/30 の線と MACD のヒストグラムが緑・赤です。`components/ChartWithControls.tsx:46-51` の凡例の色は実際の線の色と別物です。**どちらも `/stocks/[symbol]` のスライス（S6）で同時に直します。**
+  - ✅ 解消（2026-09-28・SV1c）: RSI の 70/30 線は `--muted` の破線、MACD のヒストグラムは正＝`--ink` の塗り・負＝`--muted` の塗り・ゼロ基準線は `--muted` の破線（lightweight-charts の HistogramSeries に輪郭だけの描き方が無いため「`--ink` 系の明度差」で表す）。凡例は `SERIES` の色と線の形をそのまま出す（`ChartWithControls.tsx` の `LineSwatch`）。ローソク足は上げ＝中空（面 `--card`・輪郭 `--ink`）／下げ＝`--ink` の塗り。
 - 凡例の色と線の色を必ず一致させる（同じトークンから取る）。
 - 複数の系列（あなた・AI・著名投資家）を並べる図は、開始時点を 0% とした増減率で描き、縦軸は1本にする（縦軸を2本にしない）。
 - 数字の直下に出所と時刻を必ず出す（§4-2 R8）。
@@ -700,7 +678,7 @@ $101,234.56                   ← display 40px / --ink / tabular-nums
   - 理由: (1) 暗い地は好みではなくブランドの決定なので、選べる形にすると決定が薄まる (2) 明暗2つを持つと、コントラストの検証もレビューも常に二重になり、原則8（動くものが正義・早すぎる汎用化の禁止）に反する。
 - **経緯**: 2026-09-07 には「入門者向けなのに暗い背景はトレーディング端末に見える」として明るい配色固定を決めていました。2026-09-24 のオーナー決定でこれを覆し、代わりに §4-2 の R1〜R12（怪しく見せない規則）で「玄人向け・怪しい」に見えないことを担保します（`DECISIONS.md` 2026-09-24）。
 - **印刷（`/report` など）はテーマではなく `@media print` のトークン差し替え1ブロックで解きます。** 色の指定がすべてトークン経由なので、`--bg` `--card` を白、`--ink` を黒に近い色、`--border` を薄いグレーに差し替え、影とにじみを `none` にするだけで足ります。印刷用のテーマやクラスを別に作らないこと。
-- **移行中の状態（S7 まで）**: 暗いトークンは `app/globals.css` の `[data-theme="night"]` に範囲付きで置き、`:root`（明るい地）は当面そのままです。暗くなっているのは入口画面（`app/(night)/`）と、`/` にいるときの `SiteNav` の2か所だけ。最後のスライス（S7）で `:root` を暗い地へ一本化し、この範囲付きの仕掛けと明るい地の表（§5-1）を撤去します。
+- **一本化済み（SV1a・2026-09-25）**: 暗いトークンは `app/globals.css` の `:root` に置き、全ページが同じ値です。S1a のあいだ使っていた範囲付きの仕掛け（`[data-theme="night"]` ブロック・`app/(night)/layout.tsx` の地の塗り・`SiteNav` の `/` だけの出し分け）と、§5-1 の明るい地の表は撤去しました。オーナー指示（2026-09-25「最初の画面はいいけど、他の機能に移ると前のサイトの感じのまま。それもすべて変えてほしい」）で、計画の S7 から前倒ししたものです。`<meta name="color-scheme">`（`app/layout.tsx` の `viewport.colorScheme`）と `:root` の `color-scheme` は両方 `dark`。
 
 ---
 
@@ -712,27 +690,34 @@ $101,234.56                   ← display 40px / --ink / tabular-nums
 
 | スライス | 対象 | 状態 |
 |---|---|---|
-| **S1a 暗い見た目の土台** | `app/globals.css` に `[data-theme="night"]` を追加（`:root` と `@theme inline` は1文字も変えない）／`app/(night)/layout.tsx` 新規（`viewport.themeColor` の上書き・地を `--bg` で塗る）／`app/page.tsx` → `app/(night)/page.tsx` へ移動／`components/SiteNav.tsx`（`text-emerald-700` 撤去・night は `/` のときだけ・ロゴの出し分け）／`components/StockSearch.tsx`／`public/logo-night.svg`・`logo-mark-night.svg` 新規（元ファイルは無傷）／`scripts/check-night-theme.ts` 新規 | ✅ 完了（検査 2492→2596 PASS・落ちたものゼロ） |
+| **S1a 暗い見た目の土台** | `app/globals.css` に `[data-theme="night"]` を追加（`:root` と `@theme inline` は1文字も変えない）／`app/(night)/layout.tsx` 新規（`viewport.themeColor` の上書き・地を `--bg` で塗る）／`app/page.tsx` → `app/(night)/page.tsx` へ移動／`components/SiteNav.tsx`（`text-emerald-700` 撤去・night は `/` のときだけ・ロゴの出し分け）／`components/StockSearch.tsx`／`public/logo-night.svg`・`logo-mark-night.svg` 新規（元ファイルは無傷）／`scripts/check-night-theme.ts` 新規 | ✅ 完了（検査 2492→2596 PASS・落ちたものゼロ）。**範囲付きの仕掛けは SV1a で `:root` に一本化済み**（下の行） |
 | **S1b 名人をフラグで隠す** | `lib/features.ts` 新規（`SHOW_INVESTOR_MODELS = false`）／`app/watch/client.tsx` 2か所・`app/stocks/[symbol]/page.tsx`・`app/learn/page.tsx` のタブをフラグで囲う／`SiteNav` の説明文3本／`scripts/check-signals-undecidable.ts` 3件・`check-analyze-s1.ts` 3件を同じ定数から導く／`scripts/check-features.ts` 新規 | 🔄 作業中 |
 | **S1c 入口画面の中身** | 承認済みの見た目（`Night.dc.html`）でトップの中身を作り直す／免責を `components/ui/Disclaimer` に差し替える（現行は「投資助言・代理業には該当しません」の自己断定＝§6-11 違反）／AI 判断の節を「書き方の見本」に降格・3→2件／主ボタンを `/trade` の1つに | 🔲 |
 | **S2 まねる（`/learn`）** | `/learn` を暗く／お手本を自サイトの AI 判断に差し替え。**ここで検査が3つ当たる**: `verify-learn-3c1.mjs:27` の `BRAND_RGB`（色の文字列一致で主ボタンを数えており、半透明化すると**0件になって黙って PASS する**＝FAIL より悪い。色に頼らない特定方法へ作り替える）／`verify-learn-3c2.mjs:106-125` と `shoot-replay.mjs:77-89` の囲い検出（§6-6 の「面の輪郭」の定義に合わせて作り替える） | 🔲 |
 | **S3 書く（`/trade`）** | `/trade` を暗く／`lib/trade/reason.ts` に再現性の3項目【期間】【根拠】【当てはまり】を追加／`components/ReasonFields.tsx`／`components/TradeModal.tsx:140`（暗色時代の紺色モーダルの残骸） | 🔲 |
 | **S4 ふりかえり（`/review`）** | `/review` を暗く／`lib/review/patterns.ts` 新規／`app/review/backfill/page.tsx` | 🔲 |
-| **S5 `/watch` とチャート全体** | `app/watch/client.tsx`・`EquityChart.tsx`・`AITradeChart.tsx`・`chartTheme.ts`・`watch/replay/*`・`shoot-replay.mjs`。**`validate_palette.js --mode dark` の再実行が必須**（§5-1・§6-14） | 🔲 |
+| **S5 `/watch` とチャート全体** | `app/watch/client.tsx`・`EquityChart.tsx`・`AITradeChart.tsx`・`chartTheme.ts`・`watch/replay/*`・`shoot-replay.mjs`。系列色は `scripts/check-chart-palette.ts` で検証済み（SV1c）。`/watch` の残り＝`app/watch/client.tsx` の直値と `shoot-replay.mjs` | 🔲 |
 | **S6 `/stocks/[symbol]`** | `StockChart.tsx`（色の直値 22行）。**既存の §6-14 違反もここで同時に直す**＝RSI 70/30 線と MACD ヒストグラムの緑赤（P8 違反）／`ChartWithControls.tsx:46-51` の凡例の色が実際の線と別物 | 🔲 |
-| **S7 後始末** | `:root` を暗い地へ一本化し `[data-theme="night"]` と §5-1 の「明るい地の表」を撤去（`check-signals-undecidable.ts:432` の書き換えと同時に）／旧名 `--panel` `--accent*` の撤去／死んだファイルの削除（`components/Navbar.tsx`・`/markets`・`/lab`・`/report`・雛形 SVG。削除前に curl で到達不能を確認）／`app/layout.tsx:55-56`（`themeColor` と `colorScheme: 'light'`）／`<body className="bg-background">`（`app/layout.tsx:66`）／`app/icon.svg` の白い角丸タイル／`opengraph-image.png`・`apple-icon.png` の作り直し（**画像なのでオーナーの手作業**） | 🔲 |
+| **SV1a `:root` の一本化（S7 から前倒し）** | `app/globals.css` の `:root` を暗い地の値に置き換え（トークンの個数は不変）・`[data-theme="night"]` ブロックと `.shadow-float` の上書きを撤去・`@theme inline` の `--shadow-float` を2枚重ねに／§5-1 の「明るい地の表」を撤去（`check-signals-undecidable.ts` の検査「globals.css: --axis と --rule-line が :root にある」の書き換えと同時に）／`app/layout.tsx`（`themeColor '#0A0C10'`・`colorScheme 'dark'`・フッターの枠を全ページに）／`app/(night)/layout.tsx`（地の塗り・`data-theme`・フッター・`themeColor` の上書きを撤去。にじみだけ残す）／`components/SiteNav.tsx`（`/` だけの出し分けを撤去・全ページで暗い地用ロゴ）／`app/auth/login/page.tsx`（暗い地用ロゴ・エラー帯をトークンに）／検査の追随（`check-night-theme.ts` を「`:root` が暗い地の値である」に反転・`check-entry.ts`・`verify-learn-3c1/3c2.mjs`（主ボタンを `bg-brand` クラスで数える・投資家モデルタブは `lib/features.ts` を読んで skip）・`shoot-replay.mjs`（面の輪郭を囲いから除外）） | ✅ 完了（2026-09-25。**SV1b・SV1c と揃えて出荷**） |
+| **SV1b 直値の掃除** | `app/trade/page.tsx`・`components/TradeModal.tsx`・`ReasonFields.tsx`・`app/review/backfill/page.tsx`・`EarningsPanel.tsx`・`ChartWithControls.tsx`・`PeriodSelector.tsx`・`app/watch/client.tsx:29`（`pnlCls`）ほか、`:root` を暗くして白く残った箇所（一覧は SV1a の報告） | 🔲 |
+| **SV1c チャート** | `chartTheme.ts`（`FALLBACK` を暗い地の合成色に・`SERIES` を `{ color, dash, width }` に・you `#5681DC`・earnings `#C08A2E`・`ma200`/`rsi`/`macd` 新設）・`StockChart.tsx`（直値22行→トークン・ローソク足の中空/塗り・RSI/MACD の緑赤を解消）・`ChartWithControls.tsx`（凡例を `SERIES` の色＋線の形に）・`EquityChart.tsx`・`AITradeChart.tsx`・`watch/replay/*`・`app/simulate/page.tsx`・`investors/NumberLine.tsx`。**`scripts/check-chart-palette.ts` が暗い地で全件 PASS（42）。明るい地は参考（41/42・`earnings` #C08A2E が 2.85。明るい地は SV1a で撤去済みなので直さない）** | ✅ 完了（2026-09-28。SV1a・SV1b と揃えて出荷） |
+| **S7 後始末（残り）** | 旧名 `--panel` `--accent*` の撤去／死んだファイルの削除（`components/Navbar.tsx`・`/markets`・`/lab`・`/report`・雛形 SVG。削除前に curl で到達不能を確認）／`app/icon.svg` の白い角丸タイル／`opengraph-image.png`・`apple-icon.png` の作り直し（**画像なのでオーナーの手作業**） | 🔲 |
 
 **S1a で消化した項目**
 - `components/SiteNav.tsx:101` の `text-emerald-700`（旧ブランド色の残り。§10-2 P1 の「ブランド色が4系統」の1件）
-- スマホのアドレスバーの色（`themeColor`）を `/` だけ `#0A0C10` に（§10-2 P1 の `app/layout.tsx:55` は**入口画面だけ**解消。ルートは未消化）
+- スマホのアドレスバーの色（`themeColor`）を `/` だけ `#0A0C10` に（SV1a でルートも同じ値にし、上書きは撤去）
 - `components/StockSearch.tsx` の既製色の札と、白地に溶けて見えなかった読み込みの輪（実質のバグ修正）
 
-**まだ明るいまま・S7 まで残るもの**
-- `app/layout.tsx:55-56`（ルートの `themeColor: '#F6F8FB'` と `colorScheme: 'light'`）＝ Windows のスクロールバーと iOS の引っぱり戻しの地が明るいままになる
-- `app/layout.tsx:66` の `<body className="bg-background">`
+**SV1a で消化した項目（2026-09-25）**
+- `app/layout.tsx` のルートの `themeColor`（`#F6F8FB` → `#0A0C10`）と `colorScheme`（`'light'` → `'dark'`）＝ Windows のスクロールバーと iOS の引っぱり戻しの地も暗くなった
+- `<body className="bg-background">` は class を変えず、`:root` の `--bg` が暗くなったことで追随
+- `app/auth/login/page.tsx` のロゴと、既製色（`text-red-700` / `bg-red-50` / `border-red-200`）のエラー帯
+
+**まだ明るいまま・S7（残り）まで残るもの**
 - `app/icon.svg` の白い角丸タイル（暗い地でのタブのアイコン。判断は S7）
 - `components/Navbar.tsx`（すでに使われていない部品。S7 で削除）
 - `opengraph-image.png`・`apple-icon.png`（オーナーの手作業）
+- 各ページに残る色の直値（白い箱・読めない文字）は SV1b、チャートは SV1c（一覧は SV1a の報告）
 
 ### 10-2. 履歴: 明るい地のときの移行チェックリスト（2026-09-11）
 

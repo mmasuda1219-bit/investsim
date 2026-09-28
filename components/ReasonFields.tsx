@@ -49,7 +49,7 @@ export function ReasonFields({
             <label htmlFor={id} className="block text-base text-ink leading-relaxed">
               {f.question}{' '}
               {f.required
-                ? <span className="text-emerald-700">（必須）</span>
+                ? <span className="text-brand">（必須）</span>
                 : <span className="text-muted">（任意）</span>}
             </label>
 
@@ -67,12 +67,14 @@ export function ReasonFields({
               aria-invalid={showErr || undefined}
               aria-describedby={showErr ? `${id}-err` : undefined}
               className={`w-full px-3 py-2 rounded-lg bg-panel border text-base text-ink leading-relaxed placeholder:text-muted focus:outline-none ${
-                showErr ? 'border-amber-200 focus:border-amber-200' : 'border-border focus:border-emerald-200'
+                showErr ? 'border-border-input focus:border-border-input' : 'border-border focus:border-brand'
               }`}
             />
 
+            {/* 必須最低文字数の検証＝入力の誤り。DESIGN.md §6-9「入力の誤りは入力欄の直下に --danger」に
+                そろえる（app/trade/page.tsx・app/review/backfill/page.tsx の検証と同じ規則。SV1b レビュー W1）。 */}
             {showErr && (
-              <p id={`${id}-err`} className="text-sm text-amber-700 leading-relaxed">{err}</p>
+              <p id={`${id}-err`} className="text-sm text-danger leading-relaxed">{err}</p>
             )}
           </div>
         )

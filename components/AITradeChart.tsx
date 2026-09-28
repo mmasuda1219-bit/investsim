@@ -14,6 +14,7 @@ import {
 } from 'lightweight-charts'
 import { calcMA } from '@/lib/technicals'
 import type { HistoricalBar } from '@/types'
+import { readChartTheme, fade } from '@/components/chartTheme'
 
 export interface TradeMarker {
   time:      number
@@ -34,26 +35,19 @@ interface Props {
 }
 
 // ── 色 ────────────────────────────────────────────────────────────────────
-// lightweight-charts は canvas 描画で CSS 変数を読めないため hex 直書きだが、
-// すべて app/globals.css のトークンと同値。
-// トークン側を変えたらここも合わせること。
-const C = {
-  ink:     '#1A1A18', // --ink     終値の線・売買マーカー
-  ink2:    '#44413B', // --ink-2   MA50（長い期間ほど濃い＝順序尺度）
-  muted:   '#6B6862', // --muted   MA20・軸文字
-  border:  '#D6D0C3', // --border  grid（1px 実線）
-  card:    '#FFFFFF', // --card    背景
-  inkFill: 'rgba(26, 26, 24, 0.08)', // --ink の 8%。終値の下の面
-} as const
-
-// 売買の方向は「色で運ばない」。
-// 同じページに「利益＝緑 / 損失＝赤」（TradeLog の往復の結果）が並ぶので、ここで
-// 「買い＝緑 / 売り＝赤」を使うと、読者は「AIが買った＝良いこと」と誤読する
-// （COMPANY.md 原則11: 読者の判断力向上が目的。判断と結果を混同させない）。
-// 方向は 形（▲/▼）＋位置（bar下/bar上）＋文字（「買 178.20」「売 191.40」）で示す。
-// 金融UIの慣習（買い緑・売り赤）に逆らう判断なので、後で反転したくなったら
-// この2つの値だけを --success / --danger に変えれば戻る（他の箇所は触らずに済む）。
-const MARKER_COLOR = { buy: C.ink, sell: C.ink } as const
+// lightweight-charts は canvas 描画で CSS 変数を読めないため、色は useEffect の中で
+// chartTheme.readChartTheme() が app/globals.css の :root から実行時に読む（直書きしない）。
+//   ink   … --ink    終値の線・売買マーカー
+//   ink2  … --ink-2  MA50（長い期間ほど濃い＝順序尺度）
+//   muted … --muted  MA20・軸文字
+//   grid  … --border grid（1px 実線）
+//   background … --card 背景
+// 終値の下の面は fade(ink, 0.08)（--ink の 8%）。
+//
+// 売買の方向は「色で運ばない」。「買い＝緑 / 売り＝赤」を使うと、読者は「AIが買った＝良いこと」と
+// 誤読する（COMPANY.md 原則11: 読者の判断力向上が目的。判断と結果を混同させない）。
+// 損益にも色を使わない（DECISIONS 2026-09-24「損益から色を外す」）ので、緑赤はこのページに無い。
+// 方向は 形（▲/▼）＋位置（bar下/bar上）＋文字（「買 178.20」「売 191.40」）で示し、色は --ink。
 
 // マーカーの価格表記。`.T` は円（整数）、それ以外は小数2桁。
 function fmtMarkerPrice(symbol: string, p: number) {
@@ -81,23 +75,26 @@ export function AITradeChart({ data, trades, height = 380, symbol }: Props) {
     // せめてページと同じフォント族を使って軸の数字の見た目を揃える。
     const fontFamily = getComputedStyle(el).fontFamily || undefined
 
+    const th = readChartTheme()
+    const markerColor = { buy: th.ink, sell: th.ink } as const
+
     const chart = createChart(el, {
       // コンテナの実寸に追従（ResizeObserver）。height はコンテナの style で決める。
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: C.card },
-        textColor:  C.muted,
+        background: { type: ColorType.Solid, color: th.background },
+        textColor:  th.text,
         fontSize:   11,
         fontFamily,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: C.border, style: LineStyle.Solid },
-        horzLines: { color: C.border, style: LineStyle.Solid },
+        vertLines: { color: th.grid, style: LineStyle.Solid },
+        horzLines: { color: th.grid, style: LineStyle.Solid },
       },
-      rightPriceScale: { borderColor: C.border },
+      rightPriceScale: { borderColor: th.border },
       timeScale: {
-        borderColor:    C.border,
+        borderColor:    th.border,
         // 日足なので時刻は出さない（出すと「00:00」が並ぶだけ）
         timeVisible:    false,
         secondsVisible: false,
@@ -107,13 +104,13 @@ export function AITradeChart({ data, trades, height = 380, symbol }: Props) {
     })
 
     // 終値: 2px の線＋その下に同色 8% の面（AreaSeries は線と面を1系列で描く）。
-    // ローソク足（緑/赤）をやめた理由: 白地で 1.9:1 しか出ない上に、
-    // 「上がった日＝緑」が売買マーカーの意味と衝突する。
+    // ローソク足（緑/赤）をやめた理由: 「上がった日＝緑」が売買マーカーの意味と衝突する
+    // （いまは損益・方向に色を使わない決定 2026-09-24 でも同じ結論）。
     const closeSeries = chart.addSeries(AreaSeries, {
-      lineColor:        C.ink,
+      lineColor:        th.ink,
       lineWidth:        2,
-      topColor:         C.inkFill,
-      bottomColor:      'rgba(26, 26, 24, 0)',
+      topColor:         fade(th.ink, 0.08),
+      bottomColor:      fade(th.ink, 0),
       priceLineVisible: false,
       lastValueVisible: true,
       crosshairMarkerVisible: true,
@@ -125,13 +122,13 @@ export function AITradeChart({ data, trades, height = 380, symbol }: Props) {
     // 移動平均は「期間が長いほど濃い」順序尺度。色相は増やさない。
     // 線幅は LineWidth 型が 1|2|3|4 の整数なので 1px（1.5px は指定できない）。
     const ma20series = chart.addSeries(LineSeries, {
-      color: C.muted, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+      color: th.muted, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
       crosshairMarkerVisible: false,
     })
     ma20series.setData(calcMA(data, 20).map(p => ({ time: p.time as unknown as Time, value: p.value })))
 
     const ma50series = chart.addSeries(LineSeries, {
-      color: C.ink2, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+      color: th.ink2, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
       crosshairMarkerVisible: false,
     })
     ma50series.setData(calcMA(data, 50).map(p => ({ time: p.time as unknown as Time, value: p.value })))
@@ -142,7 +139,7 @@ export function AITradeChart({ data, trades, height = 380, symbol }: Props) {
         .map(t => ({
           time:     t.time as unknown as Time,
           position: t.action === 'buy' ? ('belowBar' as const) : ('aboveBar' as const),
-          color:    MARKER_COLOR[t.action],
+          color:    markerColor[t.action],
           shape:    t.action === 'buy' ? ('arrowUp' as const) : ('arrowDown' as const),
           text:     `${t.action === 'buy' ? '買' : '売'} ${fmtMarkerPrice(symbol, t.price)}`,
         }))

@@ -5,15 +5,22 @@
 //   node scripts/verify-learn-3c1.mjs <写真の保存先ディレクトリ>
 //
 // 確かめること:
-//   - 390×844 / 1280×900 / 1920×1080 で横はみ出し0、ヘッダー下の左右端が灰の地（#EDF1F6）、
-//     紺青の塗りのボタンが1つまで（§6-1）、console error 0
+//   - 390×844 / 1280×900 / 1920×1080 で横はみ出し0、ヘッダー下の左右端が地（#0A0C10・SV1a で暗い地に一本化）、
+//     主ボタンが1つまで（§6-1）、console error 0
 //   - 押す順番（390 と 1280）:
 //     (1) 銘柄 AAPL → クイックの2つ目 → 無料プレビュー
 //     (2) 条件の内訳を開閉 → 「条件を編集」で戻り、選択が残るか
 //     (3) プロ「ハイブリッド」で条件を1つ追加 → 投資家モデルで2人目 → プロに戻り、条件が残るか
+//         （投資家モデルのタブは lib/features.ts の SHOW_INVESTOR_MODELS が false のあいだ無い（S1b）。そのときは
+//           投資家モデルの手順を SKIP し、「プロに戻ると条件が残る」はクイック経由で確かめる）
 //     (4) 銘柄指定なしでスクリーニング → 候補を押すと銘柄欄に入るか
 //
 // 「AIレポート生成」系のボタンは押さない（Opus の費用がかかるため）。
+//
+// SV1a（2026-09-25）で作り替えた点:
+//   - 主ボタンの数え方を「塗りの色の文字列一致（rgb(26, 71, 135)）」から「class bg-brand か data-primary 属性」に。
+//     色で数えると、塗りが変わった瞬間に 0 件になり「1つ以下」を満たして黙って PASS する（designer 棚卸し 2026-09-24）。
+//     加えて、見つけた主ボタンの塗りが本当に --brand であることも確かめる（class が残って塗りが消えた、を見逃さない）。
 
 import { chromium } from 'playwright'
 import fs from 'node:fs'
@@ -23,8 +30,12 @@ const BASE = process.env.BASE_URL ?? 'http://localhost:3131'
 const OUT = process.argv[2] ?? path.join(process.cwd(), 'shots', '3c1')
 fs.mkdirSync(OUT, { recursive: true })
 
-const SURFACE = '#EDF1F6'
-const BRAND_RGB = 'rgb(26, 71, 135)'
+/** ページの地（globals.css の --bg）。/learn ににじみは無いので一色 */
+const BG = '#0A0C10'
+/** 投資家モデルのタブがあるか。lib/features.ts を文字列で読む（tsx なしで動かすため import しない） */
+const SHOW_INVESTOR_MODELS = /export const SHOW_INVESTOR_MODELS\s*(?::\s*boolean)?\s*=\s*true\b/.test(
+  fs.readFileSync(path.join(process.cwd(), 'lib', 'features.ts'), 'utf8'),
+)
 const PREVIEW_BUTTON = '無料プレビューを実行（純計算・AIは使いません）'
 const SCREEN_BUTTON = 'スクリーニング実行（キャッシュのみ・AIは使いません）'
 
@@ -58,30 +69,51 @@ async function pixel(page, helper, x, y) {
 
 async function checkLayout(page, helper, vp, label) {
   await page.evaluate(() => window.scrollTo(0, 0))
-  const m = await page.evaluate(brand => {
+  const m = await page.evaluate(() => {
     const de = document.documentElement
     const main = document.querySelector('main')
     const top = main ? main.getBoundingClientRect().top : 64
-    const primary = [...document.querySelectorAll('main button, main a')]
-      .filter(el => {
-        const r = el.getBoundingClientRect()
-        return r.width > 0 && r.height > 0 && getComputedStyle(el).backgroundColor === brand
-      })
-      .map(el => (el.textContent || '').trim().slice(0, 30))
-    return { scrollWidth: de.scrollWidth, clientWidth: de.clientWidth, y: Math.round(top + 8), primary }
-  }, BRAND_RGB)
+    const visible = el => {
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && r.height > 0
+    }
+    // 主ボタンは class（bg-brand）か data-primary 属性で数える（色の文字列一致にしない。上の注釈）
+    const primaryEls = [...document.querySelectorAll('main button, main a')].filter(
+      el => visible(el) && (el.classList.contains('bg-brand') || el.hasAttribute('data-primary')),
+    )
+    // --brand / --brand-strong の実際の塗り（ブラウザが正規化した文字列）を探り針で取る。トークンの値が変わっても追随する。
+    // 押した直後はマウスが乗ったまま（hover:bg-brand-strong）なので、ホバーの塗りも「主ボタンの塗り」として認める
+    const paint = v => {
+      const probe = document.createElement('div')
+      probe.style.backgroundColor = v
+      document.body.appendChild(probe)
+      const c = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return c
+    }
+    const brandRgb = paint('var(--brand)')
+    const brandStrongRgb = paint('var(--brand-strong)')
+    const primary = primaryEls.map(el => ({
+      text: (el.textContent || '').trim().slice(0, 30),
+      painted: [brandRgb, brandStrongRgb].includes(getComputedStyle(el).backgroundColor),
+    }))
+    return { scrollWidth: de.scrollWidth, clientWidth: de.clientWidth, y: Math.round(top + 8), primary, brandRgb }
+  })
   record(vp.name, `${label}: 横はみ出し0`, m.scrollWidth <= m.clientWidth, {
     scrollWidth: m.scrollWidth,
     clientWidth: m.clientWidth,
   })
   const left = await pixel(page, helper, 2, m.y)
   const right = await pixel(page, helper, m.clientWidth - 3, m.y)
-  record(vp.name, `${label}: ヘッダー下の左右端が ${SURFACE}`, left === SURFACE && right === SURFACE, {
+  record(vp.name, `${label}: ヘッダー下の左右端が地 ${BG}`, left === BG && right === BG, {
     left,
     right,
     y: m.y,
   })
-  record(vp.name, `${label}: 紺青の塗りのボタンは1つまで`, m.primary.length <= 1, { primary: m.primary })
+  record(vp.name, `${label}: 主ボタン（bg-brand / data-primary）は1つまで・塗りは --brand`, m.primary.length <= 1 && m.primary.every(p => p.painted), {
+    primary: m.primary,
+    brand: m.brandRgb,
+  })
 }
 
 // 3c-2 でエラーの表示が赤い箱（div.bg-red-50）から role="alert" の薄い帯に変わったため、役割で探す（検査の意味は同じ）
@@ -172,11 +204,17 @@ async function step3(page, helper, vp) {
   await shot(page, vp, '3-pro-added')
   await checkLayout(page, helper, vp, '(3) プロで条件追加')
 
-  await page.getByRole('tab', { name: '投資家モデル', exact: true }).click()
-  await page.locator('label:has(input[name="investor-model"])').nth(1).click()
-  record(vp.name, '(3) 投資家モデルで2人目を選ぶ', await page.locator('input[name="investor-model"]').nth(1).isChecked())
-  await shot(page, vp, '3-investor-2nd')
-  await checkLayout(page, helper, vp, '(3) 投資家モデル')
+  if (SHOW_INVESTOR_MODELS) {
+    await page.getByRole('tab', { name: '投資家モデル', exact: true }).click()
+    await page.locator('label:has(input[name="investor-model"])').nth(1).click()
+    record(vp.name, '(3) 投資家モデルで2人目を選ぶ', await page.locator('input[name="investor-model"]').nth(1).isChecked())
+    await shot(page, vp, '3-investor-2nd')
+    await checkLayout(page, helper, vp, '(3) 投資家モデル')
+  } else {
+    // S1b: 名人を隠しているあいだ投資家モデルのタブは無い。別のタブ（クイック）を経由して「条件が残るか」だけ確かめる
+    record(vp.name, '(3) 投資家モデルで2人目を選ぶ', null, 'lib/features.ts の SHOW_INVESTOR_MODELS が false（タブが無い）')
+    await page.getByRole('tab', { name: 'クイック', exact: true }).click()
+  }
 
   await page.getByRole('tab', { name: 'プロ', exact: true }).click()
   const after = {
@@ -184,7 +222,7 @@ async function step3(page, helper, vp) {
     hybrid: await hybrid().getAttribute('aria-pressed'),
     value: await valueInput().inputValue(),
   }
-  record(vp.name, '(3) プロに戻ると追加した条件が残る', after.rows === 1 && after.hybrid === 'true' && after.value === '30', after)
+  record(vp.name, `(3) プロに戻ると追加した条件が残る（${SHOW_INVESTOR_MODELS ? '投資家モデル' : 'クイック'}経由）`, after.rows === 1 && after.hybrid === 'true' && after.value === '30', after)
   await shot(page, vp, '3-pro-back')
 }
 
@@ -240,11 +278,15 @@ async function extras(page, helper, vp) {
   await checkLayout(page, helper, vp, '読者プロファイルを開いた状態')
 
   await page.getByRole('button', { name: '銘柄指定なし（自動スクリーニング）', exact: true }).click()
-  await page.getByRole('tab', { name: '投資家モデル', exact: true }).click()
-  await page.locator('label:has(input[name="screen-investor-preset"])').nth(1).click()
-  record(vp.name, '銘柄指定なし×投資家モデルでチップの2人目を選ぶ', await page.locator('input[name="screen-investor-preset"]').nth(1).isChecked())
-  await shot(page, vp, '6-no-symbol-investor')
-  await checkLayout(page, helper, vp, '銘柄指定なし×投資家モデル')
+  if (SHOW_INVESTOR_MODELS) {
+    await page.getByRole('tab', { name: '投資家モデル', exact: true }).click()
+    await page.locator('label:has(input[name="screen-investor-preset"])').nth(1).click()
+    record(vp.name, '銘柄指定なし×投資家モデルでチップの2人目を選ぶ', await page.locator('input[name="screen-investor-preset"]').nth(1).isChecked())
+    await shot(page, vp, '6-no-symbol-investor')
+    await checkLayout(page, helper, vp, '銘柄指定なし×投資家モデル')
+  } else {
+    record(vp.name, '銘柄指定なし×投資家モデルでチップの2人目を選ぶ', null, 'lib/features.ts の SHOW_INVESTOR_MODELS が false（タブが無い）')
+  }
 
   await page.getByRole('tab', { name: 'プロ', exact: true }).click()
   const notice = await page.getByText('銘柄指定なし（自動スクリーニング）はプロ（カスタム条件）に対応していません。').isVisible()
@@ -277,7 +319,7 @@ for (const vp of viewports) {
   page.on('pageerror', e => errors.push(String(e).slice(0, 200)))
 
   await page.goto(`${BASE}/learn`, { waitUntil: 'domcontentloaded' })
-  await page.getByRole('heading', { level: 1, name: '名人の条件を過去に当てる' }).waitFor()
+  await page.getByRole('heading', { level: 1, name: '条件を決めて、過去のデータに当てる' }).waitFor()
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
   await guarded(vp, '初期表示', async () => {
     await checkLayout(page, helper, vp, '0 初期表示')
@@ -294,9 +336,13 @@ for (const vp of viewports) {
       await page.getByRole('button', { name: 'ハイブリッド', exact: true }).click()
       await shot(page, vp, '1-pro-hybrid')
       await checkLayout(page, helper, vp, 'プロ（ハイブリッド）')
-      await page.getByRole('tab', { name: '投資家モデル', exact: true }).click()
-      await shot(page, vp, '2-investor')
-      await checkLayout(page, helper, vp, '投資家モデル')
+      if (SHOW_INVESTOR_MODELS) {
+        await page.getByRole('tab', { name: '投資家モデル', exact: true }).click()
+        await shot(page, vp, '2-investor')
+        await checkLayout(page, helper, vp, '投資家モデル')
+      } else {
+        record(vp.name, '投資家モデルの写真', null, 'lib/features.ts の SHOW_INVESTOR_MODELS が false（タブが無い）')
+      }
     })
   }
   await guarded(vp, '追加の部品', () => extras(page, helper, vp))

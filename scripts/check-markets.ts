@@ -325,7 +325,8 @@ async function main() {
 
   // ── (d) 製品コードの静的な確認（固定値・バフェット指標の文言・古い基準が戻っていない） ──
   console.log('(d) 製品コード')
-  const files = ['app/api/markets/route.ts', 'components/MarketOverview.tsx', 'app/markets/page.tsx']
+  // app/markets/page.tsx は SV1b で削除済み（ナビから外した旧ページ・参照ゼロを確認の上で git rm）。
+  const files = ['app/api/markets/route.ts', 'components/MarketOverview.tsx']
   for (const f of files) {
     const src = fs.readFileSync(path.join(process.cwd(), f), 'utf8')
     const hits = OLD_FIXED.filter(v => src.includes(v))

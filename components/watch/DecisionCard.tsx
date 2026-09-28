@@ -30,7 +30,8 @@ export interface DecisionCardProps {
   held?: boolean
 }
 
-const changeCls = (v: number) => (v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'text-ink-2')
+// 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」）。変化なし（0）だけ text-ink-2。
+const changeCls = (v: number) => (v === 0 ? 'text-ink-2' : 'text-ink')
 const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
 
 // 通貨は実単位で出す（仮想資金だが単位は偽らない）。Yahoo Financeの `.T` は円建て。

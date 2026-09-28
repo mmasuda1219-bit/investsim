@@ -38,6 +38,17 @@
 - 影響: `DESIGN.md` §4 P8・§5-1・§6-4・§6-14／`text-success`（15か所/11ファイル）は `--success` の役割変更で自動追随しないため目視の仕分けが要る／`text-danger`（23か所/13ファイル）のうち損益のものを `--ink` へ（誤り表示として残すものと分ける）／`components/chartTheme.ts`・`StockChart.tsx`・`EquityChart.tsx`
 - 未決: 出荷後に利用者1人に「損益が読みにくくなっていないか」を確認する価値がある（n=0 で未検証。理屈と原則からは正しいが、「読みにくい」と言われる可能性は残る）
 
+## 2026-09-28: チャートの系列色を色覚検査に通し、`SERIES` に線種を持たせる（SV1c）
+
+- 背景: `DESIGN.md` §5-1・`chartTheme.ts` は「`dataviz` スキルの `validate_palette.js` 5項目合格」と記録していたが、その道具はリポジトリにもこの PC にも `git log --all` にも存在しない（qa 2026-09-25）。合格の記録だけがあり誰も再実行できない。同趣旨の検査 `scripts/check-chart-palette.ts` を作って走らせたところ、**you `#3468C0`（青）と ai `#8E5BC4`（紫）は1型色覚（protan）で CIE76 ΔE 1.9＝見分けられない**（明るい地でも同じ・Machado 2009 と Viénot 1999 の両行列で同じ結論）。9/11 の「5項目合格」は少なくとも1型を見ていなかった
+- 決定: **you → `#5681DC`**（同じ色相・L* 44.9→54.9。これ1つで ai・master・baseline は据え置きのまま、protan ΔE 9.6・deutan 8.6・明度の帯も通る）。**`earnings` → `#C08A2E`**（`--warning-ink` と同値。旧 `#8A5300` はチャートの面 `#131518` の上で 2.89 と 3:1 未達）。**`SERIES` を `{ color, dash, width }` に**（色だけに頼らない＝§6-14。`dash` は SVG の `stroke-dasharray` と同じ並び・空は実線。`ma200`・`rsi`・`macd` を新設）。`FALLBACK` を暗い地の合成色に（`readChartTheme()` が `:root` を読むので保険）。`ChartTheme` から `up`/`down` を外す（損益・上下に色を使わない決定に合わせ `ink`/`ink2` へ）
+- 図の表し方: ローソク足＝上げは中空（面 `--card`・輪郭 `--ink`）／下げは `--ink` の塗り。RSI の 70/30 線は `--muted` の破線。**MACD ヒストグラムの負のバーは「`--ink` の輪郭」ではなく `--muted` の塗り**（lightweight-charts の HistogramSeries に輪郭だけの描き方が無いため。「`--ink` 系の明度差で表す」の文言の範囲内）。ゼロ基準線を `--muted` の破線で追加
+- 検算の扱い: `check-chart-palette.ts` の検算4件（白の上で 5.40／4.73／3.90／3.59）は**手順の正しさ**を見るものなので、今の `SERIES` ではなく **2026-09-11 の4色を固定**で使う（you を差し替えた以上、今の値では 5.40 にならず検算の意味が壊れる）
+- 却下: `validate_palette.js` を探し続ける（存在しない）／閾値を緩めて現行色を通す（1型で ΔE 1.9 は緩めても通らない）／ブランド色 `#2DD4BF`・`#3FA96F`・`#F87171` を系列に使う（§5-1）
+- 不変条件: **以後、系列色の正は `scripts/check-chart-palette.ts`**（既定＝`:root` の `--bg`・`--bg "#131518"` でチャートの面の上も見る）。色の定義は `chartTheme.ts` の1か所だけ（§6-14）。系列は色に加えて `dash`/`width` で区別する。閾値（3:1・ΔE ≥ 8・L* 45／幅 40）は**仮**のまま採用
+- 影響: `components/chartTheme.ts`／`StockChart.tsx`／`ChartWithControls.tsx`（凡例を `SERIES` の色＋線の形に・`aria-pressed`）／`EquityChart.tsx`／`AITradeChart.tsx`／`watch/replay/ReplayStages.tsx`・`ReplayChart.tsx`／`app/simulate/page.tsx`（ロジック不変）／`components/investors/NumberLine.tsx`（`SERIES.you.color`）／`scripts/check-signals-undecidable.ts:363`／`scripts/check-chart-palette.ts`（object 形を受ける・`ma200`/`macd` 追加・検算を固定色に）／`DESIGN.md` §5-1・§6-14・§10／`app/watch/client.tsx:932-933` の凡例（emerald の「AI」→ `SERIES.ai` の紫・破線、SPY → `SERIES.baseline`。1b の SPY 欄の内側だが色だけ＝1b 合意済み）
+- 未決: 画面での見え方は未確認（中空ローソクの面 `--card` は α .035 でほぼ透明＝グリッドが透ける／`/simulate` の主線が橙の点線 2px で読みにくいかも／EquityChart の AI 線が破線 2px で主役として弱いかも）→ qa の目視で判定／`lineStyleOf()` は lightweight-charts の enum の数（0/1/2）に依存
+
 ## 2026-09-25: AIの判断を「1件1行・追記だけ」の表 `ai_decisions` に控える（S0）
 
 - 背景: `ai_sessions` は JSON の塊を丸ごと上書き保存（`lib/ai-trader/store.ts` `upsertSession`）なので、`session.decisions`（上限200）と `learning.allDecisions`（上限1500・`memory.ts`）から溢れた判断は履歴にも残らず消える。2026-09-24 に「まねる」のお手本を自サイトのAI判断から作ると決めたため、材料が消えない置き場が要る。`b8d9eb4` の上限引き上げは出血止めで本筋ではない

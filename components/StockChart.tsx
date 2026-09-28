@@ -9,6 +9,7 @@ import {
 } from 'lightweight-charts'
 import type { HistoricalBar } from '@/types'
 import { calcMA, calcBB, calcRSI, calcMACD } from '@/lib/technicals'
+import { readChartTheme, SERIES, lineStyleOf, fade, type SeriesStyle } from '@/components/chartTheme'
 
 export interface Indicators {
   ma20?: boolean; ma50?: boolean; ma200?: boolean
@@ -21,6 +22,15 @@ interface Props {
   indicators?: Indicators
   earningsDates?: number[]
 }
+
+/** SERIES の見た目（色・線の形・太さ）を lightweight-charts の LineSeries の指定に直す */
+const lineOpts = (s: SeriesStyle) => ({
+  color: s.color,
+  lineWidth: s.width,
+  lineStyle: lineStyleOf(s) as LineStyle,
+  priceLineVisible: false,
+  lastValueVisible: false,
+})
 
 export function StockChart({ data, height = 420, indicators = {}, earningsDates = [] }: Props) {
   const containerRef     = useRef<HTMLDivElement>(null)
@@ -38,22 +48,19 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
     rsiChartRef.current?.remove(); rsiChartRef.current = null
     macdChartRef.current?.remove(); macdChartRef.current = null
 
+    // 面・文字・線は globals.css の :root を実行時に読む（chartTheme.readChartTheme）。
+    // lightweight-charts は canvas に描くため 'var(--ink)' の文字列は解釈できない。
+    // 系列色は chartTheme.SERIES が正（DESIGN.md §5-1・§6-14）。
+    const th = readChartTheme()
     const baseOpts = {
-      layout: { background: { type: ColorType.Solid, color: '#FFFFFF' }, textColor: '#6B6862' },
-      grid: { vertLines: { color: '#EFECE3' }, horzLines: { color: '#EFECE3' } },
-      rightPriceScale: { borderColor: '#D6D0C3' },
-      timeScale: { borderColor: '#D6D0C3', timeVisible: true, secondsVisible: false },
+      layout: { background: { type: ColorType.Solid, color: th.background }, textColor: th.text },
+      // グリッドは --border をそのまま（薄めない: §6-14）
+      grid: { vertLines: { color: th.grid }, horzLines: { color: th.grid } },
+      rightPriceScale: { borderColor: th.border },
+      timeScale: { borderColor: th.border, timeVisible: true, secondsVisible: false },
     }
 
     const t = (v: number) => v as unknown as Time
-
-    // ローソク足の上げ/下げは損益なので --success / --danger を使う（DESIGN.md §6-4）。
-    // lightweight-charts は canvas に描くため 'var(--success)' の文字列は解釈できない。
-    // :root の値を getComputedStyle で読み出して渡す（フォールバックは同じ値の直書き）。
-    const cssVar = (name: string, fallback: string) =>
-      getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
-    const upColor = cssVar('--success', '#177A4F')
-    const downColor = cssVar('--danger', '#C03535')
 
     // ── Main Chart ──────────────────────────────────────────────────
     const chart = createChart(containerRef.current, {
@@ -61,45 +68,50 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
       width: containerRef.current.clientWidth, height,
     })
 
+    // ローソク足の上げ下げは緑赤で塗り分けない（DECISIONS 2026-09-24「損益から色を外す」・DESIGN §6-4）。
+    // 上げ＝中空（面は --card 相当の薄い面。fade(--ink, .10)）／下げ＝--ink の塗り。向きは塗りの有無で読む。
+    // th.background（--card、α .035）そのままだとグリッドが透けてほぼ見えないので、面はもう少し濃い薄塗りにする。
+    // priceLineColor は明示指定が必須（SV1c W1）: lightweight-charts 5.2 は既定で「priceLineColor が無ければ
+    // 最終足の barColor」を使うため、最終足が上げ足だと横線と価格軸ラベルがほぼ消えていた。--muted で固定する。
     const candles = chart.addSeries(CandlestickSeries, {
-      upColor, downColor,
-      borderUpColor: upColor, borderDownColor: downColor,
-      wickUpColor: upColor, wickDownColor: downColor,
+      upColor: fade(th.ink, 0.10), downColor: th.ink,
+      borderUpColor: th.ink, borderDownColor: th.ink,
+      wickUpColor: th.ink, wickDownColor: th.ink,
+      priceLineColor: th.muted,
     })
     candles.setData(data.map(d => ({ time: t(d.time), open: d.open, high: d.high, low: d.low, close: d.close })))
 
     if (earningsDates.length > 0) {
       createSeriesMarkers(candles, earningsDates.map(ts => ({
         time: t(ts), position: 'aboveBar' as const,
-        color: '#B45309', shape: 'arrowDown' as const, text: '決算',
+        color: SERIES.earnings.color, shape: 'arrowDown' as const, text: '決算',
       })))
     }
 
     if (indicators.ma20) {
-      const s = chart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false })
-      s.setData(calcMA(data, 20).map(p => ({ time: t(p.time), value: p.value })))
+      chart.addSeries(LineSeries, lineOpts(SERIES.ma20))
+        .setData(calcMA(data, 20).map(p => ({ time: t(p.time), value: p.value })))
     }
     if (indicators.ma50) {
-      const s = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false })
-      s.setData(calcMA(data, 50).map(p => ({ time: t(p.time), value: p.value })))
+      chart.addSeries(LineSeries, lineOpts(SERIES.ma50))
+        .setData(calcMA(data, 50).map(p => ({ time: t(p.time), value: p.value })))
     }
     if (indicators.ma200) {
-      const s = chart.addSeries(LineSeries, { color: '#ef4444', lineWidth: 1, priceLineVisible: false, lastValueVisible: false })
-      s.setData(calcMA(data, 200).map(p => ({ time: t(p.time), value: p.value })))
+      chart.addSeries(LineSeries, lineOpts(SERIES.ma200))
+        .setData(calcMA(data, 200).map(p => ({ time: t(p.time), value: p.value })))
     }
     if (indicators.bb) {
       const bb = calcBB(data)
-      const opts = { lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false } as const
-      chart.addSeries(LineSeries, { color: '#8b5cf6', ...opts }).setData(bb.map(p => ({ time: t(p.time), value: p.upper })))
-      chart.addSeries(LineSeries, { color: '#3b82f6', ...opts }).setData(bb.map(p => ({ time: t(p.time), value: p.middle })))
-      chart.addSeries(LineSeries, { color: '#8b5cf6', ...opts }).setData(bb.map(p => ({ time: t(p.time), value: p.lower })))
+      // 上下のバンドは band（紫・破線）。中央線は 20 日平均そのものなので MA20 の色を破線にして重ねる
+      chart.addSeries(LineSeries, lineOpts(SERIES.band)).setData(bb.map(p => ({ time: t(p.time), value: p.upper })))
+      chart.addSeries(LineSeries, { ...lineOpts(SERIES.ma20), lineStyle: LineStyle.Dashed }).setData(bb.map(p => ({ time: t(p.time), value: p.middle })))
+      chart.addSeries(LineSeries, lineOpts(SERIES.band)).setData(bb.map(p => ({ time: t(p.time), value: p.lower })))
     }
 
     chart.timeScale().fitContent()
     chartRef.current = chart
 
     // ── RSI Chart ───────────────────────────────────────────────────
-    // 以下の RSI 70/30 線・MACD ヒストグラムの #22c55e/#ef4444 は chartTheme スライスで一括して差し替える（今回は触らない）
     if (indicators.rsi && rsiContainerRef.current) {
       const rsiChart = createChart(rsiContainerRef.current, {
         ...baseOpts, width: rsiContainerRef.current.clientWidth, height: 120,
@@ -107,12 +119,14 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
         timeScale: { ...baseOpts.timeScale, visible: false },
       })
       const rsiData = calcRSI(data)
-      rsiChart.addSeries(LineSeries, { color: '#8b5cf6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false })
+      rsiChart.addSeries(LineSeries, lineOpts(SERIES.rsi))
         .setData(rsiData.map(p => ({ time: t(p.time), value: p.value })))
       if (rsiData.length > 0) {
-        const dOpts = { lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false } as const
-        rsiChart.addSeries(LineSeries, { color: '#ef4444', ...dOpts }).setData(rsiData.map(p => ({ time: t(p.time), value: 70 })))
-        rsiChart.addSeries(LineSeries, { color: '#22c55e', ...dOpts }).setData(rsiData.map(p => ({ time: t(p.time), value: 30 })))
+        // 70/30 の目安は補助線＝--muted の破線（旧: 赤/緑。DESIGN §4 P8 違反だったので廃止）。
+        // LineSeries のままにしているのは、縦軸の範囲に 70/30 を必ず含めるため（priceLine では範囲に入らない）
+        const dOpts = { color: th.muted, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false } as const
+        rsiChart.addSeries(LineSeries, dOpts).setData(rsiData.map(p => ({ time: t(p.time), value: 70 })))
+        rsiChart.addSeries(LineSeries, dOpts).setData(rsiData.map(p => ({ time: t(p.time), value: 30 })))
       }
       rsiChart.timeScale().fitContent()
       rsiChartRef.current = rsiChart
@@ -128,12 +142,16 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
         timeScale: { ...baseOpts.timeScale, visible: false },
       })
       const macdData = calcMACD(data)
-      macdChart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false })
+      macdChart.addSeries(LineSeries, lineOpts(SERIES.macd))
         .setData(macdData.map(p => ({ time: t(p.time), value: p.macd })))
-      macdChart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false })
+      macdChart.addSeries(LineSeries, lineOpts(SERIES.signal))
         .setData(macdData.map(p => ({ time: t(p.time), value: p.signal })))
-      macdChart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false })
-        .setData(macdData.map(p => ({ time: t(p.time), value: p.histogram, color: p.histogram >= 0 ? '#22c55e' : '#ef4444' })))
+      // ヒストグラムの正負は緑赤ではなく --ink 系の明るさの差で表す（DECISIONS 2026-09-24）:
+      // ゼロ基準線から上＝--ink の塗り、下＝--muted（--ink の 55%）の塗り。HistogramSeries には
+      // 「輪郭だけ」の描き方が無いので、明るさの差で向きを分ける。基準線は --muted の破線
+      const hist = macdChart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false, base: 0 })
+      hist.setData(macdData.map(p => ({ time: t(p.time), value: p.histogram, color: p.histogram >= 0 ? th.ink : th.muted })))
+      hist.createPriceLine({ price: 0, color: th.muted, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: '' })
       macdChart.timeScale().fitContent()
       macdChartRef.current = macdChart
       chart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r) macdChart.timeScale().setVisibleLogicalRange(r) })
@@ -155,18 +173,19 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
     }
   }, [data, height, indicators, earningsDates])
 
+  // 図の名前は文字なので系列色を使わない（DESIGN §5-1「系列色は文字には使わない」）→ --muted
   return (
     <div className="w-full rounded-lg overflow-hidden space-y-0">
       <div ref={containerRef} className="w-full" />
       {indicators.rsi && (
         <div className="relative w-full">
-          <span className="absolute top-1 left-2 z-10 text-xs text-purple-700 font-medium pointer-events-none">RSI(14)</span>
+          <span className="absolute top-1 left-2 z-10 text-xs text-muted font-medium pointer-events-none">RSI(14)</span>
           <div ref={rsiContainerRef} className="w-full" />
         </div>
       )}
       {indicators.macd && (
         <div className="relative w-full">
-          <span className="absolute top-1 left-2 z-10 text-xs text-blue-700 font-medium pointer-events-none">MACD</span>
+          <span className="absolute top-1 left-2 z-10 text-xs text-muted font-medium pointer-events-none">MACD</span>
           <div ref={macdContainerRef} className="w-full" />
         </div>
       )}

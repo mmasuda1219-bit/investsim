@@ -5,7 +5,7 @@
 //
 //  - 幅は ResizeObserver で実寸を測り viewBox を実寸にする（文字が拡大縮小されず、実寸 12px を保つ）
 //  - 線の伸長は props.draw.price（0〜1）で決まる比率。時計（useReplayClock）が刻み、ここは描くだけ
-//  - 系列色は DESIGN.md §5-1「系列が1本だけの図」: 主役の終値だけ #3468C0（chartTheme.SERIES.you）、
+//  - 系列色は DESIGN.md §5-1「系列が1本だけの図」: 主役の終値だけ「あなた」の青（chartTheme.SERIES.you.color。値はそこが正）、
 //    平均線は --muted の破線・点線＋線の端に名前。売買の印は ▲/▼＋文字で色は --ink（§6-14）
 //  - 右余白は端の名前ぶん（スマホ 56・PC 104）。名前が重なる場合は縦 14px 以上に押し広げる
 //  - 原則9: 値は AiView にある足だけ。無い区間（MA50 の先頭 49 本など）は描かない
@@ -205,11 +205,11 @@ export default function ReplayChart({ view, symbol, markers, draw }: ReplayChart
           style={{ stroke: 'var(--muted)', opacity: draw.ma50 ? 1 : 0, transition: 'opacity 150ms ease-out' }} />
         {/* 終値（主役）。伸長は clipPath の幅で決める */}
         <g clipPath={`url(#${clipId})`}>
-          <path d={path(v.closes)} fill="none" stroke={SERIES.you} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={path(v.closes)} fill="none" stroke={SERIES.you.color} strokeWidth={SERIES.you.width} strokeLinejoin="round" strokeLinecap="round" />
         </g>
         {/* 判断時の点（線が端まで届いたら） */}
         {draw.price >= 1 && (
-          <circle cx={lastX} cy={lastY} r={4} fill={SERIES.you} style={{ stroke: 'var(--card)' }} strokeWidth={2} />
+          <circle cx={lastX} cy={lastY} r={4} fill={SERIES.you.color} style={{ stroke: 'var(--card)' }} strokeWidth={2} />
         )}
         {/* 売買の印（▲/▼＋文字・--ink）。線がその位置まで届いたら出す */}
         {markerPts.map((m, k) => {

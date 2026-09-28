@@ -13,12 +13,12 @@
 export default function AnalyzeBanner() {
   return (
     <header className="space-y-3">
-      {/* 段階ラベルと見出しは SiteNav の定義（'まねる' / '名人の条件を過去に当てる'）
+      {/* 段階ラベルと見出しは SiteNav の定義（'まねる' / '条件を決めて、過去のデータに当てる'）
           をそのまま使う。/trade・/review と同じ書式に揃えていないと、4段階の
           どこにいるのかが画面から読み取れない。 */}
       <div>
         <p className="text-small text-muted">02 まねる</p>
-        <h1 className="text-h1 text-ink text-balance">名人の条件を過去に当てる</h1>
+        <h1 className="text-h1 text-ink text-balance">条件を決めて、過去のデータに当てる</h1>
         <p className="mt-1 text-body text-ink-2 max-w-[42rem]">
           クイックモードはニーズ軸プリセットで実データの数字プレビュー（無料・純計算）を確認し、
           同じ条件でAIレポート（現状分析・根拠つき未来予想）を生成します。

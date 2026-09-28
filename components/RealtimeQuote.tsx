@@ -38,13 +38,14 @@ export function RealtimeQuote({ symbol, initialQuote }: Props) {
   const secondsAgo = Math.floor((Date.now() - lastUpdated.getTime()) / 1000)
   const timeLabel = secondsAgo < 60 ? `${secondsAgo}秒前` : `${Math.floor(secondsAgo / 60)}分前`
 
-  // 騰落は損益なので緑/赤を使ってよい（DESIGN.md §6-4）。符号は必ず付ける。
+  // 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」）。緑/赤ではなく
+  // --ink＋符号（+/−）で伝える。ゼロ（変化なし）だけ text-muted のまま。
   // ▲/▼ は買い/売りの札に使う記号なので、ここでは +/− にする。
   // 前日の終値が決められない・取得元に無いときは null。0 や ± で埋めず「—」（text-muted）にする（原則9）。
   const basis = quote.change ?? quote.changePercent
   const isPositive = basis != null && basis > 0
   const isFlat = basis === 0
-  const changeColor = basis == null || isFlat ? 'text-muted' : isPositive ? 'text-success' : 'text-danger'
+  const changeColor = basis == null || isFlat ? 'text-muted' : 'text-ink'
   const changeSign = isFlat ? '±' : isPositive ? '+' : '−'
   const currency = quote.currency === 'JPY' ? '¥' : '$'
 

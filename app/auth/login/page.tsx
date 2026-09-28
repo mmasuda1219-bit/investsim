@@ -25,10 +25,12 @@ function LoginForm() {
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="bg-panel border border-border rounded-2xl p-8 w-full max-w-sm text-center">
-        {/* 絵文字＋文字の代わりにロゴ（public/logo.svg）。サイト名は alt として h1 に残す */}
+        {/* 絵文字＋文字の代わりにロゴ。サイト名は alt として h1 に残す。
+            SV1a（2026-09-25）で地が暗くなったので、ヘッダーと同じ暗い地用の public/logo-night.svg
+            （元の logo.svg は文字 #0D1725 が地に沈む。元ファイルは上書きせず残す） */}
         <h1 className="flex justify-center mb-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="InvestSim" width={184} height={36} className="h-9 w-auto" />
+          <img src="/logo-night.svg" alt="InvestSim" width={184} height={36} className="h-9 w-auto" />
         </h1>
         <p className="text-muted text-sm mb-6">
           ログインすると、売買と判断の記録が
@@ -36,8 +38,11 @@ function LoginForm() {
           あなたのアカウントに残ります
         </p>
 
+        {/* 認証の失敗＝「入力の誤り・操作の失敗」なので --danger の役割の内（DESIGN.md §5-1）。
+            既製色（text-red-700 / bg-red-50 / border-red-200）は暗い地で白い箱になるので、SV1a でトークンに。
+            文字は 12px 以上（§5-2）、役割は role="alert"（3c-2 と同じ形） */}
         {errorMsg && (
-          <div className="mb-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <div role="alert" className="mb-4 text-caption text-danger bg-danger-tint rounded-field px-3 py-2">
             {errorMsg === 'auth_failed' ? '認証に失敗しました。もう一度お試しください。' : decodeURIComponent(errorMsg)}
           </div>
         )}

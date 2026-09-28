@@ -34,7 +34,9 @@ export default async function StockPage({ params, searchParams }: Props) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold text-ink">{symbol}</h1>
-              <span className={`text-xs px-2 py-0.5 rounded ${quote.market === 'JP' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+              {/* 市場の別を示すだけの札で、危険・良し悪しの意味は無いので中立の bg-surface/text-ink-2
+                  に揃える（下の「市場休場中」の札と同じ扱い）。JP/US で色を変えない。 */}
+              <span className="text-xs px-2 py-0.5 rounded bg-surface text-ink-2">
                 {quote.market === 'JP' ? '東証' : 'NYSE/NASDAQ'}
               </span>
               {!quote.isMarketOpen && (

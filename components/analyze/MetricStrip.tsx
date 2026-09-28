@@ -27,7 +27,8 @@ import InsightNote from './InsightNote'
 export interface MetricStripItem {
   label: string
   value: string
-  /** 値の文字色クラス（例: 損益の 'text-success' / 'text-danger'）。省略時は --ink。 */
+  /** 値の文字色クラス。省略時は --ink。損益・リターンに 'text-success' / 'text-danger' を渡さない
+   *  （2026-09-24 決定「損益から色を外す」。--success は完了だけ・--danger は入力の誤りと取り消せない操作だけ）。 */
   valueClassName?: string
   /** 値の下に添える小さな補足（例: 金額換算）。 */
   sub?: string

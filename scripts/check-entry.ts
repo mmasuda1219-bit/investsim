@@ -257,10 +257,11 @@ const tealShadows = (screen.match(/shadow-\[[^\]]*rgb\(45_212_191[^\]]*\]/g) ?? 
 check('R1: 色付きの影（rgb(45 212 191）は主ボタンと選択中カードの2か所だけ', tealShadows.length === 2 && tealShadows.includes('shadow-[0_16px_40px_-14px_rgb(45_212_191_/_.70)]') && tealShadows.includes('shadow-[0_22px_48px_-22px_rgb(45_212_191_/_.55)]'), tealShadows.join(' / '))
 check('R1: rgb(45 212 191 の直値はページで3か所（影2＋選択中の枠1）・layout で1か所（にじみ）だけ', count(page, 'rgb(45_212_191') === 3 && count(layout, 'rgb(45_212_191') === 1)
 check('R1: text-shadow・drop-shadow・shadow-float を使わない（光るのは押せるものだけ）', !/text-shadow|drop-shadow|shadow-float/.test(screen))
-check('R1: 主ボタンと選択中カード以外に shadow- が無い', count(screen, 'shadow-[') === 3 && screen.includes('shadow-[0_0_0_100vmax_var(--bg)]'), `shadow-[ ×${count(screen, 'shadow-[')}`)
+// SV1a（2026-09-25）: layout の地の塗り（shadow-[0_0_0_100vmax_var(--bg)]）は :root の一本化で不要になり撤去。残る shadow-[ は主ボタンと選択中カードの2つだけ
+check('R1: 主ボタンと選択中カード以外に shadow- が無い（layout の 100vmax の地の塗りも無い）', count(screen, 'shadow-[') === 2 && !screen.includes('100vmax'), `shadow-[ ×${count(screen, 'shadow-[')}`)
 const radials = screen.match(/radial-gradient\([^\]]*\)/g) ?? []
 check('R5: radial-gradient は2つ以下・中心は青緑 .22 と藍 #818CF8（rgb 129 140 248）.16', radials.length === 2 && radials.some(r => r.includes('rgb(45_212_191_/_.22)')) && radials.some(r => r.includes('rgb(129_140_248_/_.16)')), radials.join(' / '))
-check('R5: にじみは layout の上端だけ（page には無い）・pointer-events-none・aria-hidden・-z-10・親は isolate', count(page, 'radial-gradient') === 0 && count(layout, 'pointer-events-none') === 2 && count(layout, 'aria-hidden') === 2 && count(layout, '-z-10') === 2 && layout.includes('className="relative isolate bg-background'))
+check('R5: にじみは layout の上端だけ（page には無い）・pointer-events-none・aria-hidden・-z-10・親は isolate', count(page, 'radial-gradient') === 0 && count(layout, 'pointer-events-none') === 2 && count(layout, 'aria-hidden') === 2 && count(layout, '-z-10') === 2 && layout.includes('className="relative isolate"'))
 check('R5: にじみが右にはみ出さない（right の値が負でない・overflow-hidden で sticky を壊さない）', !/-right-|right-\[-/.test(layout) && !layout.includes('overflow-hidden'))
 check('R4: infinite が無い（page・layout・globals.css）', !/infinite/.test(screen) && !/infinite/.test(css))
 check('R4: globals.css の @keyframes は rise の1つだけ（translateY(18px)→0・opacity 0→1）', count(css, '@keyframes') === 1 && /@keyframes rise \{\s*from \{ opacity: 0; transform: translateY\(18px\); \}\s*to\s+\{ opacity: 1; transform: none; \}/.test(css))
@@ -273,9 +274,11 @@ check('§5-6: 入場はファーストビューだけ（4段階より下・Previ
 check('§5-6: ホバーは色だけ 150ms（transition-colors duration-150）・scale を使わない', page.includes('transition-colors duration-150') && !/scale-/.test(screen))
 
 console.log('■ フッター（R10）・SITE_DESC・/watch の h1・DESIGN.md の直し')
-const footer = between(layout, '<footer', '</footer>')
-check('layout: フッターの枠に 運営者情報／お問い合わせ／プライバシーポリシー／利用規約（文字・準備中）', ['InvestSim', '運営者情報', 'お問い合わせ', 'プライバシーポリシー', '利用規約', '準備中'].every(w => footer.includes(w)))
-check('layout: フッターは <a> にしない（行き先が未整備）・border-t border-border・small/--muted', !footer.includes('<a') && footer.includes('border-t border-border') && footer.includes('text-small text-muted'))
+// SV1a（2026-09-25）: フッターの枠は app/(night)/layout.tsx から app/layout.tsx へ移した（R10「全ページ共通」）
+const footer = between(rootLayout, '<footer', '</footer>')
+check('app/layout.tsx: フッターの枠に 運営者情報／お問い合わせ／プライバシーポリシー／利用規約（文字・準備中）', ['InvestSim', '運営者情報', 'お問い合わせ', 'プライバシーポリシー', '利用規約', '準備中'].every(w => footer.includes(w)))
+check('app/layout.tsx: フッターは <a> にしない（行き先が未整備）・border-t border-border・small/--muted', !footer.includes('<a') && footer.includes('border-t border-border') && footer.includes('text-small text-muted'))
+check('app/(night)/layout.tsx: フッターを持たない（root に移したので二重に出さない）', !layout.includes('<footer'))
 check("layout: 'use client' を付けていない（viewport は Server Component から）", !/['"]use client['"]/.test(layout))
 const siteDesc = between(rootLayout, 'const SITE_DESC', '\n\n')
 check('app/layout.tsx: SITE_DESC に 名人・投資家・無料・リスクゼロ・上手くなる・うまくなる が無い（検索結果と OGP に出る文）', siteDesc.length > 0 && !/名人|投資家|無料|リスクゼロ|上手くなる|うまくなる/.test(siteDesc), siteDesc)
@@ -292,9 +295,11 @@ check('DESIGN.md §3: 旧構成「主ボタンは状態で出し分ける（記�
   design3.includes('廃止') && !design3.includes('3. 主ボタン1つ（状態で出し分ける）') && !design3.includes('記録がある人 →「03 やる：続きを書く」'))
 check('DESIGN.md §3: 「主ボタンは画面の下に固定」はトップには当てない旨・法務 C3〜C5 と DECISIONS.md 2026-09-25 への参照',
   design3.includes('はトップには当てない') && design3.includes('C3〜C5') && design3.includes('2026-09-25「トップページの入口画面に関する法務の不変条件2つ」'))
-check('DESIGN.md §5-1・§10: check-signals-undecidable.ts の行は :432（:428 は残っていない）', count(design, 'check-signals-undecidable.ts:432') === 2 && !design.includes('check-signals-undecidable.ts:428'))
-const sigLines = read('scripts/check-signals-undecidable.ts').split('\n')
-check('check-signals-undecidable.ts:432 は実際に globals.css の --axis / --rule-line の行（DESIGN.md の参照が正しい）', (sigLines[431] ?? '').includes("check('globals.css: --axis #8D9FB8 と --rule-line #C9D3E0 が :root にある'"), sigLines[431])
+// SV1a（2026-09-25）: 行番号での参照（:428 → :432）は行がずれるたびに直す運用だったので、検査名での参照に替えた（S1c レビュー S8）
+const SIG_CHECK_NAME = 'globals.css: --axis と --rule-line が :root にある'
+check('DESIGN.md §5-1・§10: check-signals-undecidable.ts を行番号（:数字）で参照していない（検査名で参照する）', !/check-signals-undecidable\.ts:\d+/.test(design))
+check(`DESIGN.md §5-1・§10: 検査名「${SIG_CHECK_NAME}」で参照している（2か所）`, count(design, `「${SIG_CHECK_NAME}」`) === 2, `×${count(design, `「${SIG_CHECK_NAME}」`)}`)
+check('check-signals-undecidable.ts に、その名前の検査が実際にある（DESIGN.md の参照が正しい）', read('scripts/check-signals-undecidable.ts').includes(`check('${SIG_CHECK_NAME}`))
 
 console.log('')
 console.log(`PASS ${passed} 件 / FAIL ${failed} 件`)

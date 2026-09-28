@@ -1,4 +1,7 @@
 'use client'
+// SV1c（2026-09-28）: 成績タブの凡例（AI / SPY）を EquityChart が実際に引く線（SERIES）と一致させる（DESIGN.md §6-14）。
+// 系列色は文字には使わない（§5-1）ので、色と線種は見本の線だけに付け、ラベルは --muted のまま。
+import { SERIES } from '@/components/chartTheme'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
@@ -27,7 +30,9 @@ const EquityChart = dynamic(
 )
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-const pnlCls = (v: number) => v > 0 ? 'text-emerald-700' : v < 0 ? 'text-red-700' : 'text-ink-2'
+// 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」・DESIGN.md §6-4）。
+// 符号（+/−/±）と語で伝え、色は --ink に統一する。ゼロだけは §6-4 の表どおり --muted（他の画面と同じ分岐）。
+const pnlCls = (v: number) => (v === 0 ? 'text-muted' : 'text-ink')
 const fmtUSD = (n: number, dec = 2) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`
 const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
@@ -662,8 +667,8 @@ export function AISessionClient() {
           )}
         </section>
 
-        {/* 学習状態（旧: 左の小箱）。1行の数字にする（§2）。勝率は損益ではないので緑/赤を付けない
-            （§5-1: 緑/赤は損益だけ。§1-4: 勝率を成果として強調しない）。 */}
+        {/* 学習状態（旧: 左の小箱）。1行の数字にする（§2）。勝率にも損益にも色を付けない
+            （DECISIONS.md 2026-09-24「損益から色を外す」。§1-4: 勝率を成果として強調しない）。 */}
         <section className="space-y-2">
           <h3 className="text-small text-muted">学習状態</h3>
           <dl className="bg-card rounded-card px-4 py-3 min-h-14 flex flex-wrap items-center gap-x-6 gap-y-1 text-small tabular-nums">
@@ -679,11 +684,11 @@ export function AISessionClient() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <dt className="text-muted">平均利益</dt>
-                  <dd className="text-emerald-700">+{learning.stats.avgGainPct}%</dd>
+                  <dd className="text-ink">+{learning.stats.avgGainPct}%</dd>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <dt className="text-muted">平均損失</dt>
-                  <dd className="text-red-700">{learning.stats.avgLossPct}%</dd>
+                  <dd className="text-ink">{learning.stats.avgLossPct}%</dd>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <dt className="text-muted">合計P&L</dt>
@@ -944,8 +949,8 @@ export function AISessionClient() {
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <h3 className="text-small text-muted">エクイティカーブ</h3>
-                    <span className="flex items-center gap-1 text-small text-emerald-700"><span className="w-3 h-0.5 bg-emerald-400 inline-block"/>AI</span>
-                    <span className="flex items-center gap-1 text-small text-muted"><span className="w-3 h-0.5 bg-[var(--muted)] inline-block"/>SPY</span>
+                    <span className="flex items-center gap-1 text-small text-muted"><span className="w-4 inline-block" style={{ borderTop: `${SERIES.ai.width}px ${SERIES.ai.dash.length ? 'dashed' : 'solid'} ${SERIES.ai.color}` }} aria-hidden="true"/>AI</span>
+                    <span className="flex items-center gap-1 text-small text-muted"><span className="w-4 inline-block" style={{ borderTop: `${SERIES.baseline.width}px ${SERIES.baseline.dash.length ? 'dashed' : 'solid'} ${SERIES.baseline.color}` }} aria-hidden="true"/>SPY</span>
                   </div>
                   <div className="bg-card rounded-card px-4 py-4">
                     <EquityChart history={eq} capital={capital} height={220} />
@@ -954,7 +959,8 @@ export function AISessionClient() {
                 {/* 運用成績: 数字タイル8枚の格子 → 表1つ（§2・§6-6「数字タイルの格子は作らない」）。
                     項目と文言は変えない（残すか消すかは DESIGN.md §11-2 の法務の未決。ここは見せ方だけ控えめにする）。
                     AI の成績を成果として大きく見せない（§1-4・RULES #14）: 大きな太字をやめ、small・右揃え・tabular-nums。
-                    緑/赤は損益（リターン・アルファ・ドローダウン）だけに残し、勝率とシャープレシオの良し悪しの色は外した（§5-1）。 */}
+                    SV1b（2026-09-25）: 損益から色を外した（DECISIONS.md 2026-09-24）。リターン・アルファ・
+                    ドローダウンも含め、数字はすべて --ink＋符号で伝える。緑/赤は使わない。 */}
                 <div className="space-y-2">
                   <div className="bg-card rounded-card overflow-hidden">
                     <table className="w-full text-small">
@@ -962,7 +968,7 @@ export function AISessionClient() {
                         {[
                           { label: '運用日数',        value: `${s.daysRunning ?? 0}日` },
                           { label: '年率換算リターン', value: `${(s.annualizedReturnPct ?? 0) >= 0 ? '+' : ''}${(s.annualizedReturnPct ?? 0).toFixed(1)}%`, cls: pnlCls(s.annualizedReturnPct ?? 0) },
-                          { label: '最大ドローダウン', value: `-${(s.maxDrawdownPct ?? 0).toFixed(1)}%`, cls: 'text-red-700' },
+                          { label: '最大ドローダウン', value: `-${(s.maxDrawdownPct ?? 0).toFixed(1)}%`, cls: 'text-ink' },
                           { label: 'シャープレシオ',  value: (s.sharpeRatio ?? 0).toFixed(2) },
                           { label: 'AI総リターン',    value: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%`, cls: pnlCls(pnlPct) },
                           { label: 'SPYリターン',     value: benchPct != null ? `${benchPct >= 0 ? '+' : ''}${benchPct.toFixed(2)}%` : 'N/A', cls: pnlCls(benchPct ?? 0) },
@@ -1092,11 +1098,12 @@ export function AISessionClient() {
               {learning.closedTrades && learning.closedTrades.length > 0 && (
                 <div className="space-y-2">
                   <h3 className="text-small text-muted">クローズ済み取引</h3>
-                  {/* 旧: 1件ずつ緑/赤の面＋枠線の小箱。帯1本の中の行にし、結果は ✓/✗＋符号付きの数字の色だけで示す（§6-4） */}
+                  {/* 旧: 1件ずつ緑/赤の面＋枠線の小箱。帯1本の中の行にし、結果は ✓/✗ の記号＋符号付きの数字で示す（色は使わない・DECISIONS.md 2026-09-24） */}
                   <ul className="bg-card rounded-card max-h-64 overflow-y-auto">
                     {(learning.closedTrades as ClosedTrade[]).slice(0, 15).map((t, i) => (
                       <li key={i} className="mx-4 border-t border-border first:border-t-0 py-3 flex items-start gap-3">
-                        <span className={`text-body font-semibold ${t.outcome === 'profit' ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {/* 結果は ✓/✗ の記号自体が伝えるので、色は損益と同じ --ink に統一する */}
+                        <span className="text-body font-semibold text-ink">
                           {t.outcome === 'profit' ? '✓' : '✗'}
                         </span>
                         <div className="flex-1 min-w-0">

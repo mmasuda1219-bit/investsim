@@ -5,7 +5,7 @@
 //  - 段は replay-model の ReplayModel.stages（engine.ts の実処理順と1対1）。順番を入れ替えない
 //  - 動きは受け取った進行状態（PhaseState）に従って描くだけ。時計は useReplayClock、制御は ProcessReplay
 //  - 静止した完成状態（phase.stage = stages.length）では全段が描画済み・丸印は --brand の塗り・明滅なし
-//  - 出どころの印（原則9）: 記録から＝--brand の塗り／同じ取得元から計算し直した＝橙 #C26A2A／記録なし＝輪郭だけ。
+//  - 出どころの印（原則9）: 記録から＝--brand の塗り／同じ取得元から計算し直した＝橙（chartTheme.SERIES.master.color。値はそこが正）／記録なし＝輪郭だけ。
 //    'none' は値を出さず理由を書く。値が null なら「—」＋「記録から分からない」
 //  - 勝率・成績・点数は出さない。判断の一覧は行動の種類を同じ重さで並べる。緑赤で方向を示さない
 
@@ -21,6 +21,7 @@ import { CLAUDE_TIMEOUT_MS, DECISION_MAX_TOKENS } from '@/lib/ai-trader/ai-confi
 import { AI_SKIPPED_STOP_REASON } from '@/lib/ai-trader/tick-record'
 import type { FundamentalsData } from '@/types'
 import ReplayChart, { fmtPrice, type ReplayMarker } from './ReplayChart'
+import { SERIES } from '@/components/chartTheme'
 import { type PhaseState, type StagePlan, stageState, stepProgress, revealCount } from './useReplayClock'
 
 export type HistoryStatus = 'loading' | 'ready' | 'error'
@@ -195,11 +196,14 @@ function fmtFund(kind: FundKind, symbol: string, n: number, legacy: boolean): st
 // ── 小さな部品 ────────────────────────────────────────────────────────────
 
 const NONE_DOT: CSSProperties = { boxShadow: 'inset 0 0 0 1.5px var(--border-input)' }
+/** 「計算し直した」の橙は著名投資家の系列色と同じ値。色の定義は chartTheme.ts の1か所だけ（DESIGN §6-14）なので直書きしない */
+const RECOMPUTED_DOT: CSSProperties = { backgroundColor: SERIES.master.color }
 
 /** 出どころの丸印。色に加えて形（塗り／橙／輪郭だけ）でも区別する */
 export function ProvDot({ provenance }: { provenance: Provenance }) {
-  const cls = provenance === 'record' ? 'bg-brand' : provenance === 'recomputed' ? 'bg-[#C26A2A]' : 'bg-transparent'
-  return <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-full ${cls}`} style={provenance === 'none' ? NONE_DOT : undefined} />
+  const cls = provenance === 'record' ? 'bg-brand' : 'bg-transparent'
+  const style = provenance === 'none' ? NONE_DOT : provenance === 'recomputed' ? RECOMPUTED_DOT : undefined
+  return <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-full ${cls}`} style={style} />
 }
 
 function Mark({ provenance, label }: { provenance: Provenance; label?: string }) {

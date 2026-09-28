@@ -162,7 +162,7 @@ export default function BackfillPage() {
     return (
       <div className="max-w-xl mx-auto space-y-4">
         <div>
-          <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">04 振り返る</p>
+          <p className="text-sm font-semibold tracking-[0.18em] text-brand uppercase">04 振り返る</p>
           <h1 className="text-2xl font-bold text-ink mt-1">過去の取引を記録する</h1>
         </div>
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-4">
@@ -177,7 +177,7 @@ export default function BackfillPage() {
     <div className="max-w-3xl mx-auto space-y-6">
 
       <header className="space-y-2">
-        <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">04 振り返る</p>
+        <p className="text-sm font-semibold tracking-[0.18em] text-brand uppercase">04 振り返る</p>
         <h1 className="text-2xl font-bold text-ink">過去の取引を記録する</h1>
         <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           すでに実際にやった売買を入れると、<strong className="text-ink">今日から振り返りを始められます。</strong>
@@ -201,7 +201,7 @@ export default function BackfillPage() {
               value={symbol}
               onChange={e => setSymbol(e.target.value)}
               placeholder="AAPL"
-              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink placeholder:text-muted focus:border-emerald-200 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink placeholder:text-muted focus:border-brand focus:outline-none"
             />
           </div>
           <div className="space-y-1.5">
@@ -213,7 +213,7 @@ export default function BackfillPage() {
               step="any"
               value={shares}
               onChange={e => setShares(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-ink tabular-nums focus:border-emerald-200 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-ink tabular-nums focus:border-brand focus:outline-none"
             />
           </div>
           <div className="space-y-1.5">
@@ -224,7 +224,7 @@ export default function BackfillPage() {
               max={todayISO()}
               value={buyDay}
               onChange={e => setBuyDay(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-ink tabular-nums focus:border-emerald-200 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-sm text-ink tabular-nums focus:border-brand focus:outline-none"
             />
           </div>
           <div className="space-y-1.5">
@@ -237,7 +237,7 @@ export default function BackfillPage() {
               value={buyPrice}
               onChange={e => setBuyPrice(e.target.value)}
               placeholder="180.50"
-              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums placeholder:text-muted focus:border-emerald-200 focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums placeholder:text-muted focus:border-brand focus:outline-none"
             />
           </div>
         </div>
@@ -296,10 +296,10 @@ export default function BackfillPage() {
                   min={buyDay || undefined}
                   value={sellDay}
                   onChange={e => setSellDay(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums focus:border-emerald-200 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums focus:border-brand focus:outline-none"
                 />
                 {!dateOrder && (
-                  <p className="text-sm text-amber-700">売った日は買った日より後にしてください</p>
+                  <p className="text-sm text-danger">売った日は買った日より後にしてください</p>
                 )}
               </div>
               <div className="space-y-1.5">
@@ -312,7 +312,7 @@ export default function BackfillPage() {
                   value={sellPrice}
                   onChange={e => setSellPrice(e.target.value)}
                   placeholder="162.00"
-                  className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums placeholder:text-muted focus:border-emerald-200 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-lg bg-panel border border-border text-base text-ink tabular-nums placeholder:text-muted focus:border-brand focus:outline-none"
                 />
               </div>
             </div>
@@ -347,8 +347,10 @@ export default function BackfillPage() {
             銘柄・株数・買った日・買値と、買ったときに考えていたことを埋めてください。
           </p>
         )}
+        {/* 記録の成否: 成功＝--success（「記録した」の完了）・失敗＝--danger。app/trade/page.tsx の result 表示・
+            components/TradeModal.tsx と同じ規則（DECISIONS.md 2026-09-24「損益から色を外す」の --success の定義） */}
         {result && (
-          <p role="status" className={`text-sm text-center leading-relaxed ${result.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
+          <p role="status" className={`text-sm text-center leading-relaxed ${result.ok ? 'text-success' : 'text-danger'}`}>
             {result.msg}
           </p>
         )}
@@ -358,7 +360,7 @@ export default function BackfillPage() {
       <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-xl font-semibold text-ink">記録した過去の取引（<span className="tabular-nums">{recorded.length}</span>件）</h2>
-          <Link href="/review" className="text-sm text-emerald-700 hover:text-emerald-800">振り返る →</Link>
+          <Link href="/review" className="text-sm text-brand hover:text-brand-strong">振り返る →</Link>
         </div>
 
         {recorded.length === 0 ? (
@@ -368,7 +370,8 @@ export default function BackfillPage() {
             {recorded.map(t => (
               <li key={t.id} className="flex items-center gap-3 text-sm bg-panel border border-border rounded-lg px-3 py-2">
                 <span className="font-mono font-bold text-ink">{t.symbol}</span>
-                <span className={t.action === 'buy' ? 'text-emerald-700' : 'text-rose-700'}>
+                {/* 買い/売りは色を変えない（DESIGN.md §5-1「やらないこと: 買い/売りを緑/赤で塗る」）。文字で区別する */}
+                <span className="text-ink">
                   {t.action === 'buy' ? '買' : '売'}
                 </span>
                 <span className="text-ink-2 tabular-nums">{t.shares}株 @ {usd(t.price)}</span>
@@ -376,7 +379,7 @@ export default function BackfillPage() {
                 <button
                   type="button"
                   onClick={() => remove(t.id)}
-                  className="shrink-0 text-muted hover:text-rose-800 transition-colors"
+                  className="shrink-0 text-muted hover:text-danger transition-colors"
                   aria-label={`${t.symbol} の記録を消す`}
                 >
                   消す

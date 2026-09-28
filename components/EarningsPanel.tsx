@@ -47,12 +47,15 @@ export function EarningsPanel({ symbol }: Props) {
 
       {/* Next earnings */}
       {data?.nextEarningsDateStr && (
-        <div className="mb-4 flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
-          <span className="text-yellow-700 text-lg">📅</span>
+        // bg-warning-tint（半透明の薄い黄）と text-warning-ink の対で使う（枠線なし・§6-12）。
+        // 明るい地だったころ、黄の面に濃い黄の文字を置いて読めなくなった事故があるので、対は崩さない。
+        // ※「次回決算予定」は注意ではなく情報の帯なので、中立形（bg-surface text-ink-2）に寄せる案は次の掃除で（SV1b レビュー S2）。
+        <div className="mb-4 flex items-center gap-3 bg-warning-tint rounded-lg px-4 py-3">
+          <span className="text-warning-ink text-lg">📅</span>
           <div>
             <div className="text-ink text-sm font-medium">次回決算予定: {data.nextEarningsDateStr}</div>
             {daysUntil !== null && daysUntil > 0 && (
-              <div className="text-yellow-700 text-sm tabular-nums">あと {daysUntil} 日</div>
+              <div className="text-warning-ink text-sm tabular-nums">あと {daysUntil} 日</div>
             )}
           </div>
         </div>
@@ -84,9 +87,11 @@ export function EarningsPanel({ symbol }: Props) {
                       <td className="py-2 text-right text-ink-2 font-mono">
                         {q.estimate != null ? `$${q.estimate.toFixed(2)}` : '—'}
                       </td>
+                      {/* サプライズの良し悪しは損益と同じ扱いで色を付けない（DECISIONS.md
+                          2026-09-24「損益から色を外す」・DESIGN.md §5-1）。symbol の +/− と
+                          値の大小で伝える。 */}
                       <td className={`py-2 text-right font-mono text-sm tabular-nums ${
-                        q.surprise == null ? 'text-muted'
-                          : beat ? 'text-green-700' : 'text-red-700'
+                        q.surprise == null ? 'text-muted' : 'text-ink'
                       }`}>
                         {q.surprise != null
                           ? `${beat ? '+' : ''}${q.surprise.toFixed(1)}%`

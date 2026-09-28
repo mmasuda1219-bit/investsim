@@ -1,7 +1,7 @@
 // 目安との位置を示す細い数直線（2026-09-18 オーナー選択・案C）。
 //
 // 規則（DESIGN.md §6-14・DECISIONS 2026-09-18）:
-//  - 軸 1px --axis、目安の位置に破線のティックとラベル、実測値に直径 9px の点（チャートの「あなた」の青 SERIES.you）
+//  - 軸 1px --axis、目安の位置に破線のティックとラベル、実測値に直径 9px の点（チャートの「あなた」の青 SERIES.you.color）
 //  - 緑赤の塗り分けゾーンを作らない（点数・合否に見える）
 //  - 軸の両端に実値のラベルを必ず書く（caption 12px。これより小さい文字は作らない: §5-2）
 //  - 軸の範囲外の値は点を描かず「軸の外（値）」と文字で書く
@@ -51,7 +51,7 @@ export function NumberLine({ min, max, thresholds, value, format, ariaLabel }: N
       {/* 両端の実値（目安のラベルと同じ行。目安は軸の内側にあるので重ならない） */}
       <text x={0} y={10} fontSize="12" fill="var(--muted)" textAnchor="start">{format(min)}</text>
       <text x={W} y={10} fontSize="12" fill="var(--muted)" textAnchor="end">{format(max)}</text>
-      {inRange && <circle cx={x(value, min, max)} cy={AXIS_Y} r="4.5" fill={SERIES.you} />}
+      {inRange && <circle cx={x(value, min, max)} cy={AXIS_Y} r="4.5" fill={SERIES.you.color} />}
     </svg>
   )
 }

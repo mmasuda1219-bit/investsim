@@ -188,7 +188,7 @@ function TradePageBody() {
     <div className="max-w-3xl mx-auto space-y-6">
 
       <header className="space-y-2">
-        <p className="text-sm font-semibold tracking-[0.18em] text-emerald-700 uppercase">03 やる</p>
+        <p className="text-sm font-semibold tracking-[0.18em] text-brand uppercase">03 やる</p>
         <h1 className="text-2xl font-bold text-ink">自分で判断して売買する</h1>
         <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           仮想の資金で売買します。<strong className="text-ink">なぜそう判断したかを必ず書いてください。</strong>
@@ -199,7 +199,7 @@ function TradePageBody() {
       {/* 未ログインの案内。判定が済むまで（signedIn === null）は出さない。
           先に出すとログイン済みの人にも一瞬ちらつく。 */}
       {signedIn === false && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-center justify-between gap-3 flex-wrap">
+        <div className="rounded-lg bg-warning-tint px-4 py-3 text-sm text-warning-ink flex items-center justify-between gap-3 flex-wrap">
           <span>売買の記録を残すにはログインが必要です。読むだけならログインは要りません。</span>
           <LoginLink className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg bg-brand text-on-brand hover:bg-brand-strong text-sm font-medium transition-colors" />
         </div>
@@ -279,7 +279,9 @@ function TradePageBody() {
             listed は /api/stocks/:symbol が返す «公式リスト由来の一覧にあるか»。 */}
         {!loading && quoteError && (
           <div className="space-y-1">
-            <p className="text-base text-rose-700 font-medium">
+            {/* listed===false（一覧に無いティッカー）は入力の誤り＝danger。それ以外はデータ取得の失敗
+                （--warning-ink の定義「注意（データが古い・取得できなかった等）」に一致）＝warning-ink。 */}
+            <p className={`text-base font-medium ${listed === false ? 'text-danger' : 'text-warning-ink'}`}>
               {listed === false ? `${symbol} は一覧にありません` : '価格を取得できませんでした'}
             </p>
             <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
@@ -304,13 +306,14 @@ function TradePageBody() {
             <span className="text-lg font-bold text-ink">{quote.symbol}</span>
             <span className="text-sm text-muted truncate">{quote.name}</span>
             <span className="text-2xl font-bold text-ink tabular-nums">{usd(quote.price)}</span>
-            {/* 騰落は損益なので緑/赤（DESIGN.md §6-4）。正＝+／負＝−／ゼロ＝± を必ず付ける。
+            {/* 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」）。
+                正＝+／負＝−／ゼロ＝± を必ず付け、色は --ink に統一（ゼロだけ text-muted）。
                 前日比が取れない（null）ときは 0 や ± で埋めず「—」 */}
             {quote.changePercent == null ? (
               <span className="text-sm font-semibold tabular-nums text-muted">—</span>
             ) : (
               <span className={`text-sm font-semibold tabular-nums ${
-                quote.changePercent === 0 ? 'text-muted' : quote.changePercent > 0 ? 'text-success' : 'text-danger'
+                quote.changePercent === 0 ? 'text-muted' : 'text-ink'
               }`}>
                 {quote.changePercent === 0 ? '±' : quote.changePercent > 0 ? '+' : '−'}{Math.abs(quote.changePercent).toFixed(2)}%
               </span>
@@ -363,7 +366,7 @@ function TradePageBody() {
             <p className="text-sm text-muted tabular-nums">概算 {usd(sharesNum * quote.price)}</p>
           )}
           {action === 'sell' && validShares && !enoughShares && (
-            <p className="text-sm text-amber-700 tabular-nums">保有は{held}株です</p>
+            <p className="text-sm text-danger tabular-nums">保有は{held}株です</p>
           )}
         </div>
 
@@ -394,8 +397,12 @@ function TradePageBody() {
           </p>
         )}
 
+        {/* 記録の成否。--success は「記録した・保存できた」の完了だけに使う（DECISIONS.md 2026-09-24
+            「損益から色を外す」の定義）ので、成功＝--success・失敗（サーバーの拒否理由＝入力の誤り）＝--danger。
+            components/TradeModal.tsx と同じ規則（SV1b レビュー W2）。文言は「記録しました」であって
+            良い判断だったという意味ではない（DESIGN.md §1-4: おすすめを出さない）。 */}
         {result && (
-          <p role="status" className={`text-sm leading-relaxed ${result.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
+          <p role="status" className={`text-sm leading-relaxed ${result.ok ? 'text-success' : 'text-danger'}`}>
             {result.msg}
           </p>
         )}
@@ -403,7 +410,8 @@ function TradePageBody() {
         {portfolio && (
           <p className="text-sm text-muted tabular-nums pt-2 border-t border-border">
             仮想の残高 {usd(portfolio.cash)}・保有 {portfolio.positions.length}銘柄
-            <Link href="/review" className="text-emerald-700 hover:text-emerald-800 ml-2">振り返る →</Link>
+            {/* リンクは DESIGN.md §5-1「青緑の使い道: 文字・線はリンク」 */}
+            <Link href="/review" className="text-brand hover:text-brand-strong ml-2">振り返る →</Link>
           </p>
         )}
       </section>

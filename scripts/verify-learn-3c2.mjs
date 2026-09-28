@@ -6,17 +6,26 @@
 //   node scripts/verify-learn-3c2.mjs <写真の保存先ディレクトリ>
 //
 // 確かめること:
-//   - 390×844 / 1280×900 / 1920×1080 で横はみ出し0、ヘッダー下の左右端が灰の地（#EDF1F6）、
-//     紺青の塗りのボタンが1つまで（§6-1）、console error 0
+//   - 390×844 / 1280×900 / 1920×1080 で横はみ出し0、ヘッダー下の左右端が地（#0A0C10・SV1a で暗い地に一本化）、
+//     主ボタンが1つまで（§6-1）、console error 0
 //   - 押す順番（390 と 1280）:
 //     (1) 銘柄 AAPL ＋ クイック「安定重視」→ 無料プレビュー → 結果が表1つで出て、行と値が読める
 //     (2) 条件の内訳（MetricStrip）の開閉と、詳細（DetailsSection）の開閉・aria-expanded。
-//         詳細は prepare の結果にだけ出るので、投資家モデルの「プレビュー実行（実データ・AIは使いません）」で出す
+//         詳細は prepare の結果にだけ出る。prepare（AI を使わない）があるのはプロと投資家モデルの2モード。
+//         lib/features.ts の SHOW_INVESTOR_MODELS が true なら投資家モデル、false（S1b で名人を隠しているあいだ）なら
+//         プロ「ハイブリッド」に条件を1つ足して「プレビュー実行（実データ・AIは使いません）」で出す
+//         （SV1a・2026-09-25 で変更。クイックには prepare が無い＝無料プレビューの次はいきなり AI レポート生成）
 //     (3) 銘柄指定なしでスクリーニング → 候補の一覧 → 候補を押すと銘柄欄に入る
 //     (4) クイック「コツコツ配当」× AAPL（参加条件不成立）→「不成立」が注意の札で出る
 //     (5) 読み込み中が中央揃えの大箱でない（API の応答をこのテストの中だけで 2.5 秒遅らせ、取得中に撮る）
 //
 // 「AIレポート生成」系のボタンは押さない（Opus の費用がかかるため）。
+//
+// SV1a（2026-09-25）で作り替えた点:
+//   - 主ボタンの数え方を「塗りの色の文字列一致」から「class bg-brand か data-primary 属性」に（3c1 と同じ理由・同じ形）
+//   - 囲い検出 enclosures() は「4辺に枠線＋角丸」のうち、4辺とも 1px で色が --border のもの（＝面の輪郭・DESIGN §6-6）を除く
+//   - 札・文字の色の期待値は暗い地のトークン。getComputedStyle は指定どおりの rgba（合成前）を返すので、
+//     半透明のトークンは rgba(…, α) の文字列で比べる（#0A0C10 に合成した実効色になるのは写真の画素を読むときだけ）
 
 import { chromium } from 'playwright'
 import fs from 'node:fs'
@@ -26,11 +35,18 @@ const BASE = process.env.BASE_URL ?? 'http://localhost:3132'
 const OUT = process.argv[2] ?? path.join(process.cwd(), 'shots', '3c2')
 fs.mkdirSync(OUT, { recursive: true })
 
-const SURFACE = '#EDF1F6'
-const BRAND_RGB = 'rgb(26, 71, 135)'
-const WARNING_TINT_RGB = 'rgb(253, 243, 225)'
-const WARNING_INK_RGB = 'rgb(138, 83, 0)'
-const INK2_RGB = 'rgb(58, 70, 88)'
+/** ページの地（globals.css の --bg）。/learn ににじみは無いので一色 */
+const BG = '#0A0C10'
+/** --warning-tint rgb(192 138 46 / .14) の computed 値 */
+const WARNING_TINT_RGB = 'rgba(192, 138, 46, 0.14)'
+/** --warning-ink #C08A2E */
+const WARNING_INK_RGB = 'rgb(192, 138, 46)'
+/** --ink-2 rgb(238 241 245 / .66) の computed 値 */
+const INK2_RGB = 'rgba(238, 241, 245, 0.66)'
+/** 投資家モデルのタブがあるか。lib/features.ts を文字列で読む（tsx なしで動かすため import しない） */
+const SHOW_INVESTOR_MODELS = /export const SHOW_INVESTOR_MODELS\s*(?::\s*boolean)?\s*=\s*true\b/.test(
+  fs.readFileSync(path.join(process.cwd(), 'lib', 'features.ts'), 'utf8'),
+)
 const PREVIEW_BUTTON = '無料プレビューを実行（純計算・AIは使いません）'
 const SCREEN_BUTTON = 'スクリーニング実行（キャッシュのみ・AIは使いません）'
 const PREPARE_BUTTON = 'プレビュー実行（実データ・AIは使いません）'
@@ -76,38 +92,67 @@ async function pixel(page, helper, x, y) {
 
 async function checkLayout(page, helper, vp, label) {
   await page.evaluate(() => window.scrollTo(0, 0))
-  const m = await page.evaluate(brand => {
+  const m = await page.evaluate(() => {
     const de = document.documentElement
     const main = document.querySelector('main')
     const top = main ? main.getBoundingClientRect().top : 64
-    const primary = [...document.querySelectorAll('main button, main a')]
-      .filter(el => {
-        const r = el.getBoundingClientRect()
-        return r.width > 0 && r.height > 0 && getComputedStyle(el).backgroundColor === brand
-      })
-      .map(el => (el.textContent || '').trim().slice(0, 30))
-    return { scrollWidth: de.scrollWidth, clientWidth: de.clientWidth, y: Math.round(top + 8), primary }
-  }, BRAND_RGB)
+    const visible = el => {
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && r.height > 0
+    }
+    // 主ボタンは class（bg-brand）か data-primary 属性で数える（色の文字列一致にしない。冒頭の注釈）
+    const primaryEls = [...document.querySelectorAll('main button, main a')].filter(
+      el => visible(el) && (el.classList.contains('bg-brand') || el.hasAttribute('data-primary')),
+    )
+    // --brand / --brand-strong の実際の塗り（ブラウザが正規化した文字列）を探り針で取る。トークンの値が変わっても追随する。
+    // 押した直後はマウスが乗ったまま（hover:bg-brand-strong）なので、ホバーの塗りも「主ボタンの塗り」として認める
+    const paint = v => {
+      const probe = document.createElement('div')
+      probe.style.backgroundColor = v
+      document.body.appendChild(probe)
+      const c = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return c
+    }
+    const brandRgb = paint('var(--brand)')
+    const brandStrongRgb = paint('var(--brand-strong)')
+    const primary = primaryEls.map(el => ({
+      text: (el.textContent || '').trim().slice(0, 30),
+      painted: [brandRgb, brandStrongRgb].includes(getComputedStyle(el).backgroundColor),
+    }))
+    return { scrollWidth: de.scrollWidth, clientWidth: de.clientWidth, y: Math.round(top + 8), primary, brandRgb }
+  })
   record(vp.name, `${label}: 横はみ出し0`, m.scrollWidth <= m.clientWidth, {
     scrollWidth: m.scrollWidth,
     clientWidth: m.clientWidth,
   })
   const left = await pixel(page, helper, 2, m.y)
   const right = await pixel(page, helper, m.clientWidth - 3, m.y)
-  record(vp.name, `${label}: ヘッダー下の左右端が ${SURFACE}`, left === SURFACE && right === SURFACE, {
+  record(vp.name, `${label}: ヘッダー下の左右端が地 ${BG}`, left === BG && right === BG, {
     left,
     right,
     y: m.y,
   })
-  record(vp.name, `${label}: 紺青の塗りのボタンは1つまで`, m.primary.length <= 1, { primary: m.primary })
+  record(vp.name, `${label}: 主ボタン（bg-brand / data-primary）は1つまで・塗りは --brand`, m.primary.length <= 1 && m.primary.every(p => p.painted), {
+    primary: m.primary,
+    brand: m.brandRgb,
+  })
 }
 
-// 画面に見えている「全周の枠線＋角丸」の塊（押せる部品・入力欄・3c-3 の ExecutionPlanCard を除く）
+// 画面に見えている「囲い」＝全周の枠線＋角丸の塊（押せる部品・入力欄・3c-3 の ExecutionPlanCard を除く）。
+// SV1a（2026-09-25）: 4辺とも 1px で色が --border のものは「面の輪郭」（DESIGN §6-6。暗い地では面の色で区切れないため、
+// 半透明カードの境目を示す唯一の手段）なので囲いに数えない。2px 以上・--border 以外の色・辺ごとに違う色は引き続き囲い
 async function enclosures(page) {
   return page.evaluate(epcHeading => {
     const epcH2 = [...document.querySelectorAll('main h2')].find(h => (h.textContent || '').includes(epcHeading))
     const epc = epcH2?.parentElement?.parentElement ?? null
     const skip = 'button, a, input, select, textarea, label, [role="tab"]'
+    // --border の実際の色（ブラウザが正規化した文字列）を探り針で取る
+    const probe = document.createElement('div')
+    probe.style.borderTop = '1px solid var(--border)'
+    document.body.appendChild(probe)
+    const borderColor = getComputedStyle(probe).borderTopColor
+    probe.remove()
     const found = []
     for (const el of document.querySelectorAll('main *')) {
       if (el.closest(skip)) continue
@@ -117,6 +162,9 @@ async function enclosures(page) {
       const cs = getComputedStyle(el)
       const sides = [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth].map(parseFloat)
       if (sides.every(w => w >= 1) && parseFloat(cs.borderTopLeftRadius) > 0) {
+        const colors = [cs.borderTopColor, cs.borderRightColor, cs.borderBottomColor, cs.borderLeftColor]
+        const isOutline = sides.every(w => w === 1) && colors.every(c => c === borderColor)
+        if (isOutline) continue
         found.push(`${el.tagName.toLowerCase()}.${String(el.className).slice(0, 60)}`)
       }
     }
@@ -293,16 +341,24 @@ async function step2(page, helper, vp) {
     record(vp.name, '(2) 条件の内訳の開閉（aria-expanded）', null, '内訳の行が表示されなかった')
   }
 
-  // (2b) 投資家モデルで prepare（AI は使わない）→ 詳細（DetailsSection）の開閉
+  // (2b) prepare（AI は使わない）→ 詳細（DetailsSection）の開閉。
+  //      投資家モデルのタブがあればそこで、無ければ（S1b で名人を隠しているあいだ）プロ「ハイブリッド」に条件を1つ足して
   await ensureConfigOpen(page)
-  await page.getByRole('tab', { name: '投資家モデル', exact: true }).click()
+  const prepareMode = SHOW_INVESTOR_MODELS ? '投資家モデル' : 'プロ'
+  await page.getByRole('tab', { name: prepareMode, exact: true }).click()
+  if (!SHOW_INVESTOR_MODELS) {
+    // 3c1 の (3) と同じ手順（ハイブリッド → 条件を追加 → 値 30）。条件が無いと prepare は走らない
+    await page.getByRole('button', { name: 'ハイブリッド', exact: true }).click()
+    await page.getByRole('button', { name: '＋ 条件を追加', exact: true }).click()
+    await page.locator('input[type="number"][step="any"]:visible').first().fill('30')
+  }
   const outcome = await withSlowApi(page, '**/api/report/prepare', async () => {
     await page.getByRole('button', { name: PREPARE_BUTTON, exact: true }).click()
     await checkLoading(page, vp, 'prepare', '5-loading-prepare')
     return waitResult(page, page.getByRole('heading', { name: BUNDLE_HEADING }))
   })
   if (outcome.kind !== 'ok') {
-    record(vp.name, '(2) 投資家モデルのプレビュー（詳細を出すため）', null, outcome)
+    record(vp.name, `(2) ${prepareMode}のプレビュー（詳細を出すため）`, null, outcome)
     await shot(page, vp, '2b-prepare-error')
     return
   }
@@ -454,7 +510,7 @@ for (const vp of viewports) {
   page.on('pageerror', e => errors.push(String(e).slice(0, 200)))
 
   await page.goto(`${BASE}/learn`, { waitUntil: 'domcontentloaded' })
-  await page.getByRole('heading', { level: 1, name: '名人の条件を過去に当てる' }).waitFor()
+  await page.getByRole('heading', { level: 1, name: '条件を決めて、過去のデータに当てる' }).waitFor()
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
   await guarded(vp, '初期表示', async () => {
     await checkLayout(page, helper, vp, '0 初期表示')

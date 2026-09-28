@@ -45,17 +45,17 @@ export const metadata: Metadata = {
   },
 }
 
-// colorScheme はライト転換後も宣言し続ける必要がある。暗色時代の理由
-// （iOS Safari が select / input[type=number] をライトで描画し、暗色UI上で
-// 白背景・白文字になって読めなくなる）は解消した。だが今度は逆向きの事故が起きる:
-// 端末がダークモードだと OS/ブラウザが select などのフォーム部品を勝手に暗色化し、
-// 白いカード面に黒い入力欄だけが乗る。'light' を明示して端末設定に追随させない。
-// themeColor はモバイルのアドレスバー色。ページの地（--bg）と揃える。
+// colorScheme は 'dark' を明示する（SV1a・2026-09-25。地を #0A0C10 に一本化した。DECISIONS.md 2026-09-24）。
+// 端末の設定に追随させると、端末がライトモードのときに iOS Safari が select / input[type=number] を
+// ライトで描画し、暗い地の上に白い入力欄だけが浮く（2026-09-11 以前の暗色 UI で実際に起きた事故の再来）。
+// Windows のスクロールバー・iOS の引っぱり戻しの地もこの宣言で暗くなる。
+// globals.css の `:root { color-scheme: dark }` と同じ値にそろえること（<meta> と CSS の両方が要る）。
+// themeColor はモバイルのアドレスバー色。ページの地（--bg）と揃える。明暗の切り替えは作らない（DESIGN.md §9）。
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#F6F8FB',
-  colorScheme: 'light',
+  themeColor: '#0A0C10',
+  colorScheme: 'dark',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -63,14 +63,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja" className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}>
       {/* ハードコードの色（bg-background / text-ink 等）は globals.css のトークンを
           上書きしてしまい、トークンを差し替えても画面に反映されなかった。
-          トークン側のユーティリティに寄せてあるので、暗色→ライト基調の転換も
-          globals.css の :root を差し替えるだけで追随する。 */}
+          トークン側のユーティリティに寄せてあるので、明るい地→暗い地の転換（SV1a・2026-09-25）も
+          globals.css の :root を差し替えるだけで追随した。 */}
       <body className="min-h-full flex flex-col bg-background text-ink">
         <SiteNav />
-        {/* max-w が無いと大画面で本文が1行90文字まで伸びて読めない */}
-        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-5 pb-20 md:pb-5">
+        {/* max-w が無いと大画面で本文が1行90文字まで伸びて読めない。
+            スマホの下部ナビ（SiteNav の fixed・h-14）に隠れないための pb-20 は、下のフッターへ移した。 */}
+        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-5">
           {children}
         </main>
+        {/* フッターの枠（DESIGN.md §4-2 R10「全ページ共通」・legal-compliance 2026-09-25）。
+            S1c ではトップ（app/(night)/layout.tsx）だけに置いていたのを、SV1a で全ページに。
+            運営者情報／お問い合わせ／プライバシーポリシー／利用規約の行き先はまだ無いので <a> にせず文字だけ（「準備中」）。
+            行き先ができたら <a> に替える。「無料」の語は書かない（legal-compliance 2026-09-25）。
+            <main> の外の <footer> なので、支援技術には contentinfo（ページ情報の目印）として伝わる。 */}
+        <footer className="w-full max-w-6xl mx-auto px-4 sm:px-6 pb-20 md:pb-5">
+          <div className="mt-8 border-t border-border pt-4">
+            <p className="text-small text-muted">
+              InvestSim ／ 運営者情報 ／ お問い合わせ ／ プライバシーポリシー ／ 利用規約（いずれも準備中）
+            </p>
+          </div>
+        </footer>
       </body>
     </html>
   )

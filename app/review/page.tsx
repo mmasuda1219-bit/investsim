@@ -38,8 +38,9 @@ function formatSignedUSD(v: number): string {
 function formatSignedPct(v: number): string {
   return `${signOf(v)}${Math.abs(v).toFixed(1)}%`
 }
+// 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」）。ゼロだけ text-muted。
 function pnlClass(v: number): string {
-  return v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'text-muted'
+  return v === 0 ? 'text-muted' : 'text-ink'
 }
 
 function formatDate(timestamp: number): string {
@@ -60,13 +61,12 @@ function formatClock(timestamp: number): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${min}`
 }
 
-/** A アプリ型の地。<main> が max-w-6xl で中央に絞られているため、同色・広がり 100vmax の
- *  box-shadow で画面の左右の端・下端まで塗る（インクのはみ出しなのでレイアウトにも
- *  スクロール範囲にも入らず、横スクロールが出ない。上はヘッダーが上に描かれて隠れる）。
- *  中央 760px に絞る。理由の詳細は app/page.tsx の同じ箇所（同じ手書き）。 */
+/** 中央 760px に絞る。地は root の <body className="bg-background">（--bg・唯一の不透明な面）が塗る。
+ *  SV1b（2026-09-25）: ここにあった「--surface を 100vmax の影で画面の端まで塗る」仕掛けは撤去した
+ *  （--surface は半透明なので、暗い地の上に広げると一段明るい膜になり地が #0A0C10 でなくなる）。 */
 function Ground({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-surface shadow-[0_0_0_100vmax_var(--surface)] pt-1 pb-4 md:pb-5">
+    <div className="pt-1 pb-4 md:pb-5">
       <div className="max-w-[760px] mx-auto space-y-6">{children}</div>
     </div>
   )

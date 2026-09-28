@@ -230,12 +230,13 @@ function dateNY(iso: string) {
 }
 
 // ── 表示 ──────────────────────────────────────────────────────────────────
-// 結果の色は「✓/✗ のアイコン＋符号付き数値」とセットでのみ使う。
-// 買い/売りの方向には色を使わない（AITradeChart 側のコメント参照）。
+// 結果は「✓/✗ のアイコン＋符号付き数値」で伝える。色では伝えない
+// （DECISIONS.md 2026-09-24「損益から色を外す」）。
+// 買い/売りの方向にも色を使わない（AITradeChart 側のコメント参照）。
 // 行の背景は塗らず、左端2pxの罫（border-l-2）だけで状態を示す。
 const STATUS_STYLE: Record<RoundTripStatus, { icon: string; label: string; text: string; rule: string }> = {
-  win:       { icon: '✓', label: '利益',   text: 'text-[var(--success)]', rule: 'border-[var(--success)]' },
-  loss:      { icon: '✗', label: '損失',   text: 'text-[var(--danger)]',  rule: 'border-[var(--danger)]'  },
+  win:       { icon: '✓', label: '利益',   text: 'text-[var(--ink)]', rule: 'border-[var(--ink)]' },
+  loss:      { icon: '✗', label: '損失',   text: 'text-[var(--ink)]', rule: 'border-[var(--ink)]' },
   flat:      { icon: '=', label: '±0',     text: 'text-ink-2',            rule: 'border-[var(--border)]'  },
   open:      { icon: '○', label: '保有中', text: 'text-ink-2',            rule: 'border-[var(--border)]'  },
   unmatched: { icon: '?', label: '売り記録なし', text: 'text-muted',      rule: 'border-[var(--border)]'  },
@@ -306,9 +307,10 @@ export default function TradeLog({ symbol, rows }: Props) {
             const s = STATUS_STYLE[r.status]
             const isOpen = r.status === 'open'
             const hasPnl = typeof r.pnl === 'number' && typeof r.pnlPct === 'number'
-            // 含み損益も同じ ✓/✗ の規則で色をつけるが、「含み」と明記して確定損益と区別する
+            // 含み損益も同じ ✓/✗ の規則で示すが色はつけない。「含み」と明記して確定損益と区別する
+            // （DECISIONS.md 2026-09-24「損益から色を外す」）。
             const pnlText = hasPnl
-              ? (r.pnl! > 0 ? 'text-[var(--success)]' : r.pnl! < 0 ? 'text-[var(--danger)]' : 'text-ink-2')
+              ? (r.pnl! === 0 ? 'text-ink-2' : 'text-ink')
               : 'text-muted'
             return (
               <tr key={`${r.buyAt ?? 'nobuy'}-${r.sellAt ?? 'open'}-${i}`} className="border-t border-border align-top">

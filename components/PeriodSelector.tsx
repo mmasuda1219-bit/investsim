@@ -25,9 +25,11 @@ export function PeriodSelector({ current, symbol }: Props) {
   const daily    = PERIODS.filter(p => p.group === 'daily')
 
   const cls = (v: string) =>
+    // 選択中は「いまいる場所」の下地（DESIGN.md §5-1「薄い下地 --brand-tint: 現在地・選択中の
+    // 下地だけ」）。bg-brand の塗りは主ボタンだけに限る。
     `px-3 py-1.5 rounded-lg text-xs transition-colors ${
       current === v
-        ? 'bg-blue-600 text-white'
+        ? 'bg-brand-tint text-brand'
         : 'bg-panel border border-border text-muted hover:text-ink'
     }`
 

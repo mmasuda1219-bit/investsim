@@ -137,8 +137,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
       className="fixed inset-0 bg-scrim flex items-center justify-center z-50"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
     >
-      {/* 暗い配色時代の紺色（#1e293b / #334155 / #0f172a）は白地のサイトで浮いていたため、
-          面・線をトークン（card / surface / border）に揃える。 */}
+      {/* 面・線はトークン（card / surface / border）に揃える。以前の暗色UI時代の紺色の生値は撤去済み。 */}
       <div className="bg-card border border-border rounded-2xl w-full max-w-sm mx-4 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
@@ -161,7 +160,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
         <div className="px-5 py-4 space-y-4">
           {/* 未ログインの案内。判定中（null）は出さない＝ログイン済みの人にちらつかせない。 */}
           {signedIn === false && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-relaxed text-amber-700 flex items-center justify-between gap-2 flex-wrap">
+            <div className="rounded-lg bg-warning-tint px-3 py-2.5 text-sm leading-relaxed text-warning-ink flex items-center justify-between gap-2 flex-wrap">
               <span>記録を残すにはログインが必要です</span>
               <LoginLink className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-brand text-on-brand hover:bg-brand-strong font-medium transition-colors" />
             </div>
@@ -233,7 +232,8 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
             </div>
             <div className="flex justify-between">
               <span className="text-ink-2">手数料</span>
-              <span className="text-emerald-700">無料</span>
+              {/* 損益と同じ扱いで --ink（他の行と揃える。DESIGN.md §6-4「損益は色を使わない」）。 */}
+              <span className="text-ink">無料</span>
             </div>
             {action === 'sell' && (
               <div className="flex justify-between">
@@ -249,7 +249,9 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
                 <span className="text-ink">
                   {formatCurrency(portfolio.cash)}
                   <span className="text-muted mx-1">→</span>
-                  <span className={cashAfter >= 0 ? 'text-ink' : 'text-red-700'}>
+                  {/* 残高不足はこのまま送信するとサーバーに拒否される入力の誤り＝danger。
+                      通常時は損益と同じ扱いで ink。 */}
+                  <span className={cashAfter >= 0 ? 'text-ink' : 'text-danger'}>
                     {formatCurrency(cashAfter)}
                   </span>
                 </span>
@@ -259,14 +261,14 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
             </div>
           </div>
 
-          {/* Error */}
+          {/* Error — 入力の誤り・サーバーからの拒否理由 */}
           {error && (
-            <p className="text-red-700 text-sm text-center">{error}</p>
+            <p className="text-danger text-sm text-center">{error}</p>
           )}
 
-          {/* Success */}
+          {/* Success — 「記録した」の完了そのもの（--success の定義に一致） */}
           {success && (
-            <p className="text-emerald-700 text-sm text-center font-medium">
+            <p className="text-success text-sm text-center font-medium">
               ✓ 取引完了しました
             </p>
           )}

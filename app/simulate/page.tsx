@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { INVESTOR_META } from '@/lib/investors/registry'
 import type { SimResult } from '@/lib/simulation'
+import { readChartTheme, SERIES, lineStyleOf } from '@/components/chartTheme'
+// 型だけの import なので lightweight-charts 本体はバンドルに含まれない（実体は下の動的 import）
+import type { LineStyle } from 'lightweight-charts'
 
 // 表示名・説明・色・並び順は lib/investors/registry が単一の出所（このページで再定義しない）
 const INVESTORS = INVESTOR_META
@@ -28,11 +31,13 @@ function MiniChart({ values }: { values: { date: string; value: number }[] }) {
 
     import('lightweight-charts').then(({ createChart, LineSeries, ColorType, LineStyle }) => {
       if (destroyed || !containerRef.current) return
+      // 文字・線は globals.css の :root を実行時に読む（chartTheme.readChartTheme）。面はカードが透けるよう transparent のまま
+      const th = readChartTheme()
       const chart = createChart(containerRef.current!, {
-        layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#94a3b8' },
-        grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-        rightPriceScale: { borderColor: '#334155' },
-        timeScale: { borderColor: '#334155', timeVisible: false },
+        layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: th.text },
+        grid: { vertLines: { color: th.grid }, horzLines: { color: th.grid } },
+        rightPriceScale: { borderColor: th.border },
+        timeScale: { borderColor: th.border, timeVisible: false },
         width: containerRef.current!.clientWidth,
         height: 160,
         handleScroll: false,
@@ -40,14 +45,18 @@ function MiniChart({ values }: { values: { date: string; value: number }[] }) {
       })
 
       const baseline = values[0].value
+      // 名人モデルの資産曲線＝「著名投資家」の系列（橙・点線 2px。DESIGN §5-1）。
+      // 元本を上回ったか下回ったかで緑赤に変えない（DECISIONS 2026-09-24「損益から色を外す」）
       const series = chart.addSeries(LineSeries, {
-        color: values[values.length - 1].value >= baseline ? '#22c55e' : '#ef4444',
-        lineWidth: 2,
+        color: SERIES.master.color,
+        lineWidth: SERIES.master.width,
+        lineStyle: lineStyleOf(SERIES.master) as LineStyle,
         priceLineVisible: false,
         lastValueVisible: false,
       })
+      // 元本の線＝基準（灰）。破線のまま
       const baseLine = chart.addSeries(LineSeries, {
-        color: '#475569',
+        color: SERIES.baseline.color,
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         priceLineVisible: false,
@@ -174,7 +183,7 @@ export default function SimulatePage() {
                     name="universe"
                     checked={universe === u.id}
                     onChange={() => setUniverse(u.id)}
-                    className="mt-0.5 accent-blue-500"
+                    className="mt-0.5 accent-brand"
                   />
                   <div>
                     <p className="text-sm text-ink-2 group-hover:text-ink transition-colors">{u.label}</p>
@@ -193,7 +202,7 @@ export default function SimulatePage() {
               step="1000"
               value={capital}
               onChange={e => setCapital(e.target.value)}
-              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-blue-200"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-ink text-sm font-mono focus:outline-none focus:border-brand"
             />
             <p className="text-xs text-muted mt-1">
               {formatUSD(Number(capital) || 100_000)} からスタート
@@ -232,7 +241,7 @@ export default function SimulatePage() {
       {/* Loading */}
       {loading && (
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-border border-t-blue-500 rounded-full animate-spin mx-auto" />
+          <div className="w-8 h-8 border-2 border-border border-t-ink rounded-full animate-spin mx-auto" />
           <p className="text-muted text-sm">Yahoo Financeから実データを取得中...</p>
           <p className="text-xs text-muted">銘柄数によっては20〜30秒かかることがあります</p>
         </div>
@@ -274,10 +283,11 @@ export default function SimulatePage() {
             </div>
             <div className="bg-panel border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">損益</p>
-              <p className={`text-xl font-bold font-mono ${pnlPositive ? 'text-green-700' : 'text-red-700'}`}>
+              {/* 損益に色を使わない（DECISIONS.md 2026-09-24）。符号と ▲▼ で伝え、ゼロだけ --muted（§6-4） */}
+              <p className={`text-xl font-bold font-mono ${result.pnl === 0 ? 'text-muted' : 'text-ink'}`}>
                 {pnlPositive ? '+' : ''}{formatUSD(result.pnl)}
               </p>
-              <p className={`text-xs font-mono ${pnlPositive ? 'text-green-700' : 'text-red-700'}`}>
+              <p className={`text-xs font-mono ${result.pnl === 0 ? 'text-muted' : 'text-ink'}`}>
                 {pnlPositive ? '▲' : '▼'} {Math.abs(result.pnlPct).toFixed(2)}%
               </p>
             </div>
@@ -312,23 +322,22 @@ export default function SimulatePage() {
                 {result.stockResults.sort((a, b) => (b.bought ? 1 : 0) - (a.bought ? 1 : 0)).map(s => (
                   <div key={s.symbol} className={`flex items-center justify-between px-3 py-2 rounded-lg ${s.bought ? 'bg-surface' : 'bg-surface/30'}`}>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-blue-700">{s.symbol}</span>
+                      <span className="font-mono font-bold text-sm text-ink">{s.symbol}</span>
                       {s.bought && (
-                        <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">保有</span>
+                        <span className="text-xs bg-card text-ink px-1.5 py-0.5 rounded">保有</span>
                       )}
                     </div>
                     <div className="flex items-center gap-3">
                       {s.buyPrice && (
-                        <span className={`text-xs font-mono ${s.pnlPct >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                        <span className={`text-xs font-mono ${s.pnlPct === 0 ? 'text-muted' : 'text-ink'}`}>
                           {s.pnlPct >= 0 ? '+' : ''}{s.pnlPct.toFixed(1)}%
                         </span>
                       )}
+                      {/* 売買の札は緑赤にしない（§5-1: 緑/赤は完了と誤りだけ）。語と ▲▼ で区別し、様子見だけ薄く */}
                       <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                        s.signal === 'buy'  ? 'bg-green-50 text-green-700' :
-                        s.signal === 'sell' ? 'bg-red-50 text-red-700' :
-                        'bg-surface text-muted'
+                        s.signal === 'hold' ? 'bg-surface text-muted' : 'bg-card text-ink'
                       }`}>
-                        {s.signal === 'buy' ? 'BUY' : s.signal === 'sell' ? 'SELL' : 'HOLD'}
+                        {s.signal === 'buy' ? '▲ 買い' : s.signal === 'sell' ? '▼ 売り' : '様子見'}
                       </span>
                     </div>
                   </div>
@@ -345,10 +354,8 @@ export default function SimulatePage() {
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {result.trades.map((t, i) => (
                     <div key={i} className="flex items-start gap-3 px-3 py-2 bg-surface/50 rounded-lg">
-                      <span className={`shrink-0 mt-0.5 text-xs font-bold px-2 py-0.5 rounded ${
-                        t.action === 'buy' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                      }`}>
-                        {t.action === 'buy' ? 'BUY' : 'SELL'}
+                      <span className="shrink-0 mt-0.5 text-xs font-bold px-2 py-0.5 rounded bg-card text-ink">
+                        {t.action === 'buy' ? '▲ 買い' : '▼ 売り'}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between">

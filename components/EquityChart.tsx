@@ -10,6 +10,7 @@ import {
   type Time,
 } from 'lightweight-charts'
 import type { EquityPoint } from '@/lib/ai-trader/engine'
+import { readChartTheme, SERIES, lineStyleOf } from '@/components/chartTheme'
 
 interface Props {
   history: EquityPoint[]
@@ -27,24 +28,28 @@ export function EquityChart({ history, capital, height = 220 }: Props) {
     chartRef.current?.remove()
     chartRef.current = null
 
+    // 面・文字・線は globals.css の :root を実行時に読む（chartTheme.readChartTheme）。系列色は SERIES が正
+    const th = readChartTheme()
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#FFFFFF' },
-        textColor: '#6B6862',
+        background: { type: ColorType.Solid, color: th.background },
+        textColor: th.text,
       },
       grid: {
-        vertLines: { color: '#EFECE3' },
-        horzLines: { color: '#EFECE3' },
+        vertLines: { color: th.grid },
+        horzLines: { color: th.grid },
       },
-      rightPriceScale: { borderColor: '#D6D0C3' },
-      timeScale: { borderColor: '#D6D0C3', timeVisible: true },
+      rightPriceScale: { borderColor: th.border },
+      timeScale: { borderColor: th.border, timeVisible: true },
       width:  containerRef.current.clientWidth,
       height,
     })
 
+    // AI の資産曲線＝「AI」の系列（紫・破線 2px。DESIGN §5-1）。凡例（app/watch/client.tsx）も SERIES.ai から取ること
     const portfolioSeries = chart.addSeries(LineSeries, {
-      color: '#0E7490',
-      lineWidth: 2,
+      color: SERIES.ai.color,
+      lineWidth: SERIES.ai.width,
+      lineStyle: lineStyleOf(SERIES.ai) as LineStyle,
       priceLineVisible: false,
       lastValueVisible: true,
       title: 'AI',
@@ -58,10 +63,11 @@ export function EquityChart({ history, capital, height = 220 }: Props) {
 
     const hasBenchmark = history.some(p => p.benchmarkPct != null)
     if (hasBenchmark) {
+      // SPY＝基準（指数）の系列（灰・細い実線 1px）
       const benchSeries = chart.addSeries(LineSeries, {
-        color: '#6B6862',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
+        color: SERIES.baseline.color,
+        lineWidth: SERIES.baseline.width,
+        lineStyle: lineStyleOf(SERIES.baseline) as LineStyle,
         priceLineVisible: false,
         lastValueVisible: true,
         title: 'SPY',
@@ -75,8 +81,9 @@ export function EquityChart({ history, capital, height = 220 }: Props) {
       benchSeries.setData(benchData)
     }
 
+    // 元本＝基準（元本）。指数と同じ灰だが、同じ図で見分けるため点線にする
     const baseSeries = chart.addSeries(LineSeries, {
-      color: '#D6D0C3',
+      color: SERIES.baseline.color,
       lineWidth: 1,
       lineStyle: LineStyle.Dotted,
       priceLineVisible: false,

@@ -6,7 +6,7 @@
    値を変えるときは DESIGN.md §5 を先に直し、ここを追随させる。
 
    ■ 2層構造（DESIGN.md §5「実装の置き場所」）
-     1. `:root`          … 生の値を1か所だけ置く（例 --brand: #1A4787）
+     1. `:root`          … 生の値を1か所だけ置く（例 --brand: #2DD4BF）
      2. `@theme inline`  … クラスにする登録（例 --color-brand: var(--brand)
                             → bg-brand / text-brand / hover:bg-brand-strong）
      以前は `@layer utilities` に .bg-surface 等を手書きしていたが、Tailwind v4 は
@@ -14,6 +14,14 @@
      実測: 修正前のビルド CSS に状態付き自作クラスは 0 件（ソースには 28 ファイル
      61 か所の hover:text-ink 等があり、すべて無効だった）。
      `@theme inline` に登録すると Tailwind が状態付きも含めて生成する。
+
+   ■ 暗い地への一本化（SV1a・2026-09-25。正は DECISIONS.md 2026-09-24「画面を暗い地（#0A0C10）＋青緑（#2DD4BF）に転換」）
+     S1a では `:root` を明るいまま残し、`[data-theme="night"]` の範囲付きブロックにだけ暗い値を置いていた
+     （トップと `/` にいるときの SiteNav だけが暗い）。オーナー指示（2026-09-25「他の機能に移ると前のサイトの
+     感じのまま。それもすべて変えてほしい」）で、そのブロックを `:root` に取り込み、範囲付きの仕掛け
+     （app/(night)/layout.tsx の data-theme・SiteNav の出し分け・末尾の .shadow-float 上書き）を撤去した。
+     明暗の切り替えは作らない（暗い一本・DESIGN.md §9）。トークンの個数は S1a 以前と同じ（値だけ置き換え）。
+     ★印は、承認時のモック（Night.dc.html）から変えた値。理由は各行に書いてある。
 
    ■ 旧名（--accent 系・--panel）について
      2026-09-11 にブランド色をオレンジから紺青へ、グレーを暖色から青みへ転換した。
@@ -24,59 +32,61 @@
        --accent        → --brand
        --accent-strong → --brand-strong
        --accent-ink    → --brand   （旧: オレンジは文字色に使えず別色だった。
-                                     紺青は文字にも塗りにも使えるので同じ値）
-       --on-accent     → --on-brand（旧: 濃色文字 → 新: 白文字）
+                                     青緑は文字にも塗りにも使えるので同じ値）
+       --on-accent     → --on-brand（旧: 濃色文字 → 新: 濃い緑の文字）
 
-   ■ コントラスト比（WCAG 2.1 相対輝度式。2026-09-11 builder 実測）
+   ■ コントラスト比（WCAG 2.1 相対輝度式。半透明は #0A0C10 に α合成した実効色で比べる。
+     scripts/check-night-theme.ts が毎回同じ手順で計算し直すので、実測の正はその出力。2026-09-25 builder 実測）
      要件: 文字 4.5:1 以上／部品の輪郭 3:1 以上／区切り線 1.3:1 以上
-       --ink        on card 18.00 / bg 16.92 / surface 15.87
-       --ink-2      on surface 8.43
-       --muted      on card 5.73 / surface 5.05 / brand-tint 4.91
-       white        on --brand 9.15 / --brand-strong 11.29
-       --brand      on card 9.15 / --brand-tint 7.84
-       --focus      on card 5.80
-       --success    on card 5.34 / --success-tint 4.77
-       --danger     on card 5.52 / --danger-tint 4.82
-       --warning-ink on --warning-tint 5.75
-       --axis       on card 2.70 / bg 2.54 / surface 2.38（図形の線だけ。2026-09-18 builder 実測）
-       --rule-line  on card 1.51 / bg 1.42 / surface 1.33（区切り線 1.3 以上。同上）
-       --border     on card 1.62 / surface 1.43 / brand-tint 1.39
-       --border-input on card 3.59 / surface 3.16
+       --ink        on bg 17.28 / card 16.14 / surface 14.90 / brand-tint 13.07
+       --ink-2      on bg 7.73 / card 7.22 / surface 6.66 / brand-tint 5.84
+       --muted      on bg 5.64 / card 5.27 / surface 4.87
+       --brand      on bg 10.51 / card 9.83 / surface 9.07 / brand-tint 7.95
+       --on-brand   on --brand 9.18 / --brand-strong 11.56
+       --focus      on bg 17.28 / card 16.14 / surface 14.90
+       --success    on bg 6.63 / card 6.20 / success-tint 5.60
+       --danger     on bg 7.08 / card 6.61 / danger-tint 5.98
+       --warning-ink on bg 6.45 / card 6.02 / warning-tint 5.46
+       --border-input on bg 3.78 / card 3.54 / surface 3.26
+       --border     on bg 1.54 / card 1.44 / surface 1.33（区切り線 1.3 以上）
+       --rule-line  on bg 1.40 / card 1.31（--surface の上は 1.20 で不足 → 使わない）
+       --axis       on bg 2.63 / card 2.45（図形の線だけ。部品 3:1 には届かないので文字には使わない）
+       --card vs bg 1.07（単独では地と見分けられない → 必ず --border と対で使う）／--surface vs bg 1.16
    ──────────────────────────────────────────────────────────────────── */
 :root {
-  /* 面（背景） */
-  --bg:            #F6F8FB;   /* ページの地。わずかに青みのオフホワイト */
-  --card:          #FFFFFF;   /* 手前の紙。カード・入力画面の面 */
-  --surface:       #EDF1F6;   /* 一段くぼんだ面。カードの中の行・入れ子のブロック */
-  --brand-tint:    #E8EEF7;   /* 「いまいる場所」「選択中」の薄い下地 */
+  /* 面（背景）。不透明なのは --bg だけで、ほかは地にかけた薄い光（半透明）。 */
+  --bg:            #0A0C10;                    /* ページの地。唯一の不透明な面。半透明はすべてこの上に合成される */
+  --card:          rgb(255 255 255 / .035);    /* 手前のカード。「白い紙」ではなく地にかけた薄い光。単独では地と見分けられない(1.07)ので必ず --border と対で使う */
+  --surface:       rgb(255 255 255 / .07);     /* ★役割反転: 明るい地の「くぼんだ面」ではなく「一段明るい面」。カードの中の行・入れ子のブロック・浮いているシート */
+  --brand-tint:    rgb(45 212 191 / .16);      /* 「いまいる場所」「選択中」の薄い下地 */
 
   /* 文字 */
-  --ink:           #0D1725;   /* 本文・見出し・金額（ロゴの文字と同じ色） */
-  --ink-2:         #3A4658;   /* 説明文 */
-  --muted:         #5B677A;   /* 補足・ラベル・注記 */
+  --ink:           #EEF1F5;                    /* 本文・見出し・金額。★損益の数字もこれ（DECISIONS 2026-09-24「損益から色を外す」） */
+  --ink-2:         rgb(238 241 245 / .66);     /* 説明文 */
+  --muted:         rgb(238 241 245 / .55);     /* 補足・ラベル・注記・免責。★承認値 .45 は地の上 4.12 で文字 4.5 未達（免責が読めない＝R7 違反）→ .55 で 5.64 */
 
-  /* ブランド（紺青）。塗りは主ボタンだけ。文字・線は現在地・選択中・リンク */
-  --brand:         #1A4787;
-  --brand-strong:  #143A6E;   /* 主ボタンのホバー・押下 */
-  --on-brand:      #FFFFFF;   /* 紺青の塗りの上の文字 */
-  --focus:         #2566B2;   /* キーボード操作時の枠（ロゴの「i の点」の色） */
+  /* ブランド（青緑）。塗りは主ボタンだけ。文字・線は現在地・選択中・リンク */
+  --brand:         #2DD4BF;
+  --brand-strong:  #5EEAD4;                    /* 主ボタンのホバー・押下。★暗い地では「濃く」ではなく「明るく」がホバーの方向 */
+  --on-brand:      #04201C;                    /* 青緑の塗りの上の文字 */
+  --focus:         #EEF1F5;                    /* キーボード操作時の枠。★選択中の青緑と混同させないため白。色相を増やさない */
 
-  /* 意味の色。緑/赤は損益・誤り・元に戻せない操作にだけ使う */
-  --success:       #177A4F;
-  --success-tint:  #E9F5EF;
-  --danger:        #C03535;
-  --danger-tint:   #FBECEC;
-  --warning-ink:   #8A5300;   /* 注意（データが古い・取得できなかった等） */
-  --warning-tint:  #FDF3E1;
+  /* 意味の色。★役割を限定した（損益には使わない・DESIGN.md §4 P8・§6-4） */
+  --success:       #3FA96F;                    /* 「記録した・保存できた」の完了だけ */
+  --success-tint:  rgb(63 169 111 / .14);
+  --danger:        #F87171;                    /* 入力の誤り・取り消せない操作だけ */
+  --danger-tint:   rgb(248 113 113 / .14);
+  --warning-ink:   #C08A2E;                    /* 注意（データが古い・取得できなかった等）。★青緑より暗く保ち、注意が画面で一番光らないようにする */
+  --warning-tint:  rgb(192 138 46 / .14);
 
-  /* 線 */
-  --border:        #C3CCD8;   /* カードの輪郭・行の区切り */
-  --border-input:  #7C889B;   /* 入力欄・副ボタンの輪郭 */
-  --axis:          #8D9FB8;   /* 数直線の軸・目盛り（白の上 2.70。部品の輪郭 3:1 には届かないので図形の線にだけ使い、文字には使わない）。2026-09-18 */
-  --rule-line:     #C9D3E0;   /* ノートの罫・レールの縦線・表の行の区切り（白の上 1.51・区切り線 1.3 以上）。2026-09-18 */
+  /* 線。暗い地では面の色で区切れないので、この線が区切りを担う唯一の手段 */
+  --border:        rgb(255 255 255 / .16);     /* カードの輪郭・行の区切り。★承認値 .09 は 1.23 で区切り線 1.3 未達 → .16 で 1.54（--surface の上でも 1.33） */
+  --border-input:  rgb(255 255 255 / .40);     /* 入力欄・副ボタンの輪郭（部品 3:1 以上。--card の上 3.54） */
+  --axis:          rgb(255 255 255 / .30);     /* 数直線の軸・目盛り（図形の線だけ。文字には使わない）。2026-09-18 */
+  --rule-line:     rgb(255 255 255 / .13);     /* ノートの罫・レールの縦線・表の行の区切り。★--bg と --card の上だけ（--surface の上は 1.20 で不足）。2026-09-18 */
 
-  /* モーダルの下敷き。地の色（--ink）を 32% で敷く */
-  --scrim:         rgb(13 23 37 / 0.32);
+  /* モーダルの下敷き。ほぼ黒を 72% で敷く（明るい地の 32% では暗い地の上で効かない） */
+  --scrim:         rgb(2 3 5 / .72);
   /* 浮いているものの影（--shadow-float）は @theme inline 側に生値で置く。
      ここに同名で置くと @theme 側が自己参照になるため。 */
 
@@ -91,66 +101,10 @@
      読み込みは app/layout.tsx の import 側で行う。 */
   --font-jp: 'Noto Sans JP Variable';
 
-  color-scheme: light;   /* iOSのフォーム部品をライトで描画させる */
-}
-
-/* ── 暗い見た目「夜」（範囲付き・S1a 2026-09-25） ──────────────────────
-   正は DECISIONS.md 2026-09-24「画面を暗い地（#0A0C10）＋青緑（#2DD4BF）に転換」。
-   `:root` は当面触らず、data-theme="night" を付けた要素の中だけで、上と同じトークン名に
-   暗い値を入れる（個数は増やさない・値だけ置き換える＝不変条件）。
-   いま当てているのは app/(night)/layout.tsx（トップページ）と、`/` にいるときの
-   components/SiteNav.tsx のヘッダー・下部ナビの2か所だけ。最後のスライス（S7）で :root に
-   一本化し、このブロックは消える。
-   コントラストは scripts/check-night-theme.ts が毎回計算する（半透明は #0A0C10 に α合成した
-   実効色で比べる。文字 4.5／輪郭 3.0／区切り線 1.3）。★印は承認時のモックから変えた値。 */
-[data-theme="night"] {
-  /* 面 */
-  --bg:            #0A0C10;                    /* 唯一の不透明な面。半透明はすべてこの上に合成される */
-  --card:          rgb(255 255 255 / .035);    /* 「白い紙」ではなく地にかけた薄い光。単独では地と見分けられない(1.07)ので必ず --border と対で使う */
-  --surface:       rgb(255 255 255 / .07);     /* ★役割反転: くぼんだ面ではなく「一段明るい面」 */
-  --brand-tint:    rgb(45 212 191 / .16);
-  /* 文字 */
-  --ink:           #EEF1F5;                    /* 本文・見出し・金額。★損益の数字もこれ（DECISIONS 2026-09-24「損益から色を外す」） */
-  --ink-2:         rgb(238 241 245 / .66);
-  --muted:         rgb(238 241 245 / .55);     /* ★承認値 .45 は地の上 4.12 で文字4.5未達（免責が読めない）→ .55 で 5.64 */
-  /* ブランド */
-  --brand:         #2DD4BF;
-  --brand-strong:  #5EEAD4;                    /* ★暗い地では「濃く」ではなく「明るく」がホバーの方向 */
-  --on-brand:      #04201C;
-  --focus:         #EEF1F5;                    /* ★選択中の青緑と混同させないため白。色相を増やさない */
-  /* 意味の色（★役割を限定。損益には使わない） */
-  --success:       #3FA96F;                    /* 「記録した・保存できた」の完了だけ */
-  --success-tint:  rgb(63 169 111 / .14);
-  --danger:        #F87171;                    /* 入力の誤り・取り消せない操作だけ */
-  --danger-tint:   rgb(248 113 113 / .14);
-  --warning-ink:   #C08A2E;                    /* ★青緑より暗く保ち、注意が画面で一番光らないようにする */
-  --warning-tint:  rgb(192 138 46 / .14);
-  /* 線 */
-  --border:        rgb(255 255 255 / .16);     /* ★承認値 .09 は 1.23 で区切り線1.3未達 → .16 で 1.54。暗い地では面でなくこの線が区切りを担う唯一の手段 */
-  --border-input:  rgb(255 255 255 / .40);
-  --axis:          rgb(255 255 255 / .30);
-  --rule-line:     rgb(255 255 255 / .13);     /* ★--bg と --card の上だけ。--surface の上は 1.20 で不足 */
-  --scrim:         rgb(2 3 5 / .72);
-
-  /* 浮いているものの影。暗い地では黒い影が見えないので、影＋1px の白い縁の2枚重ねにする。
-     Tailwind v4.3 の @theme inline は生値をユーティリティに埋め込む（.shadow-float は
-     `--tw-shadow: 0 8px 24px …` と展開され、この変数を参照しない。2026-09-25 builder が
-     @tailwindcss/node の compile() で実測）。そのためこの変数は shadow-[var(--shadow-float)] の
-     形にしか届かず、.shadow-float 自体は末尾の @layer utilities で同じ層のまま上書きする。 */
-  --shadow-float:  0 24px 60px -20px rgb(0 0 0 / .80), 0 0 0 1px rgb(255 255 255 / .06);
-
-  /* 旧名の別名は :root で var(--card) 等と書かれているが、カスタムプロパティは宣言した要素
-     （:root）で値が確定してから継承される。ここで宣言し直さないと、night の中でも bg-panel が
-     白のまま・bg-accent が紺青のままになる（値は :root と同じ対応。撤去は別スライス）。 */
-  --panel:         var(--card);
-  --accent:        var(--brand);
-  --accent-strong: var(--brand-strong);
-  --accent-ink:    var(--brand);
-  --on-accent:     var(--on-brand);
-
-  /* <body> の color は :root の --ink（墨色）で確定した値を継承してくるので、範囲の入口で当て直す */
-  color: var(--ink);
-  color-scheme: dark;   /* この範囲のフォーム部品を暗色で描画させる。<html> は light のまま（S7 で切替） */
+  /* フォーム部品（select・input[type=number]・スクロールバー）を暗色で描画させる。
+     light のままだと iOS Safari が暗い地の上に白い select を出し、Windows は白いスクロールバーが残る。
+     <meta name="color-scheme"> は app/layout.tsx の viewport.colorScheme が同じ 'dark' を出す（両方そろえること）。 */
+  color-scheme: dark;
 }
 
 /* ── Tailwind への登録 ──────────────────────────────────────────────────
@@ -191,9 +145,12 @@
   --radius-field: 6px;
   --radius-card:  12px;
 
-  /* 影 → shadow-float（DESIGN.md §5-5）。浮いているもの（シート・トースト・メニュー）用。
-     生値をここに置く（:root と同名にすると自己参照になるため）。 */
-  --shadow-float: 0 8px 24px rgb(13 23 37 / 0.12);
+  /* 影 → shadow-float（DESIGN.md §5-5）。浮いているもの（シート・トースト・メニュー・検索の候補）用。
+     暗い地では黒い影が見えないので、影＋1px の白い縁の2枚重ね（2枚目は輪郭であって発光ではない）。
+     生値をここに置く（:root と同名にすると自己参照になるため）。Tailwind v4.3 の @theme inline は
+     生値をユーティリティに埋め込む（.shadow-float は `--tw-shadow: 0 24px 60px …` と展開される。
+     2026-09-25 builder が @tailwindcss/node の compile() で実測）。 */
+  --shadow-float: 0 24px 60px -20px rgb(0 0 0 / .80), 0 0 0 1px rgb(255 255 255 / .06);
 
   /* 文字サイズ → text-display … text-caption（DESIGN.md §5-2 の8段階）
      display は「大見出し」の 52px / 1.26 / 900 / 字間 −0.035em（2026-09-24 オーナー決定・S1c で登録）。
@@ -247,19 +204,11 @@ body {
 /* ── 暫定: 主ボタンのホバー ──────────────────────────────────────────
    旧 globals.css にあった .bg-accent:hover の濃色化を、旧名を使う 16 か所の
    ボタンが hover を失わないよう一時的に残す。切り分け2以降で各ボタンを
-   `bg-brand hover:bg-brand-strong` に置き換えたら、このブロックごと撤去する。 */
+   `bg-brand hover:bg-brand-strong` に置き換えたら、このブロックごと撤去する。
+   --accent-strong は --brand-strong（#5EEAD4＝地より明るい方向）に解決されるので、
+   暗い地でホバーが「濃くなって見えない」問題は起きない。 */
 @layer utilities {
-  /* night の中での扱い（S1a 2026-09-25）: この規則はそのまま。--accent-strong が night の
-     --brand-strong（#5EEAD4＝地より明るい方向）に解決されるので、暗い地でホバーが「濃くなって
-     見えない」問題は起きない。night 用に別の規則は書かない。 */
   .bg-accent:hover { background-color: var(--accent-strong); }
-
-  /* night の .shadow-float。@theme inline が埋め込んだ生値（黒い影）を、同じ utilities 層で
-     --tw-shadow だけ差し替える（box-shadow は Tailwind が ring / inset と合成するので触らない）。
-     hover:shadow-float 等の状態付きは対象外（使用 0 件。使うときは同じ形で足す）。 */
-  [data-theme="night"] .shadow-float {
-    --tw-shadow: 0 24px 60px -20px rgb(0 0 0 / .80), 0 0 0 1px rgb(255 255 255 / .06);
-  }
 }
 
 /* ── 入場アニメの動き（DESIGN.md §5-6）。このファイルの @keyframes はこれ1つだけ。

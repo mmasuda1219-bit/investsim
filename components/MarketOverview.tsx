@@ -104,10 +104,11 @@ export function MarketOverview() {
               </span>
             )
           }
-          // 騰落は損益なので緑/赤（DESIGN.md §6-4）。正＝+／負＝−／ゼロ＝± を必ず付ける
+          // 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」）。
+          // 正＝+／負＝−／ゼロ＝± を必ず付け、色は --ink に統一（ゼロだけ text-muted）
           const flat = ix.changePercent === 0
           const up = ix.changePercent > 0
-          const color = flat ? 'text-muted' : up ? 'text-success' : 'text-danger'
+          const color = flat ? 'text-muted' : 'text-ink'
           const sign = flat ? '±' : up ? '+' : '−'
           return (
             <span key={ix.symbol} className="flex items-baseline gap-1.5 text-small tabular-nums">

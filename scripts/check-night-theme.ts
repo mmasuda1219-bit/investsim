@@ -1,24 +1,26 @@
-// 暗い見た目「夜」の土台（S1a・2026-09-25）の検査。
+// 暗い見た目「夜」の検査（S1a・2026-09-25 新設 → SV1a・2026-09-25 で「:root 一本化」に反転）。
 //   $env:PATH = "C:\Program Files\nodejs;$env:PATH"; npx tsx scripts/check-night-theme.ts
 //
-// 見るもの（正は DECISIONS.md 2026-09-24「画面を暗い地（#0A0C10）＋青緑（#2DD4BF）に転換」）:
-//  - app/globals.css の :root が変わっていない（暗転で明るいテーマを壊していない証明。値の表で1つずつ照合）
-//  - @theme inline が変わっていない（登録名 27 件と、--shadow-float の生値）
-//  - [data-theme="night"] に DECISIONS の全トークンが過不足なくある（値も一致）。別名 5 件・--shadow-float・
-//    color・color-scheme 以外の宣言が無い
+// 見るもの（正は DECISIONS.md 2026-09-24「画面を暗い地（#0A0C10）＋青緑（#2DD4BF）に転換」と DESIGN.md §5-1・§9）:
+//  - app/globals.css の :root が暗い地の値である（DECISIONS の全トークンが過不足なく・値も一致。別名 5 件・--font-jp・
+//    color-scheme: dark 以外の宣言が無い＝トークンの個数を増やしていない）
+//  - S1a の範囲付きの仕掛けが残っていない: [data-theme="night"] ブロック・`[data-theme="night"] .shadow-float` の上書き・
+//    app/(night)/layout.tsx の data-theme と 100vmax の地の塗り・SiteNav の `/` だけの出し分け
+//  - @theme inline の登録名 27 件が同じ対応のまま。--shadow-float の生値は暗い地の2枚重ね
 //  - コントラストを実際に計算して閾値を満たす（文字 4.5／輪郭 3.0／区切り線 1.3）。
 //    半透明は #0A0C10 に α合成した実効色に直してから比べる（designer と同じ手順。sRGB 8bit の単純α）。
 //    手順の検算: #1A4787 on #FFFFFF = 9.15 ／ #2566B2 on #FFFFFF = 5.80 ／ #C03535 on #FFFFFF = 5.52 ／
 //    #8A5300 on #FDF3E1 = 5.75。さらに DECISIONS の数字（却下値 4.12・1.23・2.90、採用値 5.64・1.54・3.79、
 //    境界 1.31・1.33・3.54）を同じ手順で再現する
-//  - SiteNav.tsx に text-emerald-700 が残っていない（注釈を除く）・night は `/` のときだけ・NAV の href・label・順序が変わっていない
+//  - SiteNav.tsx に text-emerald-700 が残っていない（注釈を除く）・全ページで暗い地用ロゴ・NAV の href・label・順序が変わっていない
 //    （hint の文言は固定しない。原則12 が守るのは並び・呼び名・行き先の3つ。2026-09-25 S1b で名人の語を外した）
 //  - 回り続ける動き（`infinite` と Tailwind の animate-spin / pulse / ping / bounce）が許可リスト（読み込み中・AIが書いている
 //    最中の表示）以外に無い（DECISIONS R4）。ReplayStages の点滅は {thinking && …} の内側だけ（2026-09-25 S1b で広げた）
 //  - ロゴの暗い地用ファイル（public/logo-night.svg / logo-mark-night.svg）: 幾何が元と同一・色が地の上 3:1 以上・
-//    元ファイル（logo.svg / logo-mark.svg / app/icon.svg）は無傷
-//  - ルートグループ app/(night)/: layout は Server Component（'use client' 無し）で themeColor #0A0C10、
-//    地を --bg で塗る。page は移動済みで --surface の地の塗りを持たない
+//    元ファイル（logo.svg / logo-mark.svg / app/icon.svg）は無傷（撤去は S7 の残り）。ログイン画面も暗い地用ロゴ
+//  - ルートグループ app/(night)/: layout は Server Component（'use client' 無し）で、残っている仕事はにじみ2つだけ。
+//    page は移動済みで --surface の地の塗りを持たない。app/layout.tsx の root の viewport は themeColor #0A0C10・colorScheme dark で、
+//    フッターの枠（R10）を全ページに持つ
 
 import fs from 'fs'
 import path from 'path'
@@ -106,21 +108,7 @@ function sameMap(actual: Map<string, string>, expected: Record<string, string>):
   return problems
 }
 
-// 明るいテーマ（:root）。DESIGN.md §5-1 の表と同じ値。ここが変わったら「暗転が明るいテーマを壊した」
-const LIGHT_ROOT: Record<string, string> = {
-  '--bg': '#F6F8FB', '--card': '#FFFFFF', '--surface': '#EDF1F6', '--brand-tint': '#E8EEF7',
-  '--ink': '#0D1725', '--ink-2': '#3A4658', '--muted': '#5B677A',
-  '--brand': '#1A4787', '--brand-strong': '#143A6E', '--on-brand': '#FFFFFF', '--focus': '#2566B2',
-  '--success': '#177A4F', '--success-tint': '#E9F5EF', '--danger': '#C03535', '--danger-tint': '#FBECEC',
-  '--warning-ink': '#8A5300', '--warning-tint': '#FDF3E1',
-  '--border': '#C3CCD8', '--border-input': '#7C889B', '--axis': '#8D9FB8', '--rule-line': '#C9D3E0',
-  '--scrim': 'rgb(13 23 37 / 0.32)',
-  '--panel': 'var(--card)', '--accent': 'var(--brand)', '--accent-strong': 'var(--brand-strong)',
-  '--accent-ink': 'var(--brand)', '--on-accent': 'var(--on-brand)',
-  '--font-jp': "'Noto Sans JP Variable'",
-  'color-scheme': 'light',
-}
-// 暗いテーマ（DECISIONS.md 2026-09-24 の値。★3件はコントラスト実測で承認値から調整済み）
+// 暗いテーマ（DECISIONS.md 2026-09-24 の値。★3件はコントラスト実測で承認値から調整済み）。SV1a 以降は :root そのもの
 const NIGHT_TOKENS: Record<string, string> = {
   '--bg': '#0A0C10', '--card': 'rgb(255 255 255 / .035)', '--surface': 'rgb(255 255 255 / .07)', '--brand-tint': 'rgb(45 212 191 / .16)',
   '--ink': '#EEF1F5', '--ink-2': 'rgb(238 241 245 / .66)', '--muted': 'rgb(238 241 245 / .55)',
@@ -130,59 +118,64 @@ const NIGHT_TOKENS: Record<string, string> = {
   '--border': 'rgb(255 255 255 / .16)', '--border-input': 'rgb(255 255 255 / .40)', '--axis': 'rgb(255 255 255 / .30)', '--rule-line': 'rgb(255 255 255 / .13)',
   '--scrim': 'rgb(2 3 5 / .72)',
 }
-// トークン以外に night に置いてよいもの（別名は :root と同じ対応。影・文字色・color-scheme）
+// トークン以外に :root に置いてよいもの（別名 5 件は S1a 以前と同じ対応・日本語フォント・color-scheme）。
+// --shadow-float は :root に置かない（@theme inline 側に生値。同名にすると自己参照になる）
 const NIGHT_SHADOW = '0 24px 60px -20px rgb(0 0 0 / .80), 0 0 0 1px rgb(255 255 255 / .06)'
-const NIGHT_EXTRA: Record<string, string> = {
-  '--shadow-float': NIGHT_SHADOW,
+const ROOT_EXTRA: Record<string, string> = {
   '--panel': 'var(--card)', '--accent': 'var(--brand)', '--accent-strong': 'var(--brand-strong)',
   '--accent-ink': 'var(--brand)', '--on-accent': 'var(--on-brand)',
-  'color': 'var(--ink)',
+  '--font-jp': "'Noto Sans JP Variable'",
   'color-scheme': 'dark',
 }
+// S1a 以前の :root（明るい地）のトークン名。個数の不変条件（22）はこの一覧との比較で担保する
+const TOKEN_NAMES_S1A = [
+  '--bg', '--card', '--surface', '--brand-tint', '--ink', '--ink-2', '--muted', '--brand', '--brand-strong', '--on-brand', '--focus',
+  '--success', '--success-tint', '--danger', '--danger-tint', '--warning-ink', '--warning-tint',
+  '--border', '--border-input', '--axis', '--rule-line', '--scrim',
+]
 
 function cssChecks() {
   console.log('■ app/globals.css')
   const css = read('app/globals.css')
+  const cssCode = stripCssComments(css)
 
   const rootBody = cssBlock(css, ':root')
   check('globals.css: :root ブロックがある', rootBody != null)
-  const rootProblems = rootBody == null ? ['無い'] : sameMap(declarations(rootBody), LIGHT_ROOT)
-  check(`globals.css: :root は明るい値のまま（${Object.keys(LIGHT_ROOT).length} 宣言が1つも変わっていない・増えていない）`, rootProblems.length === 0, rootProblems.join(' / '))
+  const root = rootBody == null ? new Map<string, string>() : declarations(rootBody)
+  const rootProblems = sameMap(root, { ...NIGHT_TOKENS, ...ROOT_EXTRA })
+  check(`globals.css: :root は暗い地の値（DECISIONS の ${Object.keys(NIGHT_TOKENS).length} トークンが過不足なく・値も一致。別名5・--font-jp・color-scheme 以外は無い）`, rootProblems.length === 0, rootProblems.join(' / '))
+  check('globals.css: トークン名の集合は S1a 以前の :root と同じ（個数 22 を増やしていない・減らしていない）',
+    TOKEN_NAMES_S1A.length === Object.keys(NIGHT_TOKENS).length && TOKEN_NAMES_S1A.every(k => k in NIGHT_TOKENS) && TOKEN_NAMES_S1A.every(k => root.has(k)))
+  check('globals.css: :root の color-scheme は dark（app/layout.tsx の viewport.colorScheme と同じ値）', root.get('color-scheme') === 'dark')
+  check('globals.css: :root に --shadow-float を置いていない（@theme inline と同名にすると自己参照）', !root.has('--shadow-float'))
 
-  const nightBody = cssBlock(css, '[data-theme="night"]')
-  check('globals.css: [data-theme="night"] ブロックがある', nightBody != null)
-  const night = nightBody == null ? new Map<string, string>() : declarations(nightBody)
-  const nightProblems = sameMap(night, { ...NIGHT_TOKENS, ...NIGHT_EXTRA })
-  check(`globals.css: night に DECISIONS の ${Object.keys(NIGHT_TOKENS).length} トークンが過不足なく・値も一致（別名5・影・color・color-scheme 以外は無い）`, nightProblems.length === 0, nightProblems.join(' / '))
-  const lightTokenNames = Object.keys(LIGHT_ROOT).filter(k => k.startsWith('--') && !(k in NIGHT_EXTRA) && k !== '--font-jp')
-  check('globals.css: night のトークン名の集合は :root と同じ（個数を増やしていない。--font-jp は文字なので対象外）',
-    lightTokenNames.length === Object.keys(NIGHT_TOKENS).length && lightTokenNames.every(k => k in NIGHT_TOKENS))
-  check('globals.css: 並びは :root → night → @theme inline（:root が先・night は範囲付き）',
-    css.indexOf(':root {') < css.indexOf('[data-theme="night"] {') && css.indexOf('[data-theme="night"] {') < css.indexOf('@theme inline {'))
+  // S1a の範囲付きの仕掛けは撤去済み
+  check('globals.css: [data-theme="night"] ブロックが無い（SV1a で :root に一本化）', cssBlock(cssCode, '[data-theme="night"]') == null && !cssCode.includes('data-theme'))
+  check('globals.css: 並びは :root → @theme inline', cssCode.indexOf(':root {') > -1 && cssCode.indexOf(':root {') < cssCode.indexOf('@theme inline {'))
 
   const theme = cssBlock(css, '@theme inline')
   check('globals.css: @theme inline がある', theme != null)
   const themeDecl = theme == null ? new Map<string, string>() : declarations(theme)
-  const colorNames = [...lightTokenNames, '--panel', '--accent', '--accent-strong', '--accent-ink', '--on-accent']
+  const colorNames = [...TOKEN_NAMES_S1A, '--panel', '--accent', '--accent-strong', '--accent-ink', '--on-accent']
   // 登録名は原則「--color-」＋トークン名。--bg だけは bg-background として登録されている（Tailwind の bg- 接頭辞と重なるため）
   const registered = (k: string) => (k === '--bg' ? '--color-background' : `--color-${k.slice(2)}`)
   const missingReg = colorNames.filter(k => themeDecl.get(registered(k)) !== `var(${k})`)
   check('globals.css: @theme inline は無変更（27 色の登録名が同じ対応のまま）', [...themeDecl.keys()].filter(k => k.startsWith('--color-')).length === 27 && missingReg.length === 0, missingReg.join(', '))
-  check('globals.css: @theme inline の --shadow-float は明るい地の生値のまま', themeDecl.get('--shadow-float') === '0 8px 24px rgb(13 23 37 / 0.12)')
+  check('globals.css: @theme inline の --shadow-float は暗い地の2枚重ね（影＋1px の白い縁）', themeDecl.get('--shadow-float') === NIGHT_SHADOW, themeDecl.get('--shadow-float'))
+  check('globals.css: 明るい地の影（0 8px 24px rgb(13 23 37 / 0.12)）が残っていない', !cssCode.includes('rgb(13 23 37'))
 
-  const utilities = css.slice(css.lastIndexOf('@layer utilities'))
-  check('globals.css: .bg-accent:hover の規則は残っている（night では --brand-strong が明るい方向なのでそのまま）', utilities.includes('.bg-accent:hover { background-color: var(--accent-strong); }'))
-  check('globals.css: night の .shadow-float は utilities 層で --tw-shadow を差し替える（@theme inline は生値を埋め込むため変数の上書きでは届かない）',
-    utilities.includes('[data-theme="night"] .shadow-float {') && utilities.includes(`--tw-shadow: ${NIGHT_SHADOW};`))
-  // 2026-09-25 S1c: 入場アニメ（DESIGN §5-6）の @keyframes rise を1つだけ足した。night ブロックの中には置かない。infinite は無い（R4）
-  const cssCode = stripCssComments(css)
-  check('globals.css: @keyframes は入場の rise 1つだけ（night ブロックの外）・infinite は無い（R4）',
-    (cssCode.match(/@keyframes/g) ?? []).length === 1 && cssCode.includes('@keyframes rise') && !/infinite/.test(cssCode) && !(nightBody ?? '').includes('@keyframes'))
+  const utilities = cssCode.slice(cssCode.lastIndexOf('@layer utilities'))
+  check('globals.css: .bg-accent:hover の規則は残っている（--brand-strong が明るい方向なのでそのまま）', utilities.includes('.bg-accent:hover { background-color: var(--accent-strong); }'))
+  check('globals.css: `[data-theme="night"] .shadow-float` の上書きが無い（@theme inline の生値が暗い地になったので不要）', !utilities.includes('.shadow-float {'))
+  // 2026-09-25 S1c: 入場アニメ（DESIGN §5-6）の @keyframes rise を1つだけ足した。infinite は無い（R4）
+  check('globals.css: @keyframes は入場の rise 1つだけ・infinite は無い（R4）',
+    (cssCode.match(/@keyframes/g) ?? []).length === 1 && cssCode.includes('@keyframes rise') && !/infinite/.test(cssCode))
   check('globals.css: animate-rise は .85s・cubic-bezier(.2,.75,.2,1)・backwards（遅延中のちらつき防止）で @theme inline に登録',
     themeDecl.get('--animate-rise') === 'rise .85s cubic-bezier(.2,.75,.2,1) backwards')
   check('globals.css: display は 52px / 1.26 / 900 / 字間 -0.035em（DESIGN §5-2 の大見出し。1画面に1つ）',
     themeDecl.get('--text-display') === '52px' && themeDecl.get('--text-display--line-height') === '1.26'
       && themeDecl.get('--text-display--font-weight') === '900' && themeDecl.get('--text-display--letter-spacing') === '-0.035em')
+  check('globals.css: 明るい地の値（#F6F8FB / #1A4787 / #0D1725 / #8D9FB8 / #C9D3E0）が注釈の外に残っていない', !/#F6F8FB|#1A4787|#0D1725|#8D9FB8|#C9D3E0/i.test(cssCode))
 }
 
 function contrastChecks() {
@@ -230,7 +223,7 @@ function contrastChecks() {
     ...onSurfaces('--border', ['--bg', '--card', '--surface']),
     ...onSurfaces('--rule-line', ['--bg', '--card']),
     // --axis は図形の線（数直線の軸）。明るい地でも 2.70 で 3:1 に届かず、オーナー選択で
-    // 「文字を併記するので WCAG 1.4.11 の必須対象にしない」とした（DESIGN §5-1）。night も同じ扱い。
+    // 「文字を併記するので WCAG 1.4.11 の必須対象にしない」とした（DESIGN §5-1）。暗い地も同じ扱い。
     ...onSurfaces('--axis', ['--bg', '--card']),
   ]
   const run = (label: string, pairs: Pair[], min: number) => {
@@ -240,7 +233,7 @@ function contrastChecks() {
       check(`${label} ${min}: ${fg} on ${bg} = ${r.toFixed(2)}`, r >= min)
       rows.push(`${fg} on ${bg} ${r.toFixed(2)}`)
     }
-    // 2026-09-25 S1c: 測った値の一覧（次の DESIGN.md §5-1 改訂で「検査が毎回計算」の欄を埋めるため）。閾値は上の check が課す
+    // 2026-09-25 S1c: 測った値の一覧（DESIGN.md §5-1 の「検査が毎回計算」の欄の正）。閾値は上の check が課す
     console.log(`  情報: 実測一覧（${label.replace(' ≥', '')}・${min} 以上）: ${rows.join(' / ')}`)
   }
   run('文字 ≥', text, TEXT)
@@ -263,15 +256,18 @@ function contrastChecks() {
 function navChecks() {
   console.log('■ components/SiteNav.tsx・StockSearch.tsx')
   const nav = read('components/SiteNav.tsx')
-  // 注釈を落として見る（下部ナビの注釈に「旧 emerald は…」と書いてあるので、生ファイルでは誤検知する。2026-09-25 S1b レビュー指摘）
-  check('SiteNav: text-emerald-700 が残っていない（旧ブランド色の残り・DESIGN §10 P1。注釈を除く）', !stripTsComments(nav).includes('text-emerald'))
+  // 注釈を落として見る（注釈に「旧 emerald は…」「S1a のあいだ `/` にいるときだけ…」と書いてあるので、生ファイルでは誤検知する）
+  const navSrc = stripTsComments(nav)
+  check('SiteNav: text-emerald-700 が残っていない（旧ブランド色の残り・DESIGN §10 P1。注釈を除く）', !navSrc.includes('text-emerald'))
   check('SiteNav: 現在地の下部ナビは text-brand', nav.includes("active ? 'text-brand font-semibold' : 'text-muted'"))
-  check("SiteNav: night は usePathname() が '/' のときだけ", nav.includes("const night = path === '/'") && nav.includes("const theme = night ? 'night' : undefined"))
-  check('SiteNav: ヘッダーと下部ナビの2か所に data-theme={theme}', (nav.match(/data-theme=\{theme\}/g) ?? []).length === 2)
-  check('SiteNav: ロゴは `/` のときだけ暗い地用ファイル', nav.includes("src={night ? '/logo-night.svg' : '/logo.svg'}") && nav.includes("src={night ? '/logo-mark-night.svg' : '/logo-mark.svg'}"))
+  // SV1a: `/` だけの出し分け（const night = path === '/'・data-theme={theme}）は撤去。usePathname は現在地の判定にだけ使う
+  check("SiteNav: `/` だけの night の出し分けが無い（const night / theme / data-theme を持たない。ファイル名の logo-night.svg は別）",
+    !navSrc.includes("path === '/'") && !navSrc.includes('data-theme') && !/\bconst (?:night|theme)\b|\{night\b|\btheme\}/.test(navSrc))
+  check('SiteNav: ロゴは全ページで暗い地用ファイル（logo-night.svg / logo-mark-night.svg）・元の logo.svg を src に使っていない',
+    navSrc.includes('src="/logo-night.svg"') && navSrc.includes('src="/logo-mark-night.svg"') && !/src=\{?["']\/logo(?:-mark)?\.svg/.test(navSrc))
+  check('SiteNav: ヘッダー・下部ナビの帯は bg-panel（= --card 半透明）＋ backdrop-blur ＋ border-border', (navSrc.match(/border-border bg-panel backdrop-blur/g) ?? []).length === 2)
   // 2026-09-25 S1b（レビュー指摘）: hint の文言は固定しない。原則12 が守るのは href・label・順序の3つ
   // （hint は S1b で「名人」の語を外し、S2 でまた変わる）。NAV の配列本体だけを読み、注釈の中の旧文言は見ない
-  const navSrc = stripTsComments(nav)
   const navBody = navSrc.slice(navSrc.indexOf('export const NAV = ['), navSrc.indexOf('] as const'))
   const navEntries = [...navBody.matchAll(/\{ href: '([^']+)',\s+label: '([^']+)',\s+hint: '[^']*' \}/g)].map(m => [m[1], m[2]])
   const NAV_FIXED = [['/watch', '見る'], ['/learn', 'まねる'], ['/trade', 'やる'], ['/review', '振り返る']]
@@ -287,14 +283,19 @@ function navChecks() {
 }
 
 function routeChecks() {
-  console.log('■ app/(night)/')
+  console.log('■ app/(night)/・app/layout.tsx')
   check('app/page.tsx は無い（app/(night)/page.tsx へ移動済み。両方あると / が衝突する）', !exists('app/page.tsx') && exists('app/(night)/page.tsx'))
-  const layout = exists('app/(night)/layout.tsx') ? read('app/(night)/layout.tsx') : ''
-  check('app/(night)/layout.tsx がある', layout.length > 0)
-  check("layout: 'use client' を付けていない（viewport は Server Component からしか書き出せない）", !/['"]use client['"]/.test(stripTsComments(layout)))
-  check("layout: viewport.themeColor を '#0A0C10' に上書き", /export const viewport: Viewport = \{[\s\S]*?themeColor: '#0A0C10'/.test(layout))
-  check('layout: data-theme="night" を子に当てる', layout.includes('data-theme="night"'))
-  check('layout: 地は --bg を 100vmax の box-shadow で画面の外まで塗る（night の --surface / --card は半透明で地にならない）', layout.includes('bg-background shadow-[0_0_0_100vmax_var(--bg)]'))
+  const layoutRaw = exists('app/(night)/layout.tsx') ? read('app/(night)/layout.tsx') : ''
+  const layout = stripTsComments(layoutRaw)
+  check('app/(night)/layout.tsx がある（にじみを page の外に置く器）', layoutRaw.length > 0)
+  check("layout: 'use client' を付けていない（Server Component のまま）", !/['"]use client['"]/.test(layout))
+  // SV1a: 範囲付きの仕掛け（data-theme・100vmax の地の塗り・themeColor の上書き・フッター）は撤去
+  check('layout: data-theme を持たない（:root に一本化）', !layout.includes('data-theme'))
+  check('layout: 地を 100vmax の box-shadow で塗る仕掛けが無い（<body> の bg-background が地）', !layout.includes('100vmax'))
+  check('layout: viewport の上書きが無い（root の themeColor と同値になるため撤去）', !layout.includes('export const viewport'))
+  check('layout: フッターの枠を持たない（app/layout.tsx へ移して全ページに）', !layout.includes('<footer'))
+  check('layout: にじみ2つ（radial-gradient ×2・aria-hidden・pointer-events-none・-z-10・親は relative isolate）',
+    (layout.match(/radial-gradient/g) ?? []).length === 2 && (layout.match(/aria-hidden/g) ?? []).length === 2 && (layout.match(/-z-10/g) ?? []).length === 2 && layout.includes('className="relative isolate"'))
   const page = exists('app/(night)/page.tsx') ? read('app/(night)/page.tsx') : ''
   check("page: 'use client' のまま", /^'use client'/.test(page))
   // S1c で選択中カードが `bg-surface shadow-[0_22px…]` を持つようになったので、旧の地の塗りそのものを名指しで見る
@@ -303,8 +304,27 @@ function routeChecks() {
   check('page: 中身の目印（52px の見出し・3つの選択・4段階の一列・AIの見本・共通部品の免責）',
     page.includes('買う理由を書いて残し、あとで株価と読み返す。') && page.includes('できることは3つです。どれから始めますか')
       && page.includes('このサイトは4つの段階でできています') && page.includes('AIも、同じ形式で理由を書いています') && page.includes('<Disclaimer part="general" />'))
-  const rootLayout = read('app/layout.tsx')
-  check("app/layout.tsx: root の viewport は明るいまま（themeColor '#F6F8FB'・colorScheme 'light'）", rootLayout.includes("themeColor: '#F6F8FB'") && rootLayout.includes("colorScheme: 'light'"))
+  const rootLayout = stripTsComments(read('app/layout.tsx'))
+  check("app/layout.tsx: root の viewport は暗い地（themeColor '#0A0C10'・colorScheme 'dark'）", rootLayout.includes("themeColor: '#0A0C10'") && rootLayout.includes("colorScheme: 'dark'"))
+  check("app/layout.tsx: 明るい地の値（'#F6F8FB'・colorScheme 'light'）が残っていない", !rootLayout.includes('#F6F8FB') && !rootLayout.includes("colorScheme: 'light'"))
+  check('app/layout.tsx: <body> は bg-background text-ink（トークン経由。直値の色を書かない）', rootLayout.includes('<body className="min-h-full flex flex-col bg-background text-ink">'))
+  const footer = rootLayout.slice(rootLayout.indexOf('<footer'), rootLayout.indexOf('</footer>'))
+  check('app/layout.tsx: フッターの枠（R10）を全ページに＝<main> の外・border-t border-border・small/--muted・<a> にしない（行き先が未整備）',
+    footer.length > 0 && rootLayout.indexOf('</main>') < rootLayout.indexOf('<footer') && footer.includes('border-t border-border') && footer.includes('text-small text-muted') && !footer.includes('<a')
+      && ['InvestSim', '運営者情報', 'お問い合わせ', 'プライバシーポリシー', '利用規約', '準備中'].every(w => footer.includes(w)))
+  check('app/layout.tsx: スマホの下部ナビに隠れない余白（pb-20 md:pb-5）はフッターが持つ（<main> からは外した）', footer.includes('pb-20 md:pb-5') && !/<main className="[^"]*pb-20/.test(rootLayout))
+  // 範囲印がどこにも残っていないこと（app・components の .tsx）
+  const files: string[] = []
+  const walk = (dir: string) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== '.next') walk(p) }
+      else if (/\.tsx$/.test(e.name)) files.push(p)
+    }
+  }
+  for (const d of ['app', 'components']) walk(path.join(ROOT, d))
+  const withTheme = files.filter(f => stripTsComments(fs.readFileSync(f, 'utf8')).includes('data-theme')).map(f => path.relative(ROOT, f).replace(/\\/g, '/'))
+  check(`data-theme 属性が app/・components/ のどこにも無い（走査 ${files.length} ファイル）`, withTheme.length === 0, withTheme.join(', '))
 }
 
 function logoChecks() {
@@ -320,10 +340,13 @@ function logoChecks() {
     check(`${night}: すべての塗り・グラデーションの色が地 #0A0C10 の上で 3:1 以上（図形）`, dark.length === 0, dark.map(c => `${c}=${ratioRaw(c, '#0A0C10')}`).join(', '))
     check(`${night}: 沈む色（#0D1725 / #172F55 / #1A4787 / #2447A0）を属性に使っていない`, !/(?:fill|stop-color)="#(?:0D1725|172F55|1A4787|2447A0)"/.test(n))
   }
-  check('public/logo.svg は無傷（文字 #0D1725 ×2・mk 始点 #172F55）', (read('public/logo.svg').match(/fill="#0D1725"/g) ?? []).length === 2 && read('public/logo.svg').includes('stop-color="#172F55"'))
+  check('public/logo.svg は無傷（文字 #0D1725 ×2・mk 始点 #172F55。幾何の正として残す。撤去は S7 の残り）', (read('public/logo.svg').match(/fill="#0D1725"/g) ?? []).length === 2 && read('public/logo.svg').includes('stop-color="#172F55"'))
   check('public/logo-mark.svg は無傷（mk 始点 #172F55）', read('public/logo-mark.svg').includes('stop-color="#172F55"') && !read('public/logo-mark.svg').includes('#EEF1F5'))
-  check('app/icon.svg は今回触っていない（白い角丸タイルのまま。判断は別スライス）', read('app/icon.svg').includes('rx="88" fill="#FFFFFF"'))
-  check('ログイン画面は明るい地の logo.svg のまま', read('app/auth/login/page.tsx').includes('/logo.svg') && !read('app/auth/login/page.tsx').includes('logo-night'))
+  check('app/icon.svg は今回触っていない（白い角丸タイルのまま。判断は S7 の残り）', read('app/icon.svg').includes('rx="88" fill="#FFFFFF"'))
+  const login = stripTsComments(read('app/auth/login/page.tsx'))
+  check('ログイン画面: ロゴは暗い地用（logo-night.svg）・元の logo.svg を src に使っていない', login.includes('src="/logo-night.svg"') && !/src=["']\/logo\.svg/.test(login))
+  check('ログイン画面: 既製色（text-red-* / bg-red-* / border-red-*）が無い。エラー帯は role="alert"＋text-danger bg-danger-tint', !/text-red-|bg-red-|border-red-/.test(login) && login.includes('role="alert" className="mb-4 text-caption text-danger bg-danger-tint'))
+  check('ログイン画面: Google ロゴの公式色（#4285F4 / #34A853 / #FBBC05 / #EA4335）は変えない', ['#4285F4', '#34A853', '#FBBC05', '#EA4335'].every(c => login.includes(`fill="${c}"`)))
 }
 
 function motionChecks() {
@@ -361,9 +384,6 @@ function motionChecks() {
     'app/review/page.tsx': '読み込み中の骨組み（aria-busy）',
     'app/watch/client.tsx': 'セッション復元中の骨組み（aria-busy）',
     'app/simulate/page.tsx': '実行中の回る輪',
-    'app/lab/page.tsx': '読み込み中の回る輪（ナビから外した旧ページ。S7 で削除予定）',
-    'app/markets/page.tsx': '読み込み中の骨組み（ナビから外した旧ページ。S7 で削除予定）',
-    'app/report/page.tsx': '読み込み中の回る輪と、AIレポートが流れてくる間の書き込み位置の印（ナビから外した旧ページ。S7 で削除予定）',
     'components/ChartWithControls.tsx': 'チャートの読み込み中の回る輪',
     'components/EarningsPanel.tsx': '決算の読み込み中の骨組み',
     'components/StockSearch.tsx': '検索の読み込み中の回る輪',

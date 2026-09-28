@@ -149,7 +149,7 @@ function formatMoney(v: number, currency: string) {
   })
 }
 
-// ── Minimal Markdown renderer（/report page.tsx と同一パターンの複製 — 共有部品
+// ── Minimal Markdown renderer（旧 /report page.tsx（2026-09-25 削除済み）と同一パターンの複製 — 共有部品
 // 化はS1計画外。headings / bullets / bold / links のみ・依存ゼロ）。
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return text
@@ -576,11 +576,13 @@ export default function AnalyzePage() {
           {
             label: '総リターン（5年）',
             value: `${returnPositive ? '+' : ''}${m.totalReturnPct.toFixed(2)}%`,
-            valueClassName: returnPositive ? 'text-success' : 'text-danger',
+            // 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」）。ゼロだけ --muted（§6-4）
+            valueClassName: m.totalReturnPct === 0 ? 'text-muted' : 'text-ink',
             sub: formatMoney(previewRes.result.finalValue, previewRes.result.currency),
           },
           { label: '勝率', value: `${m.winRate.toFixed(0)}%` },
-          { label: '最大DD', value: `-${m.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-danger' },
+          // 2026-09-24「損益から色を外す」: 最大DD（最大の下落幅）も損益の一種なので --ink。符号（-）で向きは伝わる
+          { label: '最大DD', value: `-${m.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-ink' },
           { label: 'シャープレシオ', value: m.sharpeRatio.toFixed(2) },
           { label: '取引数', value: `${m.tradeCount}件` },
         ]
@@ -605,15 +607,16 @@ export default function AnalyzePage() {
           {
             label: '総リターン（5年）',
             value: `${bm.totalReturnPct >= 0 ? '+' : ''}${bm.totalReturnPct.toFixed(2)}%`,
-            valueClassName: bm.totalReturnPct >= 0 ? 'text-success' : 'text-danger',
+            // 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」）。ゼロだけ --muted（§6-4）
+            valueClassName: bm.totalReturnPct === 0 ? 'text-muted' : 'text-ink',
           },
           {
             label: 'バイ&ホールド',
             value: `${bundle.backtest.buyHoldReturnPct >= 0 ? '+' : ''}${bundle.backtest.buyHoldReturnPct.toFixed(2)}%`,
-            valueClassName: bundle.backtest.buyHoldReturnPct >= 0 ? 'text-success' : 'text-danger',
+            valueClassName: bundle.backtest.buyHoldReturnPct === 0 ? 'text-muted' : 'text-ink',
           },
           { label: '勝率', value: `${bm.winRate.toFixed(0)}%` },
-          { label: '最大DD', value: `-${bm.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-danger' },
+          { label: '最大DD', value: `-${bm.maxDrawdownPct.toFixed(2)}%`, valueClassName: 'text-ink' },
           { label: '取引数', value: `${bm.tradeCount}件` },
         ]
       : []
@@ -670,11 +673,12 @@ export default function AnalyzePage() {
     .filter((v): v is string => Boolean(v && v.trim() !== ''))
 
   return (
-    // 3c-1（2026-09-14）: DESIGN.md §6-6 A アプリ型。灰の地（--surface）に枠線の無い白い帯を
-    // 載せ、内容は中央 760px の1列（大画面で1行が伸びすぎるのもこれで防ぐ）。地は / ・/review・
-    // /watch と同じく影を 100vmax 広げて画面の端まで塗る。幅の絞りと地の塗りを1要素で兼ねる
-    // （影は横スクロールを生まない）ので、ページ末尾の閉じタグは変えていない。
-    <div className="bg-surface shadow-[0_0_0_100vmax_var(--surface)] max-w-[760px] mx-auto space-y-6 pt-1 pb-4 md:pb-5">
+    // 3c-1（2026-09-14）: DESIGN.md §6-6 A アプリ型。内容は中央 760px の1列（大画面で1行が
+    // 伸びすぎるのもこれで防ぐ）。
+    // SV1b（2026-09-25）: ここにあった「--surface を 100vmax の影で画面の端まで塗る」仕掛けは撤去した。
+    // 地は root の <body className="bg-background">（--bg・唯一の不透明な面）が塗る。--surface は半透明
+    // なので暗い地の上に広げると一段明るい膜になり、verify-learn-3c1/3c2 の「左右端が地 #0A0C10」が落ちていた。
+    <div className="max-w-[760px] mx-auto space-y-6 pt-1 pb-4 md:pb-5">
       {/* Header + 恒久ディスクレーマ（免責）— S-B2でAnalyzeBannerに集約（横並び）。
           免責は設定中・プレビュー中・ストリーミング中も常に表示（内容は無改変）。 */}
       <AnalyzeBanner />

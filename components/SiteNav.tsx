@@ -26,30 +26,26 @@ function isActive(path: string, href: string) {
 
 export function SiteNav() {
   const path = usePathname()
-  // 暗い見た目（案B「夜」・DECISIONS 2026-09-24）は S1a（2026-09-25）でトップページだけに当てている。
-  // ヘッダーと下部ナビは app/(night)/layout.tsx の外（app/layout.tsx 直下）にあるので、同じ範囲印
-  // data-theme="night" を `/` にいるときだけ自分に付ける。他のページは明るいまま。
-  // :root を暗い地に一本化する最後のスライス（S7）で、この分岐とロゴの出し分けは消える。
-  const night = path === '/'
-  const theme = night ? 'night' : undefined
+  // 暗い見た目（案B「夜」・DECISIONS 2026-09-24）は SV1a（2026-09-25）で :root に一本化した。
+  // S1a のあいだ `/` にいるときだけ data-theme="night" を付けてロゴを出し分けていた分岐は撤去し、
+  // 全ページで暗い枠・暗い地用のロゴ（public/logo-night.svg / logo-mark-night.svg）を使う。
 
   return (
     <>
-      {/* bg-panel（= --card）は明るい地では不透明な白なので backdrop-blur は効いていなかった。
-          night では --card が白 3.5% の半透明になり、初めてぼかしが効く（下を通る内容がにじんで
-          透けるガラスの帯）。地は app/(night)/layout.tsx が --bg で塗る。 */}
-      <header data-theme={theme} className="sticky top-0 z-40 border-b border-border bg-panel backdrop-blur">
+      {/* bg-panel（= --card）は白 3.5% の半透明なので backdrop-blur が効く（下を通る内容がにじんで
+          透けるガラスの帯）。地は <body> の bg-background（globals.css の --bg）。 */}
+      <header className="sticky top-0 z-40 border-b border-border bg-panel backdrop-blur">
         <div className="max-w-screen-2xl mx-auto px-4 py-2.5 flex items-center gap-4">
-          {/* ロゴ（2026-09-11 オーナー提供のデザインをベクター化した public/logo.svg）。
+          {/* ロゴ（2026-09-11 オーナー提供のデザインをベクター化した public/logo.svg が元）。
               スマホ幅はマークだけにする。ヘッダには検索とログインも並ぶので、文字まで入れると
               390px で横にはみ出す（2bd216a と同種の事故）。
-              暗い地では文字（#0D1725）と濃紺の始点が沈むので、`/` では色だけ差し替えた *-night.svg を
-              使う。元ファイルは上書きしない（ログイン画面が明るい地で同じファイルを使う）。 */}
+              暗い地では元ファイルの文字（#0D1725）と濃紺の始点が沈むので、色だけ差し替えた *-night.svg を使う。
+              元ファイル（logo.svg / logo-mark.svg）は上書きしない（幾何の正として残す。撤去は別スライス）。 */}
           <Link href="/" className="shrink-0 flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={night ? '/logo-night.svg' : '/logo.svg'} alt="InvestSim" width={143} height={28} className="hidden sm:block h-7 w-auto" />
+            <img src="/logo-night.svg" alt="InvestSim" width={143} height={28} className="hidden sm:block h-7 w-auto" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={night ? '/logo-mark-night.svg' : '/logo-mark.svg'} alt="InvestSim" width={25} height={28} className="sm:hidden h-7 w-auto" />
+            <img src="/logo-mark-night.svg" alt="InvestSim" width={25} height={28} className="sm:hidden h-7 w-auto" />
           </Link>
 
           {/* スマホでは下部ナビに任せるので隠す */}
@@ -87,7 +83,7 @@ export function SiteNav() {
         </div>
       </header>
 
-      <BottomNav path={path} theme={theme} />
+      <BottomNav path={path} />
     </>
   )
 }
@@ -97,10 +93,9 @@ export function SiteNav() {
  * 親指の届く位置に置く。アイコンのみは初心者に通じないのでラベルは必須。
  * スクロールで隠さない（監視中にナビが消えるのは不安を生む）。
  */
-function BottomNav({ path, theme }: { path: string; theme?: 'night' }) {
+function BottomNav({ path }: { path: string }) {
   return (
     <nav
-      data-theme={theme}
       aria-label="メインナビゲーション"
       className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 border-t border-border bg-panel backdrop-blur pb-[env(safe-area-inset-bottom)]"
     >

@@ -74,7 +74,13 @@ async function metrics(page) {
       const fs = parseFloat(getComputedStyle(el).fontSize)
       if (fs < 12) small.push(`${el.tagName.toLowerCase()} ${fs}px "${el.textContent.trim().slice(0, 20)}"`)
     }
-    // 囲い: 角丸 ＋ 枠線（押せる塊・入力欄以外）。20px 未満の丸印（C ノート型の段の印）は囲いではないので除く
+    // 囲い: 角丸 ＋ 枠線（押せる塊・入力欄以外）。20px 未満の丸印（C ノート型の段の印）は囲いではないので除く。
+    // SV1a（2026-09-25）: 4辺とも 1px で色が --border のものは「面の輪郭」（DESIGN §6-6）なので囲いに数えない
+    const probe = document.createElement('div')
+    probe.style.borderTop = '1px solid var(--border)'
+    document.body.appendChild(probe)
+    const borderColor = getComputedStyle(probe).borderTopColor
+    probe.remove()
     const boxes = []
     for (const el of s.querySelectorAll('*')) {
       if (!visible(el)) continue
@@ -85,7 +91,9 @@ async function metrics(page) {
       const allSides = bw.every(w => w > 0)
       const radius = parseFloat(cs.borderTopLeftRadius)
       const interactive = ['BUTTON', 'SELECT', 'INPUT', 'A', 'OPTION'].includes(el.tagName)
-      if (allSides && radius > 0 && !interactive) boxes.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 4).join('.')}`)
+      const colors = ['borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor'].map(k => cs[k])
+      const isOutline = bw.every(w => w === 1) && colors.every(c => c === borderColor)
+      if (allSides && radius > 0 && !interactive && !isOutline) boxes.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 4).join('.')}`)
     }
     // 格子の札の文字が切れていないか
     const clipped = []
