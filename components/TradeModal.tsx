@@ -220,7 +220,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
               idPrefix={`modal-${action}`}
             />
             <p className="text-sm text-muted leading-relaxed">
-              あとで「振り返る」で、この判断と結果を見比べられます。
+              あとで「読み返す」で、書いたことと、その後の株価を並べられます。
             </p>
           </div>
 

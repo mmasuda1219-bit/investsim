@@ -6,17 +6,20 @@ import { StockSearch } from './StockSearch'
 import { AuthMenu } from './AuthMenu'
 
 /**
- * 学習の4段階。並び順そのものが情報（見る→まねる→やる→振り返る＝難易度の昇順）
- * なので、順序を入れ替えないこと。COMPANY.md 原則11「ゴールは人間の投資スキル向上」
- * に対応する導線で、利用者は上から順に降りてくる。
- * hint（説明文）は 2026-09-25 S1b で「名人」の語を外した（DECISIONS 2026-09-24 決定(2)。名人を隠している間、
- * 無いものを約束しない）。label・href・順序はここでも不変。
+ * 3つの画面（書く→くらべる→読み返す＝**1件の記録が育つ順**: 書いたその日 → 書いた直後 → 20営業日ほど後）。
+ * 並びは難易度ではなく記録が育つ順なので、順序を入れ替えないこと。心臓は `/trade`（COMPANY.md 原則12・
+ * 2026-09-29 オーナー決定。4段「見る→まねる→やる→振り返る」から変更）。
+ * `/watch`（AIの判断）は段に置かず、02 の中と全ページ共通フッターの常設リンク（app/layout.tsx）から到達させる
+ * （未ログイン閲覧を維持する法務の不変条件・DECISIONS.md 2026-09-29。検査は scripts/check-watch-reachable.ts）。
+ * hint（説明文）に「名人」の語を出さない（DECISIONS 2026-09-24 決定(2)。名人を隠している間、無いものを約束しない）。
+ * label・href・順序は scripts/check-features.ts・check-night-theme.ts が固定している。
  */
 export const NAV = [
-  { href: '/watch',  label: '見る',     hint: 'AIの判断と、その根拠を読む' },
-  { href: '/learn',  label: 'まねる',   hint: '条件を決めて、過去のデータに当てる' },
-  { href: '/trade',  label: 'やる',     hint: '自分で判断して売買する' },
-  { href: '/review', label: '振り返る', hint: '書いた理由と、その後の株価を並べる' },
+  { href: '/trade',  label: '書く',     hint: 'なぜ買うのか・どうなったらやめるのかを書く' },
+  // hint は「いまある機能」を書く（S1 レビュー W2）。この文はホームの3つの一覧に本文として出るので、
+  // S3 で作る「自分のメモとAIのメモを並べる」を先に約束しない（DECISIONS.md 2026-09-29 決定(3)）。
+  { href: '/learn',  label: 'くらべる', hint: '条件を決めて過去のデータに当て、AIの分析を読む' },
+  { href: '/review', label: '読み返す', hint: '書いた理由と、その後の株価を並べる' },
 ] as const
 
 /** 現在地の判定。'/' は全パスの接頭辞になってしまうので startsWith を使わない。 */
@@ -97,7 +100,7 @@ function BottomNav({ path }: { path: string }) {
   return (
     <nav
       aria-label="メインナビゲーション"
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 border-t border-border bg-panel backdrop-blur pb-[env(safe-area-inset-bottom)]"
+      className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-3 border-t border-border bg-panel backdrop-blur pb-[env(safe-area-inset-bottom)]"
     >
       {NAV.map(({ href, label, hint }, i) => {
         const active = isActive(path, href)

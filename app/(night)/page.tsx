@@ -4,33 +4,34 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { NAV } from '@/components/SiteNav'
 import { Disclaimer } from '@/components/ui/Disclaimer'
-import { fieldsFor } from '@/lib/trade/reason'
-import { firstSentence, isShowable, pickSamples } from '@/lib/entry/samples'
+import { pickSamples } from '@/lib/entry/samples'
 import type { InvestorId } from '@/types'
 
 /**
- * トップページ＝入口画面（S1c・2026-09-25。承認済みの見た目は scratchpad の Night.dc.html「案B 夜」）。
+ * トップページ＝入口画面。
  *
- * 構成（DESIGN.md §3・§6-6 A アプリ型。390px は1列、lg 以上は左 56% / 右 44%）:
- *   左: 分類ラベル → 52px の見出し → リード → 「できることは3つ」の選択カード3枚 → 主ボタン1つ → 文字リンク
- *   右: 選んだものの実物の見本（プレビュー）。lg では sticky
- *   下: 4段階の一列（/trade だけ大きい）→ AIの見本2件 → 免責（共通部品）
+ * S1「3段の道」（2026-09-29・DECISIONS.md 同日）の**最小追従**の状態。S1c（2026-09-25）で作った
+ * 「できることは3つ」の選択カード3枚・プレビュー右列・選択に連動する主ボタンの分岐は撤去し、主ボタンは `/trade` 固定
+ * （着地点は1つ＝MARKETING.md §4）。**全面の作り直し（実際の3画面を順に見せるプレゼン型）は S2** で行う。
+ *
+ * いまの構成（上から順に・1列）:
+ *   分類ラベル → 52px の見出し → リード → 主ボタン1つ（/trade「1件目のメモを書く」）
+ *   → 3つの画面の一列（NAV から。/trade だけ大きい）→ AIの見本2件 → 免責（共通部品）
  *
  * 守っていること:
- *  - 選択カードの状態は React の state だけ。保存しない・サーバーにも送らない・ログイン状態で変えない
- *    （legal-compliance 2026-09-25「プレビュー②の中身は誰が選んでも同じ1件」が唯一の生命線）
  *  - AIの判断は **保存済みデータの読み出しだけ**（/api/ai-session/latest）。AI推論は走らせない
  *    （最も人が来る面を最も安い面にする。AI費用は自己負担）。架空の判断で埋めない（原則9）
  *  - 画面に出す AI の理由文は、禁止語（lib/investors/rulebooks/forbidden.ts の FORBIDDEN_IN_OUTPUT）に触れないものだけ。
- *    プレビュー②は冒頭1文だけを表示するので冒頭1文で見る（isShowable）。見本2件は全文を置いて line-clamp で
- *    見た目だけ切るので**全文**で見る（pickSamples → isFullyShowable。reviewer W1・2026-09-25）。
- *    ヒットしたら出さずに次の候補へ。候補が無ければ「まだ無い」と同じ形（法務 F1）。選び方は lib/entry/samples.ts（純関数）
+ *    見本2件は全文を置いて line-clamp で見た目だけ切るので**全文**で見る（pickSamples → isFullyShowable。reviewer W1・2026-09-25）。
+ *    ヒットしたら出さずに次の候補へ。候補が無ければ節ごと出さない（法務 F1）。選び方は lib/entry/samples.ts（純関数）
  *  - 見本2件は「買い」以外を1件以上含める（買いだけ並べると成績訴求に見える）。最新3件の中に無ければ節ごと出さない
- *  - 色付きの影は主ボタンと選択中カードの2か所だけ（DESIGN §4-2 R1）。札は光らせない
- *  - 注記（B）（C）は半透明の面の上ではなく地の上に、small・--ink-2 で、畳まない（R7・R11）
- *  - 入場アニメはファーストビューの7要素だけ・65ms 刻み・`prefers-reduced-motion` では動かさない（§5-6）。
- *    4段階より下は静止（`opacity: 1`）。IntersectionObserver は使わない
- *  - 取得の失敗を「記録が無い」と見せない（2026-09-18。状態は loading / ready / empty / error の4つ）
+ *  - 色付きの影は主ボタンの1か所だけ（DESIGN §4-2 R1）。札は光らせない
+ *  - 注記（C）は半透明の面の上ではなく地の上に、small・--ink-2 で、畳まない（R7・R11）
+ *  - 入場アニメはファーストビューの4要素だけ・65ms 刻み・`prefers-reduced-motion` では動かさない（§5-6）。
+ *    3つの画面の一列より下は静止（`opacity: 1`）。IntersectionObserver は使わない
+ *  - 取得の状態は loading / ready / empty / error の4つ（2026-09-18）。**S1 では ready 以外の表示を持たない**
+ *    （プレビュー②が持っていた error／empty の表示は右列ごと撤去した。S2 で読み口 /api/entry/examples の4状態として戻す）
+ *  - ログイン状態・記録の有無・時刻・流入元で並び・中身を変えない（legal-compliance 2026-09-25 C3〜C5）
  *
  * DESIGN.md §7・§4-2 R6 の語は書かない（legal-compliance 2026-09-25。語の一覧はそちらが正。ここに列挙しない＝grep の偽ヒット防止）。
  * 検査: scripts/check-entry.ts（法務 (G)）・check-signals-undecidable.ts（状態機械）・check-night-theme.ts（R4・目印）
@@ -90,8 +91,8 @@ function formatWhen(iso: string): string {
   return `${Math.floor(h / 24)}日前`
 }
 
-// 理由文の冒頭1文（firstSentence）・出してよいか（isShowable＝冒頭1文／isFullyShowable＝全文）・見本2件の選び方（pickSamples）は
-// lib/entry/samples.ts（純関数）。scripts/check-entry.ts がそれを実際に呼んで検査する。
+// 見本2件の選び方（pickSamples → 全文で isFullyShowable）は lib/entry/samples.ts（純関数）。
+// scripts/check-entry.ts がそれを実際に呼んで検査する。
 
 // 取得の打ち切り。スマホの弱い回線で応答が返らないとき、いつまでも薄い枠のままにしない
 // （2026-09-18: オーナーの友人がスマホで「取得できなかった」。当時は失敗を「まだ無い」と見せていた）。
@@ -105,19 +106,11 @@ const FETCH_TIMEOUT_MS = 15_000
  */
 type HomeState = 'loading' | 'ready' | 'empty' | 'error'
 
-/** 「できることは3つ」。全員に同じ3つ・同じ並び・既定は①（時刻・流入元・地域・ログイン状態で変えない） */
-type Choice = 'write' | 'watch' | 'review'
-const CHOICES: readonly { id: Choice; title: string; hint: string; cta: string; href: string; previewTitle: string }[] = [
-  { id: 'write',  title: '自分で書く',     hint: 'なぜ買うのか、どうなったらやめるのかを書く',     cta: '理由を書きに行く',     href: '/trade',  previewTitle: '買うときに答える3つ' },
-  { id: 'watch',  title: 'AIの判断を読む', hint: 'このサイトのAIが直近にどう考えたかを読む',       cta: 'AIの判断を読みに行く', href: '/watch',  previewTitle: 'AIが書いた理由（直近の1件）' },
-  { id: 'review', title: 'あとで読み返す', hint: '書いた理由と、その後の株価を並べて読み返す',     cta: '記録を読み返しに行く', href: '/review', previewTitle: '振り返りの記録' },
-]
-
 /**
  * 入場アニメ（DESIGN §5-6）: translateY(18px)→0 ＋ opacity 0→1・.85s・65ms 刻み・最大7要素（合計 390ms ≤ 420ms）。
  * @keyframes rise と animate-rise は app/globals.css。motion-safe: なので「動きを減らす」設定では
  * 動かさず即時 opacity 1（クラスが当たらない＝素の表示）。fill-mode backwards は animate-rise の中。
- * ファーストビューの要素にだけ当てる。4段階より下には当てない。
+ * ファーストビューの要素にだけ当てる（S1 では4つ）。3つの画面の一列より下には当てない。
  */
 const RISE = [
   'motion-safe:animate-rise',
@@ -134,10 +127,6 @@ const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-focus focus-vi
 export default function Home() {
   const [session, setSession] = useState<SessionSummary | null>(null)
   const [state, setState] = useState<HomeState>('loading')
-  // 「もう一度読み込む」で +1 して effect を走らせ直す
-  const [attempt, setAttempt] = useState(0)
-  // 選択カード。保存しない・送らない（React の state だけ）
-  const [choice, setChoice] = useState<Choice>('write')
 
   useEffect(() => {
     let alive = true
@@ -163,120 +152,50 @@ export default function Home() {
       .catch(() => { if (alive) setState('error') })
       .finally(() => clearTimeout(timer))
     return () => { alive = false; clearTimeout(timer); ctrl.abort() }
-  }, [attempt])
+  }, [])
 
-  const retry = () => { setSession(null); setState('loading'); setAttempt(n => n + 1) }
-
-  const current = CHOICES.find(c => c.id === choice) ?? CHOICES[0]
   const when = session ? formatWhen(session.lastTickAt ?? '') : ''
-  // プレビュー②の1件: 先頭から見て、冒頭1文が禁止語に触れない最初の判断。誰が選んでも同じ1件
-  const featured = state === 'ready' && session ? session.decisions.find(isShowable) ?? null : null
   const samples = state === 'ready' && session ? pickSamples(session.decisions) : null
 
   return (
-    // 地の塗りとにじみ・フッターは app/(night)/layout.tsx（S1a・S1c）。
+    // 地の塗りとにじみは app/(night)/layout.tsx（S1a）。フッターは app/layout.tsx（全ページ共通）。
     // 余白は <main> の pt-5 / pb-20 md:pb-5 と合わせる。
     <div className="pt-1 pb-4 md:pb-5">
 
-      {/* ── ファーストビュー: 左 56% / 右 44%・gap 48px（390px は1列） ───────────── */}
-      <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-12">
+      {/* ── ファーストビュー（1列。S1 で右列のプレビューと選択カードを撤去した） ───────────── */}
+      <div className="max-w-[760px]">
+        <p className={`text-small text-muted ${RISE[0]}`}>投資判断の練習場</p>
+        {/* display＝52px / 1.26 / 900 / 字間 −0.035em（DESIGN §5-2。1画面に1つ）。
+            640px 未満は font-size だけ 40px（行間・太さ・字間は .text-display から継承）。390px で3行以内に収める（reviewer W2） */}
+        <h1 className={`mt-5 text-display text-ink text-balance ${RISE[1]} max-sm:text-[40px]`}>
+          買う理由を書いて残し、あとで株価と読み返す。
+        </h1>
+        {/* リードは h3 の大きさを太さ 400・行間 1.9 で（§5-2。新しい段階を足さない） */}
+        <p className={`mt-7 max-w-[540px] text-h3 font-normal leading-[1.9] text-ink-2 ${RISE[2]}`}>
+          なぜ買うのか、何が起きたらやめるのかを書いて記録し、数週間後に実際の株価と並べて読み返します。実際のお金は1円も動きません。
+        </p>
 
-        <div className="min-w-0 lg:basis-[56%]">
-          <p className={`text-small text-muted ${RISE[0]}`}>投資判断の練習場</p>
-          {/* display＝52px / 1.26 / 900 / 字間 −0.035em（DESIGN §5-2。1画面に1つ）。
-              640px 未満は font-size だけ 40px（行間・太さ・字間は .text-display から継承）。390px で3行以内に収める（reviewer W2） */}
-          <h1 className={`mt-5 text-display text-ink text-balance ${RISE[1]} max-sm:text-[40px]`}>
-            買う理由を書いて残し、あとで株価と読み返す。
-          </h1>
-          {/* リードは h3 の大きさを太さ 400・行間 1.9 で（§5-2。新しい段階を足さない） */}
-          <p className={`mt-7 max-w-[540px] text-h3 font-normal leading-[1.9] text-ink-2 ${RISE[2]}`}>
-            なぜ買うのか、何が起きたらやめるのかを書いて記録し、数週間後に実際の株価と並べて読み返します。実際のお金は1円も動きません。
-          </p>
-
-          {/* 選択カード3枚。常に3枚とも描画する（「②を選ぶと開く」にしない）。選択は色だけに頼らず「選択中」の文字でも示す */}
-          <section aria-labelledby="choose-heading" className={`mt-11 ${RISE[3]}`}>
-            <h2 id="choose-heading" className="text-small text-muted">できることは3つです。どれから始めますか</h2>
-            <div className="mt-3 flex flex-col gap-3">
-              {CHOICES.map(c => {
-                const selected = c.id === choice
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => setChoice(c.id)}
-                    className={`min-h-18 w-full rounded-card border px-6 py-5 text-left transition-colors duration-150 ${FOCUS_RING} ${
-                      selected
-                        // 選択中: 面 --surface＋枠 rgb(45 212 191 / .55)（地の上 3.79）＋発光の影（R1 で許された2か所のうちの1つ）
-                        ? 'border-[rgb(45_212_191_/_.55)] bg-surface shadow-[0_22px_48px_-22px_rgb(45_212_191_/_.55)]'
-                        : 'border-border bg-card hover:bg-surface'
-                    }`}
-                  >
-                    <span className="flex items-start justify-between gap-4">
-                      <span className="text-h2 text-ink">{c.title}</span>
-                      {selected && <span className="shrink-0 pt-1 text-caption font-semibold text-brand">選択中</span>}
-                    </span>
-                    <span className="mt-1 block text-small text-ink-2">{c.hint}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-
-          {/* 主ボタンは1画面に1つ（§6-1・56px）。文言と行き先は選択に追随。発光の影（R1 の2か所のうちの1つ） */}
-          <div className={`mt-7 ${RISE[4]}`}>
-            <Link
-              href={current.href}
-              className={`inline-flex h-14 w-full items-center justify-center rounded-card bg-brand px-8 text-body font-semibold text-on-brand shadow-[0_16px_40px_-14px_rgb(45_212_191_/_.70)] transition-colors duration-150 hover:bg-brand-strong sm:w-auto ${FOCUS_RING}`}
-            >
-              {current.cta}
-            </Link>
-          </div>
-          <p className={`mt-4 ${RISE[5]}`}>
-            {/* 押すと②を選択中にするだけ。ページ遷移しない */}
-            <button
-              type="button"
-              onClick={() => setChoice('watch')}
-              className={`inline-flex min-h-11 items-center rounded-field text-left text-small text-brand hover:underline ${FOCUS_RING}`}
-            >
-              気になっている株がまだ無ければ「AIの判断を読む」から
-            </button>
-          </p>
+        {/* 主ボタンは1画面に1つ（§6-1・56px）。行き先は /trade 固定（着地点は1つ・DECISIONS 2026-09-29 決定(3)）。
+            ログイン状態・記録の有無で文言も行き先も変えない。発光の影（R1 で許された唯一の場所） */}
+        <div className={`mt-9 ${RISE[3]}`}>
+          <Link
+            href="/trade"
+            className={`inline-flex h-14 w-full items-center justify-center rounded-card bg-brand px-8 text-body font-semibold text-on-brand shadow-[0_16px_40px_-14px_rgb(45_212_191_/_.70)] transition-colors duration-150 hover:bg-brand-strong sm:w-auto ${FOCUS_RING}`}
+          >
+            1件目のメモを書く
+          </Link>
         </div>
-
-        {/* ── プレビュー（右列。390px では主ボタンの下） ─────────────────────────── */}
-        <aside aria-labelledby="preview-heading" className={`min-w-0 lg:sticky lg:top-22 lg:basis-[44%] ${RISE[6]}`}>
-          <h2 id="preview-heading" className="text-small text-muted">選ぶと、こういうものが出ます</h2>
-          {/* 面の輪郭は --card＋--border の1種類（§6-6）。中にカードを入れない */}
-          <div className="mt-3 rounded-card border border-border bg-card p-6">
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="text-body font-semibold text-ink">{current.previewTitle}</p>
-              <p className="shrink-0 text-caption text-muted">実際の画面です</p>
-            </div>
-            <div className="mt-6">
-              {choice === 'write' && <PreviewWrite />}
-              {choice === 'watch' && <PreviewWatch state={state} featured={featured} when={when} retry={retry} />}
-              {choice === 'review' && <PreviewReview />}
-            </div>
-          </div>
-          {/* 注記（法務 B）: 帯の直下・地の上（R11）・small・--ink-2・畳まない（R7）。にじみは上端だけなのでこの下には無い（R5） */}
-          {choice === 'watch' && featured && (
-            <p className="mt-3 text-small text-ink-2">
-              これは、このサイトのAIが仮想資金で出した判断の記録です。特定の銘柄の売買を推奨するものではありません。（取得: {when}）
-            </p>
-          )}
-        </aside>
       </div>
 
       {/* ── ここから下は静止（入場アニメを当てない） ─────────────────────────────── */}
       <div className="mt-16 max-w-[760px] space-y-12">
 
-        {/* ── 4段階の一列 ───────────────────────────────────────────── */}
-        {/* 同形カード4枚の格子ではなく、番号付きの一列（§2・§3）。03 やる が心臓なので
+        {/* ── 3つの画面の一列 ───────────────────────────────────────── */}
+        {/* 同形カードの格子ではなく、番号付きの一列（§2・§3）。01 書く が心臓なので
             一回り大きく（text-h2 対 text-h3、行も高く）描く。--brand-tint の下地は
-            §5-1 で「現在地・選択中だけ」なのでここでは使わない。 */}
+            §5-1 で「現在地・選択中だけ」なのでここでは使わない。並びと文言は NAV が唯一の出所。 */}
         <section aria-labelledby="stages-heading" className="space-y-2">
-          <h2 id="stages-heading" className="text-small text-muted">このサイトは4つの段階でできています</h2>
+          <h2 id="stages-heading" className="text-small text-muted">このサイトは、3つの画面でできています</h2>
           <ol className="overflow-hidden rounded-card border border-border bg-card">
             {NAV.map(({ href, label, hint }, i) => {
               const heart = href === '/trade'
@@ -302,6 +221,15 @@ export default function Home() {
             })}
           </ol>
         </section>
+
+        {/* 取得に失敗したときは黙らない（DESIGN.md §6-12）。S1 レビュー W1: プレビュー右列を
+            撤去したとき error の表示が一緒に消え、失敗しても画面に何も出ない状態になっていた。
+            「まだ無い」と見せない（原則9）ため、読み込めなかったことだけを書く。 */}
+        {state === 'error' && (
+          <p role="status" className="text-small text-ink-2 leading-relaxed">
+            AIの判断の記録を読み込めませんでした。記録が消えたわけではありません。時間をおいて、ページを読み込み直してください。
+          </p>
+        )}
 
         {/* ── AIの見本（保存済みデータの読み出しのみ・2件・非 buy を含む） ────────── */}
         {samples && (
@@ -338,99 +266,6 @@ export default function Home() {
           <Disclaimer part="general" />
         </section>
       </div>
-    </div>
-  )
-}
-
-/** ①「自分で書く」の見本: /trade の買いの問い3つ（lib/trade/reason.ts が正）。入力欄の見た目は作らない・記入例を入れない・押せない */
-function PreviewWrite() {
-  const fields = fieldsFor('buy')
-  return (
-    <div>
-      <ol className="space-y-6">
-        {fields.map(f => (
-          // 書き込みの罫は --rule-line（--card の上なので 1.31 で足りる。--surface の上には引かない）
-          <li key={f.key} className="border-b border-rule-line pb-3">
-            <p className="text-body text-ink">
-              {f.question}
-              {!f.required && <span className="ml-2 text-caption text-muted">任意</span>}
-            </p>
-          </li>
-        ))}
-      </ol>
-      <p className="mt-6 text-small text-muted">理由を書かないと記録できません。白紙ではなく、問いに答える形で書きます。</p>
-    </div>
-  )
-}
-
-/**
- * ②「AIの判断を読む」の見本: 本番の最新の判断1件（社名＋銘柄・冒頭1文・取得時点）。▲▼の札は出さない。
- * loading / error は既存の3状態の形（薄い枠／三点＋もう一度）。候補が無ければ empty と同じ形（仮の文で埋めない）。
- * 面はプレビューの帯そのもの（--card）なので、ここで bg-card を重ねない（入れ子禁止・§6-6）。
- */
-function PreviewWatch({ state, featured, when, retry }: { state: HomeState; featured: Decision | null; when: string; retry: () => void }) {
-  if (state === 'loading') {
-    // 読み込み中: 完成時と同じ形の薄い枠（§6-12）。画面全体を覆わない。
-    return (
-      <div aria-busy="true" aria-label="AIの判断を読み込んでいます" className="space-y-3 motion-safe:animate-pulse">
-        <div className="h-4 w-40 rounded-field bg-surface" />
-        <div className="h-4 w-full rounded-field bg-surface" />
-        <div className="h-4 w-3/4 rounded-field bg-surface" />
-        <div className="h-3 w-24 rounded-field bg-surface" />
-      </div>
-    )
-  }
-  if (state === 'error') {
-    // 失敗: 何が起きたか／データはどうなったか／どうすればいいか（§6-12）。--warning-ink の見出し＋--ink-2 の説明。赤い枠は使わない。
-    return (
-      <div role="status" className="space-y-1">
-        <p className="text-body text-warning-ink">AIの判断記録を読み込めませんでした</p>
-        <p className="text-body text-ink-2">記録は消えていません。通信やサーバーの一時的な問題です。</p>
-        <p className="text-body text-ink-2">時間をおいて、もう一度読み込んでください。</p>
-        <button
-          type="button"
-          onClick={retry}
-          className={`inline-flex min-h-11 items-center rounded-field text-small text-brand hover:underline ${FOCUS_RING}`}
-        >
-          もう一度読み込む
-        </button>
-      </div>
-    )
-  }
-  if (!featured) {
-    // 空: 何が無いか＋次の一手を1つ（§6-12）。主ボタンは左で使い切っているので文字リンク。
-    return (
-      <div className="space-y-2">
-        <p className="text-body font-semibold text-ink">まだAIの判断記録がありません</p>
-        <p className="text-small text-ink-2">AIの運用を始めると、ここに直近の判断とその理由が並びます。</p>
-        {/* 押せる範囲は 44px 以上（§8）。他の文字リンクと同じ形 */}
-        <Link href="/watch" className={`inline-flex min-h-11 items-center rounded-field text-small text-brand hover:underline ${FOCUS_RING}`}>
-          「見る」を開く →
-        </Link>
-      </div>
-    )
-  }
-  return (
-    <div className="space-y-2">
-      {/* 社名＋銘柄は見出しにしない（small・--muted の1行） */}
-      <p className="text-small text-muted">{featured.name}（{featured.symbol}）</p>
-      <p className="text-body text-ink">{firstSentence(featured.reasoning)}</p>
-      <p className="text-caption text-muted tabular-nums">取得: {when}</p>
-    </div>
-  )
-}
-
-/** ③「あとで読み返す」の見本: /review の記録カードの形だけ（①書いた理由 → ②その後の値動き → ③損益）。数字は出さない */
-function PreviewReview() {
-  return (
-    <div>
-      <ol className="space-y-6">
-        {['① 書いた理由', '② その後の値動き', '③ 損益'].map(t => (
-          <li key={t} className="border-b border-rule-line pb-3 text-small text-muted">{t}</li>
-        ))}
-      </ol>
-      {/* 記録がある利用者にも偽にならない言い方（「まだ記録がありません」にしない。reviewer S4） */}
-      <p className="mt-6 text-small text-muted">あなたの記録はここに並びます</p>
     </div>
   )
 }

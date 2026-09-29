@@ -143,7 +143,7 @@ export default function BackfillPage() {
         return
       }
       setPortfolio(sell.portfolio)
-      setResult({ ok: true, msg: `${sym} の往復を記録しました。「振り返る」で結果と突き合わせられます。` })
+      setResult({ ok: true, msg: `${sym} の往復を記録しました。「読み返す」で結果と突き合わせられます。` })
       reset()
     } finally {
       setSubmitting(false)
@@ -162,7 +162,7 @@ export default function BackfillPage() {
     return (
       <div className="max-w-xl mx-auto space-y-4">
         <div>
-          <p className="text-sm font-semibold tracking-[0.18em] text-brand uppercase">04 振り返る</p>
+          <p className="text-small text-muted">03 読み返す</p>
           <h1 className="text-2xl font-bold text-ink mt-1">過去の取引を記録する</h1>
         </div>
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-4">
@@ -177,7 +177,8 @@ export default function BackfillPage() {
     <div className="max-w-3xl mx-auto space-y-6">
 
       <header className="space-y-2">
-        <p className="text-sm font-semibold tracking-[0.18em] text-brand uppercase">04 振り返る</p>
+        {/* 段ラベルは /review と同じ small/muted の日本語（字間を広げた大文字風は DESIGN.md §2 の禁止形） */}
+        <p className="text-small text-muted">03 読み返す</p>
         <h1 className="text-2xl font-bold text-ink">過去の取引を記録する</h1>
         <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           すでに実際にやった売買を入れると、<strong className="text-ink">今日から振り返りを始められます。</strong>
@@ -185,7 +186,7 @@ export default function BackfillPage() {
         </p>
         <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
           ここで入れた記録は<strong className="text-ink-2">練習場の仮想残高を動かしません</strong>。
-          「やる」で使う $100,000 とは別に、記録としてだけ残ります。
+          「書く」で使う $100,000 とは別に、記録としてだけ残ります。
         </p>
       </header>
 
@@ -279,7 +280,7 @@ export default function BackfillPage() {
 
         {!sold && (
           <p className="text-sm text-muted leading-relaxed max-w-[42rem]">
-            まだ持っている取引も記録できます。結果はまだ出ていないものとして「振り返る」に並びます。
+            まだ持っている取引も記録できます。結果はまだ出ていないものとして「読み返す」に並びます。
             売ったあとに、また戻ってきて売りを足してください。
           </p>
         )}

@@ -10,14 +10,14 @@ import { composeReason, validateParts, fieldsFor, type ReasonParts, type TradeAc
 import { ReasonFields } from '@/components/ReasonFields'
 
 /**
- * 「やる」— 自分で判断して売買する練習場。
+ * 「01 書く」— 買う理由を書いて残す練習場（S1「3段の道」・2026-09-29。旧「03 やる」）。
  *
- * COMPANY.md 原則11（ゴールは人間の投資スキル向上）に対応する中核の面。
- * 「見る」「まねる」で得た材料をもとに、**自分が**判断する。
+ * COMPANY.md 原則11（ゴールは人間の投資スキル向上）に対応する中核の面（原則12 の心臓）。
+ * 「AIの判断」（/watch）「くらべる」（/learn）で得た材料をもとに、**自分が**判断する。
  *
  * 設計上の要（外さないこと）:
  *  - 売買のたびに理由を日本語で書かせる。理由のない取引は受け付けない。
- *    これが無いと「振り返る」で判断の質を見る材料が残らず、ただの売買ごっこになる。
+ *    これが無いと「読み返す」で判断の質を見る材料が残らず、ただの売買ごっこになる。
  *  - 価格は実データのみ。取得に失敗したらモックで代替せず、その旨を表示して止める
  *    （原則9・過去に tick がモックで動いていた経緯があるため明示的に禁止する）。
  *  - ここに「おすすめ」「買い時」の類は一切出さない。判断するのは利用者であり、
@@ -60,7 +60,7 @@ export default function TradePage() {
 const EMPTY: { buy: ReasonParts; sell: ReasonParts } = { buy: {}, sell: {} }
 
 function TradePageBody() {
-  // 「見る」「まねる」から ?symbol=XXX で銘柄を引き継げる（4段階を繋ぐ受け口）
+  // 「AIの判断」（/watch）「くらべる」（/learn）から ?symbol=XXX で銘柄を引き継げる（画面を繋ぐ受け口）
   const params = useSearchParams()
   const handedOver = params.get('symbol')?.trim().toUpperCase()
   const [symbol, setSymbol] = useState(handedOver || 'AAPL')
@@ -188,11 +188,12 @@ function TradePageBody() {
     <div className="max-w-3xl mx-auto space-y-6">
 
       <header className="space-y-2">
-        <p className="text-sm font-semibold tracking-[0.18em] text-brand uppercase">03 やる</p>
-        <h1 className="text-2xl font-bold text-ink">自分で判断して売買する</h1>
+        {/* 段ラベルは /watch・/review・/learn と同じ small/muted の日本語（字間を広げた大文字風は DESIGN.md §2 の禁止形） */}
+        <p className="text-small text-muted">01 書く</p>
+        <h1 className="text-2xl font-bold text-ink">買う理由を書いて、残す</h1>
         <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           仮想の資金で売買します。<strong className="text-ink">なぜそう判断したかを必ず書いてください。</strong>
-          あとで「振り返る」を開いたとき、儲けた額ではなく判断の中身を見返せるようになります。
+          あとで「読み返す」を開いたとき、儲けた額ではなく判断の中身を見返せるようになります。
         </p>
       </header>
 

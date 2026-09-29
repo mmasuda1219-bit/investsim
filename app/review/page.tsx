@@ -14,7 +14,7 @@ import {
 } from '@/lib/portfolio'
 
 /**
- * 04 振り返る。
+ * 03 読み返す（S1「3段の道」・2026-09-29。旧「04 振り返る」）。
  *
  * 見た目は DESIGN.md §6-6 の見本（2026-09-11 切り分け3a）:
  *  - 一覧・操作の部分は「A アプリ型」: 地は --surface（灰）、内容は枠線なしの白い帯、
@@ -75,7 +75,7 @@ function Ground({ children }: { children: React.ReactNode }) {
 function PageTitle() {
   return (
     <div>
-      <p className="text-small text-muted">04 振り返る</p>
+      <p className="text-small text-muted">03 読み返す</p>
       <h1 className="text-h1 text-ink">判断を振り返る</h1>
     </div>
   )
@@ -307,14 +307,14 @@ export default function PortfolioPage() {
             ここには<strong className="font-semibold">あなたの</strong>判断の記録が並びます。
           </p>
           <p className="text-small text-ink-2">
-            記録はアカウントに保存されるので、ログインが必要です。「見る」「まねる」はログインなしで使えます。
+            記録はアカウントに保存されるので、ログインが必要です。「AIの判断を読む」「くらべる」はログインなしで使えます。
           </p>
           <div className="flex flex-wrap items-center gap-4 pt-1">
             <LoginLink className="inline-flex h-12 items-center justify-center rounded-card bg-brand px-5 text-body font-semibold text-on-brand transition-colors hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2">
               ログインして記録を見る
             </LoginLink>
             <Link href="/watch" className="text-small text-brand hover:underline">
-              ログインせずに「見る」を開く
+              ログインせずに「AIの判断」を読む
             </Link>
           </div>
         </div>
@@ -375,7 +375,7 @@ export default function PortfolioPage() {
           <div className="bg-card rounded-card px-4 py-5 space-y-2">
             <p className="text-body font-semibold text-ink">まだ判断の記録がありません</p>
             <p className="text-body text-ink-2 max-w-[42rem]">
-              「やる」で売買すると、そのときに書いた理由と、あとで出た結果がここに並びます。
+              「書く」で売買すると、そのときに書いた理由と、あとで出た結果がここに並びます。
             </p>
             {/* 結果が出るまで待たずに始められる道を、空の状態でこそ見せる。
                 すでに実際に売買している人は、来た時点で振り返る材料を持っている。 */}
@@ -388,7 +388,7 @@ export default function PortfolioPage() {
                 href="/trade"
                 className="inline-flex h-12 items-center justify-center rounded-card bg-brand px-5 text-body font-semibold text-on-brand transition-colors hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
               >
-                03 やる で最初の記録を書く
+                01 書く で最初の記録を書く
               </Link>
             </div>
           </div>

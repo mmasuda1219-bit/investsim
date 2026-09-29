@@ -10,6 +10,7 @@ import { GeistMono } from 'geist/font/mono'
 // ブラウザは実際に描画する文字分のwoff2だけを取りに行く。
 import '@fontsource-variable/noto-sans-jp'
 import './globals.css'
+import Link from 'next/link'
 import { SiteNav } from '@/components/SiteNav'
 
 // 「AI自動売買」は (1) 実決済と誤読されうる (2) 助言性を帯びる、の2点で
@@ -75,10 +76,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* フッターの枠（DESIGN.md §4-2 R10「全ページ共通」・legal-compliance 2026-09-25）。
             S1c ではトップ（app/(night)/layout.tsx）だけに置いていたのを、SV1a で全ページに。
             運営者情報／お問い合わせ／プライバシーポリシー／利用規約の行き先はまだ無いので <a> にせず文字だけ（「準備中」）。
-            行き先ができたら <a> に替える。「無料」の語は書かない（legal-compliance 2026-09-25）。
-            <main> の外の <footer> なので、支援技術には contentinfo（ページ情報の目印）として伝わる。 */}
+            行き先ができたら <a> に替える。
+            <main> の外の <footer> なので、支援技術には contentinfo（ページ情報の目印）として伝わる。
+
+            /watch への常設リンク（S1「3段の道」・DECISIONS.md 2026-09-29）: ナビの段から外した /watch（AIの判断）へ、
+            全ページから到達できる唯一の固定導線。**無条件で1本**（ログイン状態・流入元・記録の有無で出し分けない。
+            session / cookies / headers / 三項 / && をこの中に入れない）。未ログインで読める状態を維持する法務の不変条件
+            （監督指針 VII-3-1(2)②イ「随時に利用可能」の外形）で、scripts/check-watch-reachable.ts が機械で見る。
+            「無料」はサイトでここ1か所だけ・打消し（将来、有料の機能を作る可能性）とセット（legal-compliance 2026-09-28・DESIGN.md §7）。 */}
         <footer className="w-full max-w-6xl mx-auto px-4 sm:px-6 pb-20 md:pb-5">
-          <div className="mt-8 border-t border-border pt-4">
+          <div className="mt-8 border-t border-border pt-4 space-y-2">
+            <p className="text-small">
+              <Link href="/watch" className="text-brand hover:underline">AIの判断を読む（ログイン不要）</Link>
+            </p>
+            <p className="text-small text-muted">
+              現在は無料で公開しています。将来、有料の機能を作る可能性があります。
+            </p>
             <p className="text-small text-muted">
               InvestSim ／ 運営者情報 ／ お問い合わせ ／ プライバシーポリシー ／ 利用規約（いずれも準備中）
             </p>

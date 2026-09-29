@@ -63,7 +63,7 @@ function LoginForm() {
         {/* 「見るだけOK・保存はログイン」の方針をここでも明示する。
             旧文言は削除済みのスクリーナー機能を指していた。 */}
         <p className="text-muted text-xs mt-4 leading-relaxed">
-          「見る」「まねる」はログインなしで使えます。
+          「AIの判断を読む」「くらべる」はログインなしで使えます。
           {next && (
             <>
               <br />

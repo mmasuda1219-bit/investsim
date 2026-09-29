@@ -479,10 +479,8 @@ function clientChecks() {
   check("トップ: catch が 'empty' を立てない（失敗は 'error'）", catchLines.length === 1 && !catchLines[0].includes("setState('empty')") && catchLines[0].includes("setState('error')"), catchLines.join(' | '))
   check('トップ: HTTP が ok でないと throw（200 以外を空にしない）', topCode.includes('if (!r.ok) throw'))
   check('トップ: AbortController で時間切れ（15秒）・アンマウントで abort と clearTimeout', topCode.includes('new AbortController()') && topCode.includes('FETCH_TIMEOUT_MS = 15_000') && topCode.includes('return () => { alive = false; clearTimeout(timer); ctrl.abort() }'))
-  check('トップ: error の三点（読み込めませんでした／記録は消えていません／時間をおいて）', top.includes('AIの判断記録を読み込めませんでした') && top.includes('記録は消えていません。通信やサーバーの一時的な問題です。') && top.includes('時間をおいて、もう一度読み込んでください。'))
-  check('トップ: 文字ボタン「もう一度読み込む」が loading に戻して再取得', top.includes('もう一度読み込む') && top.includes("const retry = () => { setSession(null); setState('loading'); setAttempt(n => n + 1) }") && top.includes('onClick={retry}'))
-  const errorAt = top.indexOf("state === 'error'")
-  check('トップ: error は --warning-ink の見出し・赤い枠を使わない', errorAt > -1 && top.slice(errorAt, errorAt + 300).includes('text-warning-ink') && !/border-red|text-red|bg-danger|text-danger/.test(top))
+  // 2026-09-29 S1「3段の道」: error の三点・「もう一度読み込む」・--warning-ink の見出しはプレビュー②（右列）が持っていた。
+  // 右列ごと撤去したので、この3件は削除。S2「プレゼン型ホーム」で読み口 /api/entry/examples の4状態として建て直す（DECISIONS.md 2026-09-29）
   check("トップ: empty は 200 で判断が 0 件のときだけ（'empty' は then の中に1回）", topCode.split("setState('empty')").length - 1 === 1)
   check('トップ: 200 でも形が違えば error に倒す（isSessionSummary で throw）', topCode.includes('function isSessionSummary(v: unknown): v is SessionSummary') && topCode.includes("if (!isSessionSummary(body)) throw"))
   // 2026-09-18: 軽い API に切り替え（コミット 7806869 で本番に出た）。一覧の /api/ai-session は読まない

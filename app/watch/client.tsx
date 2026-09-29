@@ -179,7 +179,8 @@ interface PageHeaderProps {
 function PageHeader({ session, ticking }: PageHeaderProps) {
   return (
     <header>
-      <p className="text-small text-muted">01 見る</p>
+      {/* S1「3段の道」（2026-09-29）: このページはナビの段（01〜03）から外れたので、段番号ではなく中身の名前を置く */}
+      <p className="text-small text-muted">AIの判断</p>
       <h1 className="text-h1 text-ink text-balance">AIの判断と、その根拠を読む</h1>
       <p className="mt-1 flex flex-wrap items-center gap-x-3 text-small text-muted">
         <span>Beta</span>
@@ -188,6 +189,12 @@ function PageHeader({ session, ticking }: PageHeaderProps) {
         ) : (
           <span className="tabular-nums whitespace-nowrap">最終更新 {ago(session.lastTickAt)}</span>
         ))}
+      </p>
+      {/* 「読むのはログインなしで自由にできます」は法務の外形（未ログインで随時に読める）なので、記録の有無（!session の枝）で
+          出し分けず、見出しの直下で常に出す（DECISIONS.md 2026-09-29 不変条件・scripts/check-watch-reachable.ts）。
+          以前は記録が無いときの空の帯の中にだけあり、記録がある本番では一度も表示されなかった。 */}
+      <p className="mt-1 text-small text-muted max-w-[42rem]">
+        分析を動かせるのは運営者だけです。読むのはログインなしで自由にできます。
       </p>
     </header>
   )
@@ -435,9 +442,7 @@ export function AISessionClient() {
             このページは、AIが実際の市場データを読んで下した売買判断を、そのまま公開している記録です。
             最初の分析が行われると、いつ・どの銘柄を・なぜ選び・何をどう判断したのかがここに並びます。
           </p>
-          <p className="text-small text-muted max-w-[42rem]">
-            分析を動かせるのは運営者だけです。読むのはログインなしで自由にできます。
-          </p>
+          {/* 「分析を動かせるのは運営者だけ／読むのはログイン不要」の1文は PageHeader へ移した（記録があっても出すため） */}
         </div>
       )}
       {/* 名人のシグナル。「見る」＝AIと名人の判断を読む面なので、AIの下に並べる */}

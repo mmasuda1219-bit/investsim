@@ -12,7 +12,8 @@
 //    ここでは /learn のタブだけ実際に import して「investor の有無 === 定数」を確かめる
 //  - 名人の本体（lib/investors/・components/investors/・MasterSignals.tsx・InvestorPanel.tsx・/api/signals の route）が
 //    HEAD と比べて無変更（git diff --quiet HEAD -- <path>。未追跡ファイルも無い）＝隠しただけで壊していない
-//  - NAV の href・label・順序が不変（原則12。hint の文言は変えてよいが、隠している間は「名人」「投資家」を出さない）
+//  - NAV の href・label・順序が不変（原則12。2026-09-29 S1「3段の道」以降は 書く→くらべる→読み返す の3段。
+//    hint の文言は変えてよいが、隠している間は「名人」「投資家」を出さない）
 
 import fs from 'fs'
 import path from 'path'
@@ -113,10 +114,12 @@ console.log('■ NAV（components/SiteNav.tsx）')
 const nav = stripTsComments(read('components/SiteNav.tsx'))
 const navBody = nav.slice(nav.indexOf('export const NAV = ['), nav.indexOf('] as const'))
 const entries = [...navBody.matchAll(/\{ href: '([^']+)',\s+label: '([^']+)',\s+hint: '([^']*)' \}/g)].map(m => ({ href: m[1], label: m[2], hint: m[3] }))
-const NAV_FIXED = [['/watch', '見る'], ['/learn', 'まねる'], ['/trade', 'やる'], ['/review', '振り返る']]
-check('NAV: href・label・順序が不変（原則12）', JSON.stringify(entries.map(e => [e.href, e.label])) === JSON.stringify(NAV_FIXED), JSON.stringify(entries.map(e => [e.href, e.label])))
-check(SHOW_INVESTOR_MODELS ? 'NAV: hint は4本とも空でない' : 'NAV: 隠している間は hint に「名人」「投資家」を出さない（無いものを約束しない）',
-  entries.length === 4 && entries.every(e => e.hint.length > 0) && (SHOW_INVESTOR_MODELS || entries.every(e => !/名人|投資家/.test(e.hint))),
+// S1「3段の道」（2026-09-29・DECISIONS.md 同日）: 4段「見る→まねる→やる→振り返る」から3段へ。/watch は段に置かない
+// （フッターの常設リンクから到達。そちらは scripts/check-watch-reachable.ts が見る）
+const NAV_FIXED = [['/trade', '書く'], ['/learn', 'くらべる'], ['/review', '読み返す']]
+check('NAV: href・label・順序が不変（原則12・3段: 書く→くらべる→読み返す）', JSON.stringify(entries.map(e => [e.href, e.label])) === JSON.stringify(NAV_FIXED), JSON.stringify(entries.map(e => [e.href, e.label])))
+check(SHOW_INVESTOR_MODELS ? 'NAV: hint は3本とも空でない' : 'NAV: 隠している間は hint に「名人」「投資家」を出さない（無いものを約束しない）',
+  entries.length === 3 && entries.every(e => e.hint.length > 0) && (SHOW_INVESTOR_MODELS || entries.every(e => !/名人|投資家/.test(e.hint))),
   entries.map(e => e.hint).join(' / '))
 
 console.log('')

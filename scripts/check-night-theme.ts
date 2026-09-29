@@ -13,7 +13,8 @@
 //    #8A5300 on #FDF3E1 = 5.75。さらに DECISIONS の数字（却下値 4.12・1.23・2.90、採用値 5.64・1.54・3.79、
 //    境界 1.31・1.33・3.54）を同じ手順で再現する
 //  - SiteNav.tsx に text-emerald-700 が残っていない（注釈を除く）・全ページで暗い地用ロゴ・NAV の href・label・順序が変わっていない
-//    （hint の文言は固定しない。原則12 が守るのは並び・呼び名・行き先の3つ。2026-09-25 S1b で名人の語を外した）
+//    （hint の文言は固定しない。原則12 が守るのは並び・呼び名・行き先の3つ。2026-09-25 S1b で名人の語を外し、
+//    2026-09-29 S1「3段の道」で 書く→くらべる→読み返す の3段になった）
 //  - 回り続ける動き（`infinite` と Tailwind の animate-spin / pulse / ping / bounce）が許可リスト（読み込み中・AIが書いている
 //    最中の表示）以外に無い（DECISIONS R4）。ReplayStages の点滅は {thinking && …} の内側だけ（2026-09-25 S1b で広げた）
 //  - ロゴの暗い地用ファイル（public/logo-night.svg / logo-mark-night.svg）: 幾何が元と同一・色が地の上 3:1 以上・
@@ -270,8 +271,9 @@ function navChecks() {
   // （hint は S1b で「名人」の語を外し、S2 でまた変わる）。NAV の配列本体だけを読み、注釈の中の旧文言は見ない
   const navBody = navSrc.slice(navSrc.indexOf('export const NAV = ['), navSrc.indexOf('] as const'))
   const navEntries = [...navBody.matchAll(/\{ href: '([^']+)',\s+label: '([^']+)',\s+hint: '[^']*' \}/g)].map(m => [m[1], m[2]])
-  const NAV_FIXED = [['/watch', '見る'], ['/learn', 'まねる'], ['/trade', 'やる'], ['/review', '振り返る']]
-  check('SiteNav: NAV の href・label・順序が変わっていない（原則12。hint の文言は固定しない）', JSON.stringify(navEntries) === JSON.stringify(NAV_FIXED) && nav.includes('] as const'), JSON.stringify(navEntries))
+  // S1「3段の道」（2026-09-29）: 4段から3段へ。/watch は段に置かない（フッターの常設リンク。scripts/check-watch-reachable.ts）
+  const NAV_FIXED = [['/trade', '書く'], ['/learn', 'くらべる'], ['/review', '読み返す']]
+  check('SiteNav: NAV の href・label・順序が変わっていない（原則12・3段。hint の文言は固定しない）', JSON.stringify(navEntries) === JSON.stringify(NAV_FIXED) && nav.includes('] as const'), JSON.stringify(navEntries))
 
   const search = stripTsComments(read('components/StockSearch.tsx'))
   check('StockSearch: 既製色の札（bg-red-50/text-red-700/bg-blue-50/text-blue-700）が無い', !/bg-red-50|text-red-700|bg-blue-50|text-blue-700/.test(search))
@@ -301,9 +303,10 @@ function routeChecks() {
   // S1c で選択中カードが `bg-surface shadow-[0_22px…]` を持つようになったので、旧の地の塗りそのものを名指しで見る
   check('page: 旧の --surface の地の塗り（shadow-[0_0_0_100vmax_var(--surface)]）を持たない', !page.includes('var(--surface)]') && !page.includes('shadow-[0_0_0_100vmax_var(--surface)]'))
   // 2026-09-25 S1c: 中身を承認済みの見た目（Night.dc.html）で作り直した。目印は新しい見出しと共通部品の免責（詳細は scripts/check-entry.ts）
-  check('page: 中身の目印（52px の見出し・3つの選択・4段階の一列・AIの見本・共通部品の免責）',
-    page.includes('買う理由を書いて残し、あとで株価と読み返す。') && page.includes('できることは3つです。どれから始めますか')
-      && page.includes('このサイトは4つの段階でできています') && page.includes('AIも、同じ形式で理由を書いています') && page.includes('<Disclaimer part="general" />'))
+  // 2026-09-29 S1「3段の道」: 3つの選択カードは撤去・「4つの段階」→「3つの画面」。主ボタンは /trade 固定
+  check('page: 中身の目印（52px の見出し・主ボタン /trade「1件目のメモを書く」・3つの画面の一列・AIの見本・共通部品の免責）',
+    page.includes('買う理由を書いて残し、あとで株価と読み返す。') && page.includes('1件目のメモを書く') && page.includes('href="/trade"')
+      && page.includes('このサイトは、3つの画面でできています') && page.includes('AIも、同じ形式で理由を書いています') && page.includes('<Disclaimer part="general" />'))
   const rootLayout = stripTsComments(read('app/layout.tsx'))
   check("app/layout.tsx: root の viewport は暗い地（themeColor '#0A0C10'・colorScheme 'dark'）", rootLayout.includes("themeColor: '#0A0C10'") && rootLayout.includes("colorScheme: 'dark'"))
   check("app/layout.tsx: 明るい地の値（'#F6F8FB'・colorScheme 'light'）が残っていない", !rootLayout.includes('#F6F8FB') && !rootLayout.includes("colorScheme: 'light'"))
@@ -378,8 +381,9 @@ function motionChecks() {
     if (nums.length) hits.set(rel(f), nums)
   }
   // 許可リスト: 読み込み中・AIが書いている最中の表示だけ（DECISIONS R4「読み込み表示」）。装飾の動きはここに足さない
+  // 2026-09-29 S1「3段の道」: app/(night)/page.tsx はプレビュー②（読み込み中の骨組み）を右列ごと撤去したので外した。
+  // S2「プレゼン型ホーム」で読み口 /api/entry/examples の読み込み表示を作るときに戻す
   const ALLOWED: Record<string, string> = {
-    'app/(night)/page.tsx': 'AIの判断の読み込み中の骨組み（aria-busy）',
     'app/learn/page.tsx': '結果の読み込み中の骨組み（data-skeleton）と、AIレポートが流れてくる間だけ点滅する書き込み位置の印',
     'app/review/page.tsx': '読み込み中の骨組み（aria-busy）',
     'app/watch/client.tsx': 'セッション復元中の骨組み（aria-busy）',

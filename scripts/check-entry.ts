@@ -1,25 +1,28 @@
 // トップページ（入口画面・S1c 2026-09-25）の検査。法務 (G)（legal-compliance 2026-09-25）と DESIGN.md §4-2 R1・R4・R5 を機械で見る。
 //   $env:PATH = "C:\Program Files\nodejs;$env:PATH"; npx tsx scripts/check-entry.ts
 //
-// 見るもの（正は NEXT-STEPS.md「S1c」の節と DESIGN.md §3・§4-2・§5-2・§5-6・§6-11）:
+// 2026-09-29 S1「3段の道」（DECISIONS.md 同日）: 3枚の選択カード・プレビュー右列（①②③）・注記 (B)・選択に連動する主ボタンは
+// 撤去したので、それらを見ていた検査の節は**丸ごと削除**した（新しい期待値はここで足さない。S2「プレゼン型ホーム」で
+// check-entry.ts を全面的に建て直す）。PASS の総数が一時的に減るのは想定内（S2 の完了時点で 2026-09-28 の水準に戻す）。
+//
+// 見るもの（正は DESIGN.md §3・§4-2・§5-2・§5-6・§6-11）:
 //  - 免責は共通部品 <Disclaimer part="general" />（DISCLAIMER_TEXT）が1回以上。手書き免責（「投資助言・代理業には該当しません」）は無い
 //  - 書かない語: 「リスクゼロ」「うまくなる」「上手くなる」「おすすめ」「買い時」「売り時」「無料」「今日」が 0 件（注釈を除く）。
 //    旧文言（「AIと名人と自分」「まずAIの判断を見てみる」等）と「名人」「投資家」も 0 件
-//  - 注記 (B)（プレビュー②の直下）と (C)（AIの見本の直下）が存在し、<details> の中でなく、small・--ink-2（caption にしない）
-//  - /watch へのリンクを持つ節に注記がある（AIの判断を見せる・そこへ送る節。4段階の一列とヘッダーの nav は行き先の案内なので対象外）
-//  - 3枚の選択カードが常に描画される（<section aria-labelledby="choose-heading"> から {CHOICES.map( までに && ( / ? ( が無い）・
-//    既定は①・選択は React の state だけ（localStorage / sessionStorage / document.cookie / fetch に渡していない。fetch は /api/ai-session/latest の1本だけ）
-//  - AI の理由文: プレビュー②は冒頭1文（最初の「。」まで）、見本2件は**全文**に forbiddenWordsIn(…, FORBIDDEN_IN_OUTPUT) を通し、
-//    ヒットする件は出さない（2026-09-25 reviewer W1。line-clamp は全文を置いて見た目だけ切る）。選び方は lib/entry/samples.ts（純関数）で、
+//  - 注記 (C)（AIの見本の直下）が存在し、<details> の中でなく、small・--ink-2（caption にしない）
+//  - /watch へのリンクを持つ節に注記がある（AIの判断を見せる・そこへ送る節。3つの画面の一列とヘッダーの nav は行き先の案内なので対象外）
+//  - AI の理由文: 見本2件は**全文**に forbiddenWordsIn(…, FORBIDDEN_IN_OUTPUT) を通し、ヒットする件は出さない
+//    （2026-09-25 reviewer W1。line-clamp は全文を置いて見た目だけ切る）。選び方は lib/entry/samples.ts（純関数）で、
 //    ここでは文字列の一致に加えて **実際に呼んで** 6パターン（0件／1件／2件とも buy／3件全部 buy／2件目に禁止語／3件目で非 buy）の結果を見る
 //  - 見本2件は「買い」以外を1件以上含める（無ければ節ごと出さない）
 //  - 640px 未満の h1 は 40px（max-sm:text-[40px] を className の末尾に）・DESIGN.md §5-2 に同じ1文・§3 は承認構成（状態で出し分けない）
-//  - 押せる文字リンクは全部 min-h-11（44px。empty 状態の「「見る」を開く →」も）
-//  - R1: 色付きの影（rgb(45 212 191）は主ボタンと選択中カードの2か所だけ。札に影は無い
+//  - 主ボタンは1つ・/trade 固定「1件目のメモを書く」（着地点は1つ）
+//  - R1: 色付きの影（rgb(45 212 191）は主ボタンの1か所だけ。札に影は無い
 //  - R5: radial-gradient は2つ以下・中心の不透明度 .22 まで
-//  - R4: infinite が無い。入場アニメは7要素・65ms 刻み・.85s・ファーストビューだけ（下の節には当てない）
+//  - R4: infinite が無い。入場アニメは最大7要素・65ms 刻み・.85s・ファーストビューだけ（S1 では4つ。下の節には当てない）
 //  - 見出しは display（52px / 1.26 / 900 / -0.035em）で「再現」を含まない。リードは h3 の大きさ・400・行間 1.9
-//  - フッターの枠（R10）: 運営者情報／お問い合わせ／プライバシーポリシー／利用規約 を文字で（<a> にしない・準備中）
+//  - フッターの枠（R10）: 運営者情報／お問い合わせ／プライバシーポリシー／利用規約 を文字で（<a> にしない・準備中）。
+//    /watch への常設リンクが1本ある（無条件かどうかの詳細は scripts/check-watch-reachable.ts）
 //  - app/layout.tsx の SITE_DESC に名人・投資家・無料・リスクゼロ・上手くなる が無い／ /watch の h1 が新文言
 //  - DESIGN.md の小さな直し3件（「R1〜R8 は機械で」・check-signals-undecidable.ts:432 ×2）
 //
@@ -29,7 +32,6 @@ import fs from 'fs'
 import path from 'path'
 import { DISCLAIMER_TEXT } from '../components/ui/Disclaimer'
 import { FORBIDDEN_IN_OUTPUT, forbiddenWordsIn } from '../lib/investors/rulebooks/forbidden'
-import { fieldsFor } from '../lib/trade/reason'
 import { firstSentence, isFullyShowable, isShowable, pickSamples, type SampleDecision } from '../lib/entry/samples'
 
 let passed = 0
@@ -85,19 +87,14 @@ const css = read('app/globals.css').replace(/\/\*[\s\S]*?\*\//g, '')
 const disclaimer = stripComments(read('components/ui/Disclaimer.tsx'))
 const samplesSrc = stripComments(read('lib/entry/samples.ts'))
 
-const NOTE_B = 'これは、このサイトのAIが仮想資金で出した判断の記録です。特定の銘柄の売買を推奨するものではありません。（取得: '
 const NOTE_C_HEAD = 'これは、このサイトのAIが仮想資金で出した判断の記録です（取得: '
 const NOTE_C_TAIL = '▲▼はAIの判断の分類で、特定の銘柄の売買を推奨するものではありません。'
 
-// 節の切り出し（page の JSX の目印で区切る）
-const firstView = between(page, '<div className="flex flex-col gap-10 lg:flex-row', '</aside>')
-const aside = between(page, '<aside', '</aside>')
+// 節の切り出し（page の JSX の目印で区切る）。ファーストビューは根の <div> から「ここから下は静止」の <div className="mt-16 まで
+const firstView = page.slice(page.indexOf('<div className="pt-1 pb-4 md:pb-5">'), page.indexOf('<div className="mt-16'))
 const lower = page.slice(page.indexOf('<div className="mt-16'))
 const stages = between(page, 'aria-labelledby="stages-heading"', '</section>')
 const samples = between(page, 'aria-labelledby="samples-heading"', '</section>')
-const fnPreviewWrite = between(page, 'function PreviewWrite', '\nfunction PreviewWatch')
-const fnPreviewWatch = between(page, 'function PreviewWatch', '\nfunction PreviewReview')
-const fnPreviewReview = page.slice(page.indexOf('function PreviewReview'))
 
 console.log('■ 免責（DISCLAIMER_TEXT）と手書き免責の撤去')
 check('トップ: <Disclaimer part="general" /> を1回以上（共通部品・§6-11）', count(page, '<Disclaimer part="general" />') >= 1 && page.includes("from '@/components/ui/Disclaimer'"))
@@ -119,58 +116,31 @@ check('トップ: 見出しに「再現」を入れない（法務: 変化を約
 check('トップ: 断定・将来の語（儲か／必ず／勝て／稼）が無い（R6）', !/儲か|必ず|勝て|稼/.test(screen))
 check('トップ・layout: 急かす語（今だけ／先着／残り）・記章の語（認証／公式／保証／安心）が無い（R9・R12）', !/今だけ|先着|残り[0-9０-９]|認証|公式|保証|安心/.test(screen))
 
-console.log('■ 注記 (B)(C)・畳まない・caption にしない')
-check('注記 (B): プレビュー②の帯の直下に文言どおり', page.includes(NOTE_B))
-check('注記 (B): small・--ink-2 の <p>（caption・muted にしない）', /<p className="mt-3 text-small text-ink-2">\s*これは、このサイトのAIが仮想資金で出した判断の記録です。特定の銘柄/.test(page))
-// 注釈を落とすと JSX の {/* … */} は {} として残るので、その有無を許す
-check('注記 (B): 帯（bg-card の div）の外＝地の上に置く（R11）', /<\/div>\s*(\{\}\s*)?\{choice === 'watch' && featured && \(/.test(aside) && aside.indexOf(NOTE_B) > aside.lastIndexOf('rounded-card border border-border bg-card'), 'aside の構造が想定と違う')
-check('注記 (B): 取得時点を添える（formatWhen）', page.includes('（取得: {when}）') && page.includes("const when = session ? formatWhen(session.lastTickAt ?? '') : ''"))
+console.log('■ 注記 (C)・畳まない・caption にしない')
+// 2026-09-29 S1: 注記 (B)（プレビュー②の直下）はプレビュー右列ごと撤去。注記 (C) だけを見る
+check('注記 (C): 取得時点を添える（formatWhen）', page.includes('（取得: {when}）') && page.includes("const when = session ? formatWhen(session.lastTickAt ?? '') : ''"))
 check('注記 (C): AIの見本の直下に文言どおり（取得時点＋▲▼の説明）', samples.includes(NOTE_C_HEAD) && samples.includes(NOTE_C_TAIL))
 check('注記 (C): small・--ink-2 の <p>', /<p className="max-w-\[42rem\] text-small text-ink-2">\s*これは、このサイトのAIが仮想資金で出した判断の記録です（取得: \{when\}）。▲▼は/.test(samples))
 check('トップ・layout: <details> を使わない（免責・注記を畳まない＝R7）', !screen.includes('<details'))
 check('トップ: 注記・免責に opacity を足していない（R7）', !/opacity-\d|opacity:/.test(page))
 check('/watch へのリンクを持つ節に注記: AIの見本の節（href="/watch"）は注記 (C) を持つ', samples.includes('href="/watch"') && samples.includes(NOTE_C_TAIL))
-check('/watch へのリンクを持つ節に注記: プレビュー②（PreviewWatch の空の状態の href="/watch"）は aside に注記 (B) を持つ', fnPreviewWatch.includes('href="/watch"') && aside.includes('<PreviewWatch') && aside.includes(NOTE_B))
-check('/watch へのリンクを持つ節に注記: 主ボタンが /watch を指すとき（②選択中）は同じファーストビューに注記 (B) が出る', firstView.includes('href={current.href}') && firstView.includes(NOTE_B) && page.includes("choice === 'watch' && featured && ("))
-check('href="/watch" の直書きは AIの見本と PreviewWatch の2か所だけ（それ以外の /watch は CHOICES と NAV）', count(page, 'href="/watch"') === 2 && count(samples, 'href="/watch"') === 1 && count(fnPreviewWatch, 'href="/watch"') === 1)
+check('href="/watch" の直書きは AIの見本の1か所だけ（ファーストビューに /watch へのリンクを置かない＝主ボタンは /trade 固定。それ以外の /watch は無い）', count(page, 'href="/watch"') === 1 && count(samples, 'href="/watch"') === 1 && !firstView.includes('/watch'))
 
-console.log('■ 3枚の選択カード・保存しない')
-const choices = between(page, 'const CHOICES', ']\n')
-check('CHOICES は3件（write / watch / review）でこの順', count(choices, "{ id: '") === 3 && /id: 'write'[\s\S]*id: 'watch'[\s\S]*id: 'review'/.test(choices))
-check('カードの文言: 自分で書く／AIの判断を読む／あとで読み返す', choices.includes("title: '自分で書く'") && choices.includes("title: 'AIの判断を読む'") && choices.includes("title: 'あとで読み返す'"))
-check('カード②の説明は「直近に」（「今日」を固定文字にしない）', choices.includes("hint: 'このサイトのAIが直近にどう考えたかを読む'"))
-check('主ボタンの文言と行き先: 理由を書きに行く→/trade／AIの判断を読みに行く→/watch／記録を読み返しに行く→/review',
-  /cta: '理由を書きに行く',\s+href: '\/trade'/.test(choices) && /cta: 'AIの判断を読みに行く',\s+href: '\/watch'/.test(choices) && /cta: '記録を読み返しに行く',\s+href: '\/review'/.test(choices))
-const mapAt = page.indexOf('{CHOICES.map(')
-// <section aria-labelledby="choose-heading"> の開始から {CHOICES.map( までの間に条件描画（&& ( / ? (）が無い＝3枚とも節の直下で無条件に描く
-const chooseToMap = between(page, '<section aria-labelledby="choose-heading"', '{CHOICES.map(')
-check('3枚は常に描画（{CHOICES.map( が1回・<section aria-labelledby="choose-heading"> から {CHOICES.map( までに && ( / ? ( が無い）',
-  mapAt > -1 && count(page, '{CHOICES.map(') === 1 && chooseToMap.length > 0 && !/&&\s*\(|\?\s*\(/.test(chooseToMap), chooseToMap.slice(0, 120))
-check("既定は①（useState<Choice>('write')）。時刻・流入元・ログイン状態で変えない（useSearchParams / cookies / Date を選択に使わない）",
-  page.includes("useState<Choice>('write')") && !page.includes('useSearchParams') && !page.includes('cookies') && !between(page, 'const [choice', '\n').includes('Date'))
-check('カードは <button type="button"> で aria-pressed（色だけに頼らない）', /<button\s+key=\{c\.id\}\s+type="button"\s+aria-pressed=\{selected\}/.test(page))
-check('選択中の印は文字「選択中」（text-caption text-brand font-semibold）', page.includes('<span className="shrink-0 pt-1 text-caption font-semibold text-brand">選択中</span>'))
-check('選択中: bg-surface＋枠 rgb(45 212 191 / .55)＋発光の影／未選択: bg-card＋border-border（§5-1）',
-  page.includes("'border-[rgb(45_212_191_/_.55)] bg-surface shadow-[0_22px_48px_-22px_rgb(45_212_191_/_.55)]'") && page.includes("'border-border bg-card hover:bg-surface'"))
-check('カードの高さ 72px 以上（min-h-18）・角丸は rounded-card', page.includes('min-h-18 w-full rounded-card border'))
-check('選択を保存しない: localStorage / sessionStorage / document.cookie が無い', !/localStorage|sessionStorage|document\.cookie/.test(page))
-const fetchLines = page.split('\n').filter(l => l.includes('fetch('))
-check('選択を送らない: fetch は /api/ai-session/latest（GET・本文なし）の1本だけで、choice を渡していない',
-  fetchLines.length === 1 && fetchLines[0].includes("fetch('/api/ai-session/latest', { signal: ctrl.signal })") && !fetchLines[0].includes('choice') && !page.includes('method:'))
-check('setChoice はカードと文字リンクの onClick の2か所だけ', count(page, 'setChoice(') === 2 && count(page, 'onClick={() => setChoice(') === 2)
-check('文字リンク「気になっている株がまだ無ければ…」は <button> で②を選択中にする（ページ遷移しない）',
-  /<button\s+type="button"\s+onClick=\{\(\) => setChoice\('watch'\)\}[\s\S]{0,300}気になっている株がまだ無ければ「AIの判断を読む」から/.test(page))
+// 3択カードを撤去したとき「選択を保存しない／送らない／時刻や流入元で変えない」の検査3件も一緒に消えたが、
+// page.tsx 冒頭の宣言「ログイン状態・記録の有無・時刻・流入元で並び・中身を変えない（C3〜C5）」は今も生きている。
+// 守らせる機械検査が0本になっていたので、1件にまとめて戻す（S1 レビュー W5）。法務の設計制約8（全員に同じものを同じ順で）。
+check('トップ: ログイン状態・時刻・流入元で中身を変えない（localStorage / sessionStorage / document.cookie / useSearchParams が無く、fetch は /api/ai-session/latest の1本だけ）',
+  !/localStorage|sessionStorage|document\.cookie|useSearchParams/.test(page) && page.split('fetch(').length - 1 === 1)
 
 console.log('■ AIの判断の出し方（禁止語・非 buy・札・架空データ無し）')
 check('選び方は lib/entry/samples.ts（純関数。React・fetch・保存が無い）。page はそれを import して使うだけ',
-  page.includes("import { firstSentence, isShowable, pickSamples } from '@/lib/entry/samples'") && !page.includes('function pickSamples') && !page.includes('function isShowable') && !page.includes('function firstSentence')
+  page.includes("import { pickSamples } from '@/lib/entry/samples'") && !page.includes('function pickSamples') && !page.includes('function isShowable') && !page.includes('function firstSentence')
   && !/from 'react'|fetch\(|localStorage|sessionStorage/.test(samplesSrc))
 check('samples.ts: 冒頭1文（最初の「。」まで）を切り出す firstSentence', samplesSrc.includes("const i = text.indexOf('。')") && samplesSrc.includes('return i < 0 ? text : text.slice(0, i + 1)'))
 check('samples.ts: 冒頭1文に forbiddenWordsIn(…, FORBIDDEN_IN_OUTPUT) を通す isShowable（lib/investors/rulebooks/forbidden.ts を import して使うだけ）',
   samplesSrc.includes('forbiddenWordsIn(firstSentence(d.reasoning), FORBIDDEN_IN_OUTPUT).length === 0') && samplesSrc.includes("from '@/lib/investors/rulebooks/forbidden'"))
 check('samples.ts: 全文に forbiddenWordsIn(…, FORBIDDEN_IN_OUTPUT) を通す isFullyShowable（見本2件は line-clamp で全文を置くので全文で見る＝W1）',
   samplesSrc.includes('forbiddenWordsIn(d.reasoning, FORBIDDEN_IN_OUTPUT).length === 0'))
-check('プレビュー②: 先頭から見て冒頭1文がヒットしない最初の1件（find(isShowable)）。誰が選んでも同じ1件', page.includes('session.decisions.find(isShowable) ?? null'))
 check('見本2件: 全文でヒットする件は飛ばす（filter(isFullyShowable)。冒頭1文だけの isShowable にしない）', samplesSrc.includes('decisions.filter(isFullyShowable)') && !samplesSrc.includes('filter(isShowable)'))
 check('見本2件: 「買い」以外を1件以上含める分岐（両方 buy なら3件目以降から・無ければ null＝節ごと出さない）',
   samplesSrc.includes("if (a.action !== 'buy' || b.action !== 'buy') return [a, b]") && samplesSrc.includes("rest.find(d => d.action !== 'buy')") && samplesSrc.includes('return other ? [a, other] : null'))
@@ -202,12 +172,6 @@ check('pickSamples: 3件全部 buy → null', pickSamples([D('buy'), D('buy'), D
   check('pickSamples: 1件目が非 buy → そのまま先頭2件', r2 !== null && r2[0].action === 'sell' && r2[1].action === 'buy')
 }
 check('見本の節は samples が null なら描画しない', page.includes('{samples && (\n          <section aria-labelledby="samples-heading"'))
-check('プレビュー②: ▲▼の札を出さない（PreviewWatch に ACTION_LABEL / ACTION_BADGE / ▲ / ▼ が無い）', fnPreviewWatch.length > 0 && !/ACTION_LABEL|ACTION_BADGE|▲|▼/.test(fnPreviewWatch))
-check('プレビュー②: 社名＋銘柄は small・--muted の1行（見出しにしない）・冒頭1文は body・--ink・取得時点は caption',
-  fnPreviewWatch.includes('<p className="text-small text-muted">{featured.name}（{featured.symbol}）</p>') && fnPreviewWatch.includes('<p className="text-body text-ink">{firstSentence(featured.reasoning)}</p>') && fnPreviewWatch.includes('取得: {when}'))
-check('プレビュー②: 候補 0 件は empty と同じ形（仮の文で埋めない）', fnPreviewWatch.includes('if (!featured) {') && fnPreviewWatch.includes('まだAIの判断記録がありません') && !/例[:：]/.test(fnPreviewWatch))
-check('プレビュー②: loading（薄い枠・aria-busy）と error（三点＋もう一度読み込む）は既存の形', fnPreviewWatch.includes('aria-busy="true"') && fnPreviewWatch.includes('AIの判断記録を読み込めませんでした') && fnPreviewWatch.includes('onClick={retry}'))
-check('プレビュー②: 帯の中に bg-card を重ねない（入れ子禁止・§6-6）', !fnPreviewWatch.includes('bg-card'))
 check('見本: 札は無彩色で影なし（ACTION_BADGE に shadow が無い）・line-clamp-2', !between(page, 'const ACTION_BADGE', '\n').includes('shadow') && samples.includes('line-clamp-2'))
 check('見本: 見出し行の右は caption（回数を見出しにしない＝R3）', samples.includes('<span className="text-caption text-muted tabular-nums">{when}・{session?.tickCount}回目の判断</span>'))
 check('見本: 末尾に <Link href="/watch">AIの判断を全部読む →', /<Link href="\/watch"[^>]*>\s*AIの判断を全部読む →/.test(samples))
@@ -217,17 +181,8 @@ check('AI推論を走らせない（/api/ai-session/[id]/tick・/api/analyze を
 check('forbiddenWordsIn: 「上がる」を含む冒頭1文はヒットする／含まない文はヒットしない',
   forbiddenWordsIn('この銘柄は上がる。', FORBIDDEN_IN_OUTPUT).length > 0 && forbiddenWordsIn('RSI81買われすぎ＋BB上限超え。', FORBIDDEN_IN_OUTPUT).length === 0)
 
-console.log('■ プレビュー①③（実物の形だけ・架空の記入例なし）')
-check("プレビュー①: lib/trade/reason.ts の fieldsFor('buy') の問いを出す", fnPreviewWrite.includes("fieldsFor('buy')") && fnPreviewWrite.includes('{f.question}') && fieldsFor('buy').length === 3)
-check('プレビュー①: 入力欄の見た目を作らない・記入例（placeholder / help）を出さない・押せない', !/<input|<textarea|placeholder|f\.help|<button|<Link|onClick/.test(fnPreviewWrite))
-check('プレビュー①: 問いは body・--ink、下に書き込みの罫（border-b border-rule-line。--card の上）', fnPreviewWrite.includes('border-b border-rule-line') && fnPreviewWrite.includes('<p className="text-body text-ink">'))
-check('プレビュー③: /review の記録カードの形（①書いた理由 → ②その後の値動き → ③損益）と「あなたの記録はここに並びます」（記録がある人にも偽にならない・S4）・数字なし',
-  fnPreviewReview.includes("'① 書いた理由', '② その後の値動き', '③ 損益'") && fnPreviewReview.includes('あなたの記録はここに並びます') && !fnPreviewReview.includes('まだ記録がありません') && !/[$¥][0-9]|[0-9]+%/.test(fnPreviewReview))
-check('プレビュー②の empty 状態の「「見る」を開く →」は他の文字リンクと同じ min-h-11（44px）＋FOCUS_RING（W6）',
-  /<Link href="\/watch" className=\{`inline-flex min-h-11 items-center rounded-field text-small text-brand hover:underline \$\{FOCUS_RING\}`\}>\s*「見る」を開く →/.test(fnPreviewWatch) && !fnPreviewWatch.includes('inline-block'))
-check('プレビューの帯は bg-card＋border-border＋rounded-card＋p-6、外に small/--muted の見出し、右上に caption「実際の画面です」',
-  aside.includes('rounded-card border border-border bg-card p-6') && aside.includes('選ぶと、こういうものが出ます') && aside.includes('<p className="shrink-0 text-caption text-muted">実際の画面です</p>'))
-check('プレビューは lg で sticky（top 88px）・左 56% / 右 44%・gap 48px', aside.includes('lg:sticky lg:top-22 lg:basis-[44%]') && page.includes('lg:basis-[56%]') && page.includes('lg:flex-row lg:items-start lg:gap-12'))
+// 2026-09-29 S1: 「■ 3枚の選択カード・保存しない」「■ プレビュー①③」の節は、対象（選択カード・プレビュー右列）ごと撤去したので削除。
+// S2「プレゼン型ホーム」で新しい構成の検査を建てる（DECISIONS.md 2026-09-29）
 
 console.log('■ 見出し・リード・節の見出し')
 const h1 = between(page, '<h1', '</h1>')
@@ -239,26 +194,28 @@ check('h1: 640px 未満は font-size だけ 40px（className の末尾に max-sm
 check('リードは h3 の大きさ・400・行間 1.9・--ink-2・最大幅 540px・「実際のお金は1円も動きません」',
   /text-h3 font-normal leading-\[1\.9\] text-ink-2/.test(page) && page.includes('max-w-[540px]') && page.includes('実際のお金は1円も動きません。'))
 check('分類ラベル「投資判断の練習場」（small・--muted・入場の1番目）', /<p className=\{`text-small text-muted \$\{RISE\[0\]\}`\}>投資判断の練習場<\/p>/.test(page))
-for (const t of ['できることは3つです。どれから始めますか', 'このサイトは4つの段階でできています', 'AIも、同じ形式で理由を書いています', '選ぶと、こういうものが出ます']) {
+for (const t of ['このサイトは、3つの画面でできています', 'AIも、同じ形式で理由を書いています']) {
   check(`節の見出し「${t}」は small・--muted の h2（カードの外）`, new RegExp(`<h2 id="[a-z-]+" className="text-small text-muted">${t}</h2>`).test(page))
 }
-check('4段階の一列は NAV の label・hint をそのまま・/trade だけ大きい（text-h2・min-h-20）・帯は bg-card＋border', stages.includes('{NAV.map(({ href, label, hint }, i)') && stages.includes("const heart = href === '/trade'") && stages.includes("heart ? 'text-h2' : 'text-h3'") && stages.includes('rounded-card border border-border bg-card'))
+check('3つの画面の一列は NAV の label・hint をそのまま・/trade だけ大きい（text-h2・min-h-20）・帯は bg-card＋border', stages.includes('{NAV.map(({ href, label, hint }, i)') && stages.includes("const heart = href === '/trade'") && stages.includes("heart ? 'text-h2' : 'text-h3'") && stages.includes('rounded-card border border-border bg-card'))
 
 console.log('■ 主ボタン・focus')
-const primary = between(page, 'href={current.href}', '</Link>')
-check('主ボタンは1つ・h-56（h-14）・bg-brand・text-on-brand・hover:bg-brand-strong・rounded-card・font-semibold',
-  count(page, 'href={current.href}') === 1 && /h-14 [^"]*rounded-card bg-brand [^"]*text-body font-semibold text-on-brand[^"]*hover:bg-brand-strong/.test(primary))
+// 2026-09-29 S1: 行き先は /trade 固定（選択に追随しない）。href="/trade" の直書きは主ボタンの1か所だけ（一列は NAV の href={href}）
+const primary = between(page, 'href="/trade"', '</Link>')
+check('主ボタンは1つ・/trade 固定「1件目のメモを書く」・h-56（h-14）・bg-brand・text-on-brand・hover:bg-brand-strong・rounded-card・font-semibold',
+  count(page, 'href="/trade"') === 1 && primary.includes('1件目のメモを書く') && /h-14 [^"]*rounded-card bg-brand [^"]*text-body font-semibold text-on-brand[^"]*hover:bg-brand-strong/.test(primary))
 check('主ボタンの発光の影は 0 16px 40px -14px rgb(45 212 191 / .70)', primary.includes('shadow-[0_16px_40px_-14px_rgb(45_212_191_/_.70)]'))
 check('focus は outline 2px --focus＋offset 2px（box-shadow の内側描画にしない）', page.includes("const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2'") && !/focus-visible:ring|focus:ring|focus-visible:shadow|focus:shadow/.test(page))
 check('ボタンの文言は「押すと何が起きるか」の動詞（OK／送信／次へ を使わない）', !/>\s*(OK|送信|次へ)\s*</.test(page))
 
 console.log('■ R1 色付きの影・R5 にじみ・R4 動き・§5-6 入場アニメ')
 const tealShadows = (screen.match(/shadow-\[[^\]]*rgb\(45_212_191[^\]]*\]/g) ?? [])
-check('R1: 色付きの影（rgb(45 212 191）は主ボタンと選択中カードの2か所だけ', tealShadows.length === 2 && tealShadows.includes('shadow-[0_16px_40px_-14px_rgb(45_212_191_/_.70)]') && tealShadows.includes('shadow-[0_22px_48px_-22px_rgb(45_212_191_/_.55)]'), tealShadows.join(' / '))
-check('R1: rgb(45 212 191 の直値はページで3か所（影2＋選択中の枠1）・layout で1か所（にじみ）だけ', count(page, 'rgb(45_212_191') === 3 && count(layout, 'rgb(45_212_191') === 1)
+// 2026-09-29 S1: 選択中カードを撤去したので、色付きの影は主ボタンの1か所だけ
+check('R1: 色付きの影（rgb(45 212 191）は主ボタンの1か所だけ', tealShadows.length === 1 && tealShadows.includes('shadow-[0_16px_40px_-14px_rgb(45_212_191_/_.70)]'), tealShadows.join(' / '))
+check('R1: rgb(45 212 191 の直値はページで1か所（主ボタンの影）・layout で1か所（にじみ）だけ', count(page, 'rgb(45_212_191') === 1 && count(layout, 'rgb(45_212_191') === 1)
 check('R1: text-shadow・drop-shadow・shadow-float を使わない（光るのは押せるものだけ）', !/text-shadow|drop-shadow|shadow-float/.test(screen))
 // SV1a（2026-09-25）: layout の地の塗り（shadow-[0_0_0_100vmax_var(--bg)]）は :root の一本化で不要になり撤去。残る shadow-[ は主ボタンと選択中カードの2つだけ
-check('R1: 主ボタンと選択中カード以外に shadow- が無い（layout の 100vmax の地の塗りも無い）', count(screen, 'shadow-[') === 2 && !screen.includes('100vmax'), `shadow-[ ×${count(screen, 'shadow-[')}`)
+check('R1: 主ボタン以外に shadow- が無い（layout の 100vmax の地の塗りも無い）', count(screen, 'shadow-[') === 1 && !screen.includes('100vmax'), `shadow-[ ×${count(screen, 'shadow-[')}`)
 const radials = screen.match(/radial-gradient\([^\]]*\)/g) ?? []
 check('R5: radial-gradient は2つ以下・中心は青緑 .22 と藍 #818CF8（rgb 129 140 248）.16', radials.length === 2 && radials.some(r => r.includes('rgb(45_212_191_/_.22)')) && radials.some(r => r.includes('rgb(129_140_248_/_.16)')), radials.join(' / '))
 check('R5: にじみは layout の上端だけ（page には無い）・pointer-events-none・aria-hidden・-z-10・親は isolate', count(page, 'radial-gradient') === 0 && count(layout, 'pointer-events-none') === 2 && count(layout, 'aria-hidden') === 2 && count(layout, '-z-10') === 2 && layout.includes('className="relative isolate"'))
@@ -270,14 +227,19 @@ const rise = between(page, 'const RISE = [', '] as const')
 const delays = [...rise.matchAll(/animation-delay:(\d+)ms/g)].map(m => +m[1])
 check('§5-6: 入場は最大7要素・65ms 刻み・合計 390ms（≤ 420ms）', count(rise, "'motion-safe:animate-rise") === 7 && JSON.stringify(delays) === JSON.stringify([65, 130, 195, 260, 325, 390]))
 check('§5-6: motion-safe: で「動きを減らす」設定では動かさない（animate-rise は motion-safe: 付きだけ）', count(page, 'animate-rise') === count(page, 'motion-safe:animate-rise'))
-check('§5-6: 入場はファーストビューだけ（4段階より下・PreviewWrite/Watch/Review に RISE が無い）・IntersectionObserver を使わない', !lower.includes('RISE[') && count(firstView, 'RISE[') === 7 && !page.includes('IntersectionObserver'))
+// 2026-09-29 S1: ファーストビューは 分類ラベル・h1・リード・主ボタン の4要素（右列を撤去）。RISE の定義は7段のまま
+check('§5-6: 入場はファーストビューの4要素だけ（3つの画面の一列より下に RISE が無い）・IntersectionObserver を使わない', !lower.includes('RISE[') && count(firstView, 'RISE[') === 4 && !page.includes('IntersectionObserver'), `firstView RISE ×${count(firstView, 'RISE[')}`)
 check('§5-6: ホバーは色だけ 150ms（transition-colors duration-150）・scale を使わない', page.includes('transition-colors duration-150') && !/scale-/.test(screen))
 
 console.log('■ フッター（R10）・SITE_DESC・/watch の h1・DESIGN.md の直し')
 // SV1a（2026-09-25）: フッターの枠は app/(night)/layout.tsx から app/layout.tsx へ移した（R10「全ページ共通」）
 const footer = between(rootLayout, '<footer', '</footer>')
 check('app/layout.tsx: フッターの枠に 運営者情報／お問い合わせ／プライバシーポリシー／利用規約（文字・準備中）', ['InvestSim', '運営者情報', 'お問い合わせ', 'プライバシーポリシー', '利用規約', '準備中'].every(w => footer.includes(w)))
-check('app/layout.tsx: フッターは <a> にしない（行き先が未整備）・border-t border-border・small/--muted', !footer.includes('<a') && footer.includes('border-t border-border') && footer.includes('text-small text-muted'))
+// 2026-09-29 S1: フッターに /watch への常設リンクが入ったので、「<a> にしない」は運営者情報等の行に限定し、/watch のリンクは別に数える
+const operatorLine = footer.split('\n').find(l => l.includes('運営者情報')) ?? ''
+check('app/layout.tsx: 運営者情報／お問い合わせ／プライバシーポリシー／利用規約 の行は <a>・<Link> にしない（行き先が未整備）・border-t border-border・small/--muted',
+  operatorLine.length > 0 && !/<a\b|<Link\b/.test(operatorLine) && footer.includes('border-t border-border') && footer.includes('text-small text-muted'))
+check('app/layout.tsx: フッターに /watch への常設リンクが1本ある（無条件かどうかは scripts/check-watch-reachable.ts）', count(footer, 'href="/watch"') === 1)
 check('app/(night)/layout.tsx: フッターを持たない（root に移したので二重に出さない）', !layout.includes('<footer'))
 check("layout: 'use client' を付けていない（viewport は Server Component から）", !/['"]use client['"]/.test(layout))
 const siteDesc = between(rootLayout, 'const SITE_DESC', '\n\n')
