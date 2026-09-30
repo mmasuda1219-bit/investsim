@@ -143,7 +143,7 @@ export default function BackfillPage() {
         return
       }
       setPortfolio(sell.portfolio)
-      setResult({ ok: true, msg: `${sym} の往復を記録しました。「読み返す」で結果と突き合わせられます。` })
+      setResult({ ok: true, msg: `${sym} の往復を記録しました。「03 読み返す」で、書いたことと株価を並べられます。` })
       reset()
     } finally {
       setSubmitting(false)
@@ -361,7 +361,7 @@ export default function BackfillPage() {
       <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-xl font-semibold text-ink">記録した過去の取引（<span className="tabular-nums">{recorded.length}</span>件）</h2>
-          <Link href="/review" className="text-sm text-brand hover:text-brand-strong">振り返る →</Link>
+          <Link href="/review" className="text-sm text-brand hover:text-brand-strong">読み返す →</Link>
         </div>
 
         {recorded.length === 0 ? (

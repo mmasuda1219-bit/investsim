@@ -215,10 +215,12 @@ check('03: 選び方の1文（一字違わず）を実例の上に', rereadFrag.
 check('03: AnswerCheckCard を up / down で1件ずつ（部品は components/AnswerCheckCard.tsx）', page.includes("from '@/components/AnswerCheckCard'") && rereadFrag.includes('<AnswerCheckCard example={examples.up} kind="up" />') && rereadFrag.includes('<AnswerCheckCard example={examples.down} kind="down" />'))
 check('03: 読み込み中は薄い枠2つ・失敗は role="status" の文・無いときは「まだ無い」の文（架空で埋めない）', count(rereadFrag, '<Skeleton') === 2 && rereadFrag.includes('<p role="status" className="text-small text-ink-2">{ERROR_LINE}</p>') && rereadFrag.includes("{state === 'empty' && <p className=\"text-small text-ink-2\">{EMPTY_LINE}</p>}"))
 check('03: 注記（C）＋「あなたが書いた理由も、「03 読み返す」に残ります。」', rereadFrag.includes('{NOTE_AI} あなたが書いた理由も、「03 読み返す」に残ります。'))
-// S2b で /review に「条件の線・触れたかどうかの文・5件で共通点」を作るまで、ホームで予告しない（原則9・S2 レビュー W3）。
-// S2b の出荷と同じコミットで、この検査を「予告がある」に裏返すこと。
-check('ホーム: まだ無い機能（条件の線・触れたかどうか・5件で共通点）を予告していない',
-  !page.includes('同じことを5回書くと') && !page.includes('触れたかどうか') && !page.includes('これと同じ形で並びます'))
+// S2b（2026-09-30）で /review に「5件で共通点」（lib/review/patterns.ts）と「条件の線・触れたかどうかの文」
+// （components/review/PriceSincePanel.tsx）の実物ができたので、S2 レビュー W3 の「予告していない」を裏返した。
+// 実物があることは scripts/check-review.ts が findPattern() を実際に呼んで確かめる（約束と実体を同じコミットで対にする）。
+check('ホーム: 03 の本文に「同じことを5回書くと、共通するところを1つだけ出します。」がある（/review に実物がある・scripts/check-review.ts）',
+  page.includes('同じことを5回書くと、共通するところを1つだけ出します。') && exists('lib/review/patterns.ts') && exists('components/review/PriceSincePanel.tsx'))
+check('ホーム: 実物の無い言い回し（「これと同じ形で並びます」）は書かない', !page.includes('これと同じ形で並びます'))
 check('03: 「まだ無い」の文は 20営業日の条件を書く（MIN_ELAPSED_BUSINESS_DAYS から）', page.includes('const EMPTY_LINE = `並べて見せられるAIの記録は、まだありません（判断日から${MIN_ELAPSED_BUSINESS_DAYS}営業日以上たったものが要ります）。`'))
 check('カード: 面は地の上（bg-card 無し）・出所の行がある（R8・R11）', card.includes('rounded-card border border-border p-4') && !card.includes('bg-card') && card.includes('{example.source}'))
 
