@@ -470,28 +470,23 @@ function clientChecks() {
   const top = code('app/(night)/page.tsx')
   // 2026-09-18: 取得の失敗を「まだ無い」と見せない（オーナーの友人がスマホで「取得できなかった」）
   const topCode = stripComments(top)
-  // 2026-09-25 S1c: 人格の caption（{姓}の考え方で判断）はトップから外した（名人を隠している間・本番は persona: null）。
-  // API の形（persona: InvestorId | null）はそのまま受け、lib/investors/registry は読まない
-  check('トップ: persona は API の形のまま受ける（InvestorId | null）が、人格の caption は出さない・registry を読まない',
-    top.includes('persona: InvestorId | null') && !topCode.includes('の考え方で判断') && !topCode.includes("from '@/lib/investors/registry'"))
+  // 2026-09-29 S2「プレゼン型ホーム」: 読み口は /api/entry/examples の1本（AIの実例2件＋日足）。/api/ai-session/latest は読まない。
+  // persona・tickCount・人格の caption はトップに無い（名人を隠している間。registry も読まない）。状態機械（4状態・打ち切り・形の検査）は S1c のまま
+  check('トップ: 人格の caption を出さない・registry を読まない・persona を受けない（名人を隠している間）', !topCode.includes('の考え方で判断') && !topCode.includes("from '@/lib/investors/registry'") && !topCode.includes('persona'))
   check('トップ: 状態は loading / ready / empty / error の4つ', topCode.includes("'loading' | 'ready' | 'empty' | 'error'"))
   const catchLines = topCode.split('\n').filter(l => l.includes('.catch('))
   check("トップ: catch が 'empty' を立てない（失敗は 'error'）", catchLines.length === 1 && !catchLines[0].includes("setState('empty')") && catchLines[0].includes("setState('error')"), catchLines.join(' | '))
   check('トップ: HTTP が ok でないと throw（200 以外を空にしない）', topCode.includes('if (!r.ok) throw'))
   check('トップ: AbortController で時間切れ（15秒）・アンマウントで abort と clearTimeout', topCode.includes('new AbortController()') && topCode.includes('FETCH_TIMEOUT_MS = 15_000') && topCode.includes('return () => { alive = false; clearTimeout(timer); ctrl.abort() }'))
-  // 2026-09-29 S1「3段の道」: error の三点・「もう一度読み込む」・--warning-ink の見出しはプレビュー②（右列）が持っていた。
-  // 右列ごと撤去したので、この3件は削除。S2「プレゼン型ホーム」で読み口 /api/entry/examples の4状態として建て直す（DECISIONS.md 2026-09-29）
-  check("トップ: empty は 200 で判断が 0 件のときだけ（'empty' は then の中に1回）", topCode.split("setState('empty')").length - 1 === 1)
-  check('トップ: 200 でも形が違えば error に倒す（isSessionSummary で throw）', topCode.includes('function isSessionSummary(v: unknown): v is SessionSummary') && topCode.includes("if (!isSessionSummary(body)) throw"))
-  // 2026-09-18: 軽い API に切り替え（コミット 7806869 で本番に出た）。一覧の /api/ai-session は読まない
-  check('トップ: fetch 先は /api/ai-session/latest（一覧の /api/ai-session は読まない）', topCode.includes("fetch('/api/ai-session/latest', { signal: ctrl.signal })") && !topCode.includes("fetch('/api/ai-session'"))
-  check('トップ: 応答の形を確かめる（decisions が配列で各要素も正しい・tickCount が数・lastTickAt は文字列か null）', topCode.includes("Array.isArray(o.decisions) && o.decisions.every(isDecision) && typeof o.tickCount === 'number'") && topCode.includes("o.lastTickAt == null || typeof o.lastTickAt === 'string'"))
-  check('トップ: 形が違えば error（throw）、decisions が空なら empty、1件以上なら ready', topCode.includes("if (!isSessionSummary(body)) throw") && topCode.includes('if (body.decisions.length > 0) {') && /setSession\(body\); setState\('ready'\)/.test(topCode))
-  // 2026-09-25 S1c: 見本の見出し行は「いつ・何回目」だけを caption で添える（数字を見出しにしない＝DESIGN §4-2 R3）
-  check('トップ: 見本の見出し行は formatWhen と tickCount 回目だけを caption で添える（R3）', topCode.includes('回目の判断') && /text-caption text-muted tabular-nums">\{when\}・\{session\?\.tickCount\}回目の判断/.test(topCode))
-  check('トップ: 旧の一覧の並べ替え（sort by lastTickAt）が無い', !topCode.includes('.sort((a, b) => Date.parse(b.lastTickAt)'))
-  check('トップ: decisions の各要素も確かめる（symbol・name・reasoning が文字列、action が ACTION_LABEL のキー。壊れた成功を ready にしない）',
-    topCode.includes('o.decisions.every(isDecision)') && topCode.includes("typeof d.symbol === 'string' && typeof d.name === 'string' && typeof d.reasoning === 'string'") && topCode.includes("typeof d.action === 'string' && d.action in ACTION_LABEL"))
+  check("トップ: empty は 200 で examples が null のときだけ（'empty' は then の中に1回）", topCode.split("setState('empty')").length - 1 === 1)
+  check('トップ: 200 でも形が違えば error に倒す（isExamplesBody で throw）', topCode.includes('function isExamplesBody(v: unknown): v is ExamplesBody') && topCode.includes("if (!isExamplesBody(body)) throw"))
+  check('トップ: fetch 先は /api/entry/examples の1本（/api/ai-session・/api/ai-session/latest は読まない）', topCode.includes("fetch('/api/entry/examples', { signal: ctrl.signal })") && !topCode.includes("fetch('/api/ai-session") && topCode.split('fetch(').length - 1 === 1)
+  check('トップ: 応答の形を確かめる（examples は null か { up, down }。各要素は isExample）', topCode.includes('if (o.examples === null) return true') && topCode.includes('return isExample(ex.up) && isExample(ex.down)'))
+  check('トップ: 形が違えば error（throw）、examples が null なら empty、あれば ready', topCode.includes("if (!isExamplesBody(body)) throw") && topCode.includes('if (body.examples) {') && /setExamples\(body\.examples\); setState\('ready'\)/.test(topCode))
+  check('トップ: error は文で出す（role="status"・ERROR_LINE）。「まだ無い」の文（EMPTY_LINE）とは別', topCode.includes('<p role="status" className="text-small text-ink-2">{ERROR_LINE}</p>') && topCode.includes('{EMPTY_LINE}') && topCode.includes("const ERROR_LINE = 'AIの判断の記録を読み込めませんでした。"))
+  check('トップ: 読み込み中は薄い枠（Skeleton・aria-busy）で、回り続ける動きを持たない（R4）', topCode.includes('aria-busy="true"') && !/animate-(?:spin|pulse|ping|bounce)/.test(topCode))
+  check('トップ: 実例1件の形も確かめる（changePct・elapsedBusinessDays が数・bars が配列・action が ACTION_LABEL のキー。壊れた成功を ready にしない）', topCode.includes("typeof e.changePct === 'number' && typeof e.elapsedBusinessDays === 'number'") && topCode.includes('Array.isArray(e.bars) && e.bars.every(isBar)') && topCode.includes("typeof e.action === 'string' && e.action in ACTION_LABEL"))
+  check('トップ: 旧の読み口の名残（isSessionSummary・formatWhen・tickCount・回目の判断）が無い', !/isSessionSummary|formatWhen|tickCount|回目の判断/.test(topCode))
   check('トップ: 古い注釈「/api/ai-session のまま」が残っていない', !top.includes('/api/ai-session のまま'))
   const sim = code('app/simulate/page.tsx')
   check('/simulate: 「簡易版で、ルールブックとは別」の注記（text-small text-ink-2）', sim.includes('このページの投資家の条件は簡易版で、ルールブックとは別のものです。') && /text-small text-ink-2[^>]*>このページの投資家の条件は簡易版/.test(sim))

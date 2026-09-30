@@ -22,21 +22,30 @@ export function firstSentence(text: string): string {
 }
 
 /**
+ * 画面に出してよい文か: 禁止語（助言・断定・勧誘の形になる語＝FORBIDDEN_IN_OUTPUT）を1つも含まない。
+ * 禁止語の判定はここ1か所（S2・2026-09-29）。isShowable / isFullyShowable と、ホームの実例の選び方
+ * lib/entry/answer-examples.ts（pickAnswerExamples）がこれを呼ぶ。判定を2か所に書かない。
+ */
+export function isTextShowable(text: string): boolean {
+  return forbiddenWordsIn(text, FORBIDDEN_IN_OUTPUT).length === 0
+}
+
+/**
  * プレビュー②（冒頭1文だけを表示する場所）に出してよい判断か:
  * 冒頭1文に禁止語（助言・断定・勧誘の形になる語）が無い（法務 F1・2026-09-25）。
  * 表示するのが冒頭1文だけなので、検査も冒頭1文でよい。
  */
 export function isShowable(d: SampleDecision): boolean {
-  return forbiddenWordsIn(firstSentence(d.reasoning), FORBIDDEN_IN_OUTPUT).length === 0
+  return isTextShowable(firstSentence(d.reasoning))
 }
 
 /**
- * 見本2件（全文を描画して line-clamp で切り詰める場所）に出してよい判断か:
+ * 全文を描画して line-clamp で切り詰める場所に出してよい判断か:
  * **全文**に禁止語が無い。line-clamp-2 は全文を DOM に置いたうえで見た目だけ2行に切るので、
  * 3行目以降に禁止語があっても画面の文字としては存在する（reviewer W1・2026-09-25）。
  */
 export function isFullyShowable(d: SampleDecision): boolean {
-  return forbiddenWordsIn(d.reasoning, FORBIDDEN_IN_OUTPUT).length === 0
+  return isTextShowable(d.reasoning)
 }
 
 /**

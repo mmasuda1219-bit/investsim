@@ -304,9 +304,10 @@ function routeChecks() {
   check('page: 旧の --surface の地の塗り（shadow-[0_0_0_100vmax_var(--surface)]）を持たない', !page.includes('var(--surface)]') && !page.includes('shadow-[0_0_0_100vmax_var(--surface)]'))
   // 2026-09-25 S1c: 中身を承認済みの見た目（Night.dc.html）で作り直した。目印は新しい見出しと共通部品の免責（詳細は scripts/check-entry.ts）
   // 2026-09-29 S1「3段の道」: 3つの選択カードは撤去・「4つの段階」→「3つの画面」。主ボタンは /trade 固定
-  check('page: 中身の目印（52px の見出し・主ボタン /trade「1件目のメモを書く」・3つの画面の一列・AIの見本・共通部品の免責）',
-    page.includes('買う理由を書いて残し、あとで株価と読み返す。') && page.includes('1件目のメモを書く') && page.includes('href="/trade"')
-      && page.includes('このサイトは、3つの画面でできています') && page.includes('AIも、同じ形式で理由を書いています') && page.includes('<Disclaimer part="general" />'))
+  // 2026-09-29 S2「プレゼン型ホーム」: 目印は新しい h1・3つの画面のレール・実例の選び方の1文（詳細は scripts/check-entry.ts・check-answer-examples.ts）
+  check('page: 中身の目印（52px の見出し・主ボタン /trade「1件目のメモを書く」・3つの画面のレール・AIの実例の選び方・共通部品の免責）',
+    page.includes('株を売り買いする前に、その理由を書いて残す場所です。') && page.includes('1件目のメモを書く') && page.includes('href="/trade"')
+      && page.includes('このサイトは、3つの画面でできています') && page.includes('判断日が古い順に、値上がりした例と値下がりした例を1件ずつ。') && page.includes('<Disclaimer part="general" />'))
   const rootLayout = stripTsComments(read('app/layout.tsx'))
   check("app/layout.tsx: root の viewport は暗い地（themeColor '#0A0C10'・colorScheme 'dark'）", rootLayout.includes("themeColor: '#0A0C10'") && rootLayout.includes("colorScheme: 'dark'"))
   check("app/layout.tsx: 明るい地の値（'#F6F8FB'・colorScheme 'light'）が残っていない", !rootLayout.includes('#F6F8FB') && !rootLayout.includes("colorScheme: 'light'"))
@@ -382,7 +383,7 @@ function motionChecks() {
   }
   // 許可リスト: 読み込み中・AIが書いている最中の表示だけ（DECISIONS R4「読み込み表示」）。装飾の動きはここに足さない
   // 2026-09-29 S1「3段の道」: app/(night)/page.tsx はプレビュー②（読み込み中の骨組み）を右列ごと撤去したので外した。
-  // S2「プレゼン型ホーム」で読み口 /api/entry/examples の読み込み表示を作るときに戻す
+  // S2「プレゼン型ホーム」（同日）の読み込み表示は動かない薄い枠（aria-busy）にしたので、戻していない
   const ALLOWED: Record<string, string> = {
     'app/learn/page.tsx': '結果の読み込み中の骨組み（data-skeleton）と、AIレポートが流れてくる間だけ点滅する書き込み位置の印',
     'app/review/page.tsx': '読み込み中の骨組み（aria-busy）',
