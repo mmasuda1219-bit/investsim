@@ -26,6 +26,7 @@ href・label・順序は `scripts/check-features.ts`・`check-night-theme.ts` �
 | **01 書く** | `/trade` | **心臓**。買う理由を書いて残す。**理由の記入を必須にする**（任意にしない） |
 | 02 くらべる | `/learn` | いまは条件を決めて過去に当てる画面（プレビュー(純計算)→AIレポートの2段）。自分のメモとAIのメモを並べる中身は S3 |
 | 03 読み返す | `/review` | 書いた理由と、その後の株価を並べる。金額サマリより先に判断の記録を出す |
+| 03 の1件 | `/review/[recordId]` | 「1件のふりかえり」（S3a 2026-09-30）。`recordId` は買いの `Trade.id`（uuid）。AI なし・SQL なし。バッジとフッターの「判定しません」を常時。`app/review/backfill` は固定の区切りなので優先される。sitemap に載せない |
 | 段外 | `/watch` | AIの判断と根拠を読む。**ログイン不要**。ナビの段には置かず、02 の中と全ページ共通フッターの常設リンク（`app/layout.tsx`・無条件）から到達。noindex にしない・`app/sitemap.ts` に残す（`scripts/check-watch-reachable.ts`） |
 | 銘柄詳細 | `/stocks/[symbol]` | |
 | 認証 | `/auth/login`, `/auth/callback` | |

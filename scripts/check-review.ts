@@ -393,6 +393,9 @@ console.log('■ 9. 画面の構成（app/review/page.tsx）')
   check('読み込み中の骨組み（aria-busy・animate-pulse）は残す（check-night-theme の許可リスト）', page.includes('aria-busy="true"') && page.includes('motion-safe:animate-pulse'))
   const bf = stripComments(read('app/review/backfill/page.tsx'))
   check('backfill: 「『03 読み返す』で、書いたことと株価を並べられます。」・「読み返す →」', bf.includes('「03 読み返す」で、書いたことと株価を並べられます。') && bf.includes('>読み返す →</Link>') && !bf.includes('振り返る →'))
+  // S3a「1件のふりかえり」（2026-09-30）: 各カードから /review/[recordId] へ文字リンク1本。中身の検査は scripts/check-review-record.ts
+  check('各カードに「この1件をくわしく読み返す →」（/review/[recordId] への文字リンク1本・S3a。詳細は check-review-record.ts）',
+    page.includes('この1件をくわしく読み返す →') && page.includes('href={`/review/${recordId}`}') && page.includes("from '@/lib/review/record'") && exists('scripts/check-review-record.ts') && exists('app/review/[recordId]/page.tsx'))
 }
 
 console.log('■ ホーム（app/(night)/page.tsx）と DESIGN.md')

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { LoginLink } from '@/components/LoginLink'
 import { PriceSincePanel } from '@/components/review/PriceSincePanel'
 import { buildJudgements, type Judgement } from '@/lib/review/judgement'
+import { buildRecords, matchRecordId } from '@/lib/review/record'
 import { findPattern, keyOf, MIN_RECORDS, type Pattern } from '@/lib/review/patterns'
 import { isNoRule, parseExitLevel } from '@/lib/review/exit-rule'
 import { parseReason } from '@/lib/trade/reason'
@@ -214,6 +215,7 @@ function JudgementNote({
   last,
   figure,
   flagged,
+  recordId,
 }: {
   j: Judgement
   last: boolean
@@ -221,6 +223,8 @@ function JudgementNote({
   figure: Figure | 'loading' | 'none'
   /** 「あなたのクセ」に該当した回 */
   flagged: boolean
+  /** 「1件のふりかえり」（/review/[recordId]・S3a）へ飛ぶための買いの Trade.id。対応づけられなければ null */
+  recordId: string | null
 }) {
   const closed = j.exitAt !== null && j.exitPrice !== null && j.pnlPct !== null
   const entry = new Date(j.entryAt)
@@ -300,6 +304,13 @@ function JudgementNote({
             <p className="text-small tabular-nums text-ink-2">
               買 {formatUSD(j.entryPrice)}<span className="text-muted">（{formatDate(j.entryAt)}）</span>
               <span className="text-muted">・まだ売っていません（読み返すのはこれからです）</span>
+            </p>
+          )}
+
+          {/* 1件のふりかえり（S3a・2026-09-30）への文字リンク1本。表示のロジックは変えない */}
+          {recordId && (
+            <p className="text-small">
+              <Link href={`/review/${recordId}`} className="text-brand hover:underline">この1件をくわしく読み返す →</Link>
             </p>
           )}
         </div>
@@ -501,6 +512,8 @@ export default function ReviewPage() {
   // クセは5件以上のときだけ探す（純関数。時刻・ユーザーを入力にしない）
   const pattern = entryCount >= MIN_RECORDS ? findPattern(judgements) : null
   const flaggedKeys = new Set(pattern?.keys ?? [])
+  // 1件のふりかえりへの導線に使う id 付きの対応づけ（judgement.ts と同じ規則・scripts/check-review-record.ts が一致を見る）
+  const records = buildRecords(portfolio.trades)
 
   return (
     <Ground>
@@ -557,6 +570,7 @@ export default function ReviewPage() {
                     last={i === shown.length - 1}
                     figure={figure}
                     flagged={flaggedKeys.has(keyOf(j))}
+                    recordId={matchRecordId(records, j)}
                   />
                 )
               })}
