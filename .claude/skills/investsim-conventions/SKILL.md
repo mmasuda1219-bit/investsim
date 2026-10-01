@@ -26,7 +26,7 @@ href・label・順序は `scripts/check-features.ts`・`check-night-theme.ts` �
 | **01 書く** | `/trade` | **心臓**。買う理由を書いて残す。**理由の記入を必須にする**（任意にしない） |
 | 02 くらべる | `/learn` | いまは条件を決めて過去に当てる画面（プレビュー(純計算)→AIレポートの2段）。自分のメモとAIのメモを並べる中身は S3 |
 | 03 読み返す | `/review` | 書いた理由と、その後の株価を並べる。金額サマリより先に判断の記録を出す |
-| 03 の1件 | `/review/[recordId]` | 「1件のふりかえり」（S3a 2026-09-30）。`recordId` は買いの `Trade.id`（uuid）。AI なし・SQL なし。バッジとフッターの「判定しません」を常時。`app/review/backfill` は固定の区切りなので優先される。sitemap に載せない |
+| 03 の1件 | `/review/[recordId]` | 「1件のふりかえり」（S3a 2026-09-30）。`recordId` は買いの `Trade.id`（uuid）。AI なし・SQL なし。バッジとフッターの「判定しません」を常時。`app/review/backfill` は固定の区切りなので優先される。sitemap に載せない。S3c（2026-10-01）で「あなたが書いていないことの、出どころ」（発行会社の一次情報の一覧・要約なし・`lib/review/primary-sources/`・`0010_primary_sources.sql`）を §5 の下に足した |
 | 段外 | `/watch` | AIの判断と根拠を読む。**ログイン不要**。ナビの段には置かず、02 の中と全ページ共通フッターの常設リンク（`app/layout.tsx`・無条件）から到達。noindex にしない・`app/sitemap.ts` に残す（`scripts/check-watch-reachable.ts`） |
 | 銘柄詳細 | `/stocks/[symbol]` | |
 | 認証 | `/auth/login`, `/auth/callback` | |
@@ -49,3 +49,12 @@ href・label・順序は `scripts/check-features.ts`・`check-night-theme.ts` �
 - SPYベンチマーク比較、シャープレシオ・最大ドローダウン計算
 
 新機能・修正を行うときは、この学習ループ（学習メモリへの蓄積・参照）を壊さないこと。
+
+## 環境変数（一次情報の取得口・S3c 2026-10-01）
+
+`lib/review/primary-sources/` が読む。どちらも **未設定なら取りに行かず failed**（画面は節を出さないだけで壊れない）。値は `.env.local`（git 管理外）と Vercel の Environment Variables に置く。
+
+| 変数 | 用途 | 未設定のとき |
+|---|---|---|
+| `SEC_CONTACT_EMAIL` | SEC EDGAR へ送る `User-Agent: investsim (<メール>)` の連絡先（SEC の公正利用の方針。鍵ではなく連絡先） | 米国株の一次情報は failed |
+| `EDINET_API_KEY` | 金融庁 EDINET API v2 の鍵（無料登録）。ヘッダ `Ocp-Apim-Subscription-Key` を先に試し、通らなければクエリ `Subscription-Key`。**鍵の載る URL は画面に出さない** | 日本株の一次情報は failed |

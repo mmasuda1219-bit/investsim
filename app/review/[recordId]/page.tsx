@@ -1,12 +1,13 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { LoginLink } from '@/components/LoginLink'
 import { PriceSincePanel, PRICE_SOURCE, fmtPrice } from '@/components/review/PriceSincePanel'
 import { PremiseChain } from '@/components/review/PremiseChain'
 import { PlanVsActualBars } from '@/components/review/PlanVsActualBars'
+import { PrimarySources } from '@/components/review/PrimarySources'
 import { findRecord, openShares, type ReviewRecord } from '@/lib/review/record'
 import { computeBaseRates, type BaseRate } from '@/lib/review/base-rates'
 import { parsePlannedHold } from '@/lib/review/planned-hold'
@@ -14,6 +15,7 @@ import { isNoRule, parseExitLevel } from '@/lib/review/exit-rule'
 import { parseReason } from '@/lib/trade/reason'
 import { fetchPortfolio } from '@/lib/portfolio'
 import type { HistoricalBar } from '@/types'
+import type { PrimarySourceResult } from '@/lib/review/primary-sources/types'
 
 /**
  * 「1件のふりかえり」（S3a・2026-09-30・DECISIONS 2026-09-30 3本目）。
@@ -22,8 +24,10 @@ import type { HistoricalBar } from '@/types'
  * 上から: ヘッダー（記録 #N・銘柄・買った日 → 売った日・保有日数・バッジ「このサイトは良し悪しを判定しません」）
  *   → あなたが書いたこと（見立て／注目／降りる条件・原文のまま）→ 売るときに書いたこと
  *   → ロジックの検証（PremiseChain）→ 言ったこと vs やったこと（PlanVsActualBars＋PriceSincePanel）
- *   → 起きたことの頻度（base-rates・各項目に対象期間／本数／出所／取得時点）→ 数字（最下部）→ フッター
- * §6（逆の見方）と §7（次の問い）は S3a では節ごと出さない（S3c／S3b）。
+ *   → 起きたことの頻度（base-rates・各項目に対象期間／本数／出所／取得時点）
+ *   → あなたが書いていないことの、出どころ（S3c・PrimarySources・一次情報の一覧。status が ok のときだけ節を出す）
+ *   → 数字（最下部）→ フッター
+ * §7 は S3a では節ごと出さない（S3b）。
  *
  * 守っていること:
  *  - 良し悪しを判定しない（バッジとフッターを常に出す）。点数・ランクを作らない。損益に色を付けない
@@ -113,6 +117,14 @@ function LoadingFrame({ label }: { label: string }) {
 }
 
 type Figure = { bars: HistoricalBar[] | null; at: number | null }
+/** /api/review/[recordId]/primary-sources の読み方: ok の結果か、'unresolved'（まだ解決していない）か、null（出さない） */
+type SourcesRead = PrimarySourceResult | 'unresolved' | null
+async function readSources(res: Response): Promise<SourcesRead> {
+  if (!res.ok) return null
+  const body = (await res.json()) as { status?: unknown }
+  if (body?.status === 'unresolved') return 'unresolved'
+  return body?.status === 'ok' ? (body as PrimarySourceResult) : null
+}
 
 /** 書いたことの1枚（見立て／注目／降りる条件）。原文のまま。未記入は「書かれていません」 */
 function WrittenCard({ heading, hint, text, writtenAt, source, note }: {
@@ -190,6 +202,9 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
   const [record, setRecord] = useState<ReviewRecord | null | undefined>(undefined)
   const [figure, setFigure] = useState<Figure | 'loading'>('loading')
   const [now] = useState(() => Date.now())
+  // 一次情報の一覧（S3c）。null = まだ無い／出さない。GET → 'unresolved' なら POST を 1 回だけ（二重押しを防ぐ）
+  const [sources, setSources] = useState<PrimarySourceResult | null>(null)
+  const posted = useRef<{ id: string; promise: Promise<SourcesRead> } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -214,6 +229,28 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
     })
     return () => { alive = false }
   }, [recordId])
+
+  // 一次情報の一覧（S3c）。記録が描けたら GET → 'unresolved' なら POST を 1 回だけ（promise を ref に持ち、二重押し・二重発火でも 1 本）。
+  // ok 以外（該当なし・取得失敗・表や鍵が無い）は何も出さない。他の節は影響を受けない
+  const recordKey = record ? record.id : null
+  useEffect(() => {
+    if (!recordKey) return
+    let alive = true
+    const url = `/api/review/${recordId}/primary-sources`
+    fetch(url, { cache: 'no-store' })
+      .then(readSources)
+      .then(async r => {
+        if (!alive) return
+        if (r !== 'unresolved') { if (r) setSources(r); return }
+        if (!posted.current || posted.current.id !== recordId) {
+          posted.current = { id: recordId, promise: fetch(url, { method: 'POST', cache: 'no-store' }).then(readSources).catch(() => null) }
+        }
+        const p = await posted.current.promise
+        if (alive && p && p !== 'unresolved') setSources(p)
+      })
+      .catch(() => { /* 出さない */ })
+    return () => { alive = false }
+  }, [recordKey, recordId])
 
   if (signedIn === false) {
     return (
@@ -412,6 +449,9 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
           <p className="text-caption text-muted">{DISTRIBUTION_NOTE}</p>
         </div>
       </section>
+
+      {/* ── あなたが書いていないことの、出どころ（S3c・status が ok のときだけ節が出る） ── */}
+      <PrimarySources result={sources} />
 
       {/* ── 数字はいちばん下（small・符号付き・色なし・P10）。「あなたの記録では」と出所を書く ── */}
       <section className="space-y-1">
