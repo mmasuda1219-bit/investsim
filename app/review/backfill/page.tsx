@@ -162,8 +162,8 @@ export default function BackfillPage() {
     return (
       <div className="max-w-xl mx-auto space-y-4">
         <div>
-          <p className="text-small text-muted">03 読み返す</p>
-          <h1 className="text-2xl font-bold text-ink mt-1">過去の取引を記録する</h1>
+          <p className="text-caption text-muted">03 読み返す</p>
+          <h1 className="text-h1 text-ink mt-1">過去の取引を記録する</h1>
         </div>
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-4">
           <p className="text-base text-ink-2 leading-relaxed">記録はアカウントに保存されるので、ログインが必要です。</p>
@@ -178,8 +178,8 @@ export default function BackfillPage() {
 
       <header className="space-y-2">
         {/* 段ラベルは /review と同じ small/muted の日本語（字間を広げた大文字風は DESIGN.md §2 の禁止形） */}
-        <p className="text-small text-muted">03 読み返す</p>
-        <h1 className="text-2xl font-bold text-ink">過去の取引を記録する</h1>
+        <p className="text-caption text-muted">03 読み返す</p>
+        <h1 className="text-h1 text-ink">過去の取引を記録する</h1>
         <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           すでに実際にやった売買を入れると、<strong className="text-ink">今日から振り返りを始められます。</strong>
           結果が出るまで数週間待つ必要がありません。
@@ -192,7 +192,7 @@ export default function BackfillPage() {
 
       {/* ── 取引の中身 ─────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
-        <h2 className="text-xl font-semibold text-ink">何を、いくらで</h2>
+        <h2 className="text-h2 text-ink">何を、いくらで</h2>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
@@ -246,7 +246,7 @@ export default function BackfillPage() {
 
       {/* ── 買ったときの理由 ───────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
-        <h2 className="text-xl font-semibold text-ink">買ったときのこと</h2>
+        <h2 className="text-h2 text-ink">買ったときのこと</h2>
         <ReasonFields
           fields={entryFields}
           parts={entryParts}
@@ -260,7 +260,7 @@ export default function BackfillPage() {
 
       {/* ── 売ったか ───────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
-        <h2 className="text-xl font-semibold text-ink">その後</h2>
+        <h2 className="text-h2 text-ink">その後</h2>
 
         <div className="flex gap-2">
           {([false, true] as const).map(v => (
@@ -319,7 +319,7 @@ export default function BackfillPage() {
             </div>
 
             <div className="pt-1">
-              <h3 className="text-base font-semibold text-ink mb-3">売ったときのこと</h3>
+              <h3 className="text-h3 text-ink mb-3">売ったときのこと</h3>
               <ReasonFields
                 fields={exitFields}
                 parts={exitParts}
@@ -339,7 +339,7 @@ export default function BackfillPage() {
           type="button"
           disabled={!canSubmit}
           onClick={submit}
-          className="w-full py-2.5 rounded-lg bg-accent disabled:bg-surface disabled:text-muted text-on-accent text-sm font-bold transition-colors"
+          className="w-full py-2.5 rounded-lg bg-accent disabled:bg-surface disabled:text-muted text-on-accent text-sm font-semibold transition-colors"
         >
           {submitting ? '記録しています…' : 'この取引を記録する'}
         </button>
@@ -360,7 +360,7 @@ export default function BackfillPage() {
       {/* ── 記録済み ───────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-xl font-semibold text-ink">記録した過去の取引（<span className="tabular-nums">{recorded.length}</span>件）</h2>
+          <h2 className="text-h2 text-ink">記録した過去の取引（<span className="tabular-nums">{recorded.length}</span>件）</h2>
           <Link href="/review" className="text-sm text-brand hover:text-brand-strong">読み返す →</Link>
         </div>
 
@@ -370,7 +370,7 @@ export default function BackfillPage() {
           <ul className="space-y-1.5">
             {recorded.map(t => (
               <li key={t.id} className="flex items-center gap-3 text-sm bg-panel border border-border rounded-lg px-3 py-2">
-                <span className="font-mono font-bold text-ink">{t.symbol}</span>
+                <span className="font-mono font-semibold text-ink">{t.symbol}</span>
                 {/* 買い/売りは色を変えない（DESIGN.md §5-1「やらないこと: 買い/売りを緑/赤で塗る」）。文字で区別する */}
                 <span className="text-ink">
                   {t.action === 'buy' ? '買' : '売'}

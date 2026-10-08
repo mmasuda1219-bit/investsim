@@ -31,8 +31,8 @@ export function PrimarySources({ result }: { result: PrimarySourceResult | null 
   if (!result || result.status !== 'ok') return null
   const browseAll = result.browseAllUrl && isRenderableSourceUrl(result.browseAllUrl) ? result.browseAllUrl : null
   return (
-    <section className="space-y-2" data-section="primary-sources">
-      <h2 className="text-small text-muted">{SECTION_TITLE}</h2>
+    <section className="space-y-3" data-section="primary-sources">
+      <h2 className="text-h2 text-ink">{SECTION_TITLE}</h2>
       <div className="bg-card rounded-card border border-border px-4 py-3 space-y-3">
         <p className="text-small text-ink-2 max-w-[42rem]">{SECTION_LEAD}</p>
         <ul>

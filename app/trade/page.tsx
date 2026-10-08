@@ -189,8 +189,8 @@ function TradePageBody() {
 
       <header className="space-y-2">
         {/* 段ラベルは /watch・/review・/learn と同じ small/muted の日本語（字間を広げた大文字風は DESIGN.md §2 の禁止形） */}
-        <p className="text-small text-muted">01 書く</p>
-        <h1 className="text-2xl font-bold text-ink">買う理由を書いて、残す</h1>
+        <p className="text-caption text-muted">01 書く</p>
+        <h1 className="text-h1 text-ink">買う理由を書いて、残す</h1>
         <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           仮想の資金で売買します。<strong className="text-ink">なぜそう判断したかを必ず書いてください。</strong>
           あとで「読み返す」を開いたとき、儲けた額ではなく判断の中身を見返せるようになります。
@@ -208,7 +208,7 @@ function TradePageBody() {
 
       {/* ── 銘柄を選ぶ ─────────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
-        <h2 className="text-xl font-semibold text-ink">銘柄</h2>
+        <h2 className="text-h2 text-ink">銘柄</h2>
         <div className="flex flex-wrap gap-1.5">
           {PRESET.map(s => (
             <button
@@ -304,9 +304,9 @@ function TradePageBody() {
 
         {!loading && quote && (
           <div className="flex items-baseline gap-3 flex-wrap">
-            <span className="text-lg font-bold text-ink">{quote.symbol}</span>
+            <span className="text-lg font-semibold text-ink">{quote.symbol}</span>
             <span className="text-sm text-muted truncate">{quote.name}</span>
-            <span className="text-2xl font-bold text-ink tabular-nums">{usd(quote.price)}</span>
+            <span className="text-2xl font-semibold text-ink tabular-nums">{usd(quote.price)}</span>
             {/* 損益から色を外す（DECISIONS.md 2026-09-24「損益から色を外す」）。
                 正＝+／負＝−／ゼロ＝± を必ず付け、色は --ink に統一（ゼロだけ text-muted）。
                 前日比が取れない（null）ときは 0 や ± で埋めず「—」 */}
@@ -328,7 +328,7 @@ function TradePageBody() {
 
       {/* ── 判断を記録する ─────────────────────────────────────── */}
       <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
-        <h2 className="text-xl font-semibold text-ink">あなたの判断</h2>
+        <h2 className="text-h2 text-ink">あなたの判断</h2>
 
         {/* 買いと売りで «問うこと» が違うので、先にどちらかを選ぶ。
             2つは同じ重さの副ボタン（DESIGN.md §6-1）。緑/赤で塗らない＝買いにも売りにも
@@ -387,7 +387,7 @@ function TradePageBody() {
           type="button"
           disabled={!canTrade}
           onClick={submit}
-          className="w-full h-12 rounded-card text-base font-bold transition-colors bg-brand text-on-brand enabled:hover:bg-brand-strong disabled:bg-surface disabled:text-muted disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+          className="w-full h-12 rounded-card text-body font-semibold transition-colors bg-brand text-on-brand enabled:hover:bg-brand-strong disabled:bg-surface disabled:text-muted disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
         >
           {action === 'buy' ? '買いを記録する' : '売りを記録する'}
         </button>

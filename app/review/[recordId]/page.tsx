@@ -35,6 +35,8 @@ import type { PrimarySourceResult } from '@/lib/review/primary-sources/types'
  *    本人の記録の買値は「あなたの記録では $X」と出所を書いて表示だけにし、値動きの計算根拠にしない（DECISIONS (11)）
  *  - 未記入は「書かれていません」。原文は書き換えない。`--danger` を使わない
  *  - `lib/ai-trader/**`・`lib/investors/**` を import しない
+ *  - 見出しの階層（DECISIONS 2026-10-05）: パンくず＝caption/--muted の <p>／h1＝text-h1 text-ink／節の見出し h2＝text-h2 text-ink（20/600）。
+ *    法務が要求する注記（バッジ・DISTRIBUTION_NOTE・基準率の直下の行・図の出所・フッター）は大きさ・色・畳み方を変えない
  *
  * ルートの優先: `app/review/backfill/page.tsx`（固定の区切り）は、この動的な区切り `[recordId]` より優先される
  * （Next.js の規約: 固定の区切りが動的な区切りに勝つ）。したがって `/review/backfill` はこのページに来ない。
@@ -93,14 +95,15 @@ function isLegacy(text: string | null): boolean {
 function Ground({ children }: { children: React.ReactNode }) {
   return (
     <div className="pt-1 pb-4 md:pb-5">
-      <div className="max-w-[760px] mx-auto space-y-6">{children}</div>
+      <div className="max-w-[760px] mx-auto space-y-8">{children}</div>
     </div>
   )
 }
 
+/** パンくず（段ラベルと同じ caption/--muted・見出し要素にしない） */
 function Crumb() {
   return (
-    <p className="text-small text-muted">
+    <p className="text-caption text-muted">
       <Link href="/review" className="text-brand hover:underline">03 読み返す</Link>
       <span aria-hidden> ／ </span>1件のふりかえり
     </p>
@@ -321,35 +324,36 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
 
   return (
     <Ground>
-      <Crumb />
-
-      {/* ── ヘッダー ── */}
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="min-w-0">
-            <h1 className="text-h1 text-ink">
-              記録 #{record.seq}<span className="ml-3">{record.symbol}</span>
-            </h1>
-            <p className="text-small text-muted">{record.name}</p>
+      {/* ── パンくず＋ヘッダー（1つに束ねる。節の間 32px は Ground） ── */}
+      <div className="space-y-2">
+        <Crumb />
+        <header className="space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div className="min-w-0">
+              <h1 className="text-h1 text-ink">
+                記録 #{record.seq}<span className="ml-3">{record.symbol}</span>
+              </h1>
+              <p className="text-small text-muted">{record.name}</p>
+            </div>
+            {/* 判定バッジ（常時）。「まだ」を書かない＝いつか判定する約束にしない */}
+            <span className="shrink-0 rounded-full border border-border bg-surface px-3 py-1 text-caption text-ink">{BADGE}</span>
           </div>
-          {/* 判定バッジ（常時）。「まだ」を書かない＝いつか判定する約束にしない */}
-          <span className="shrink-0 rounded-full border border-border bg-surface px-3 py-1 text-caption text-ink">{BADGE}</span>
-        </div>
-        <p className="text-small text-ink-2 tabular-nums">
-          買った日 {formatDate(record.entryAt)} → {soldLine}
-          <span className="text-muted">
-            {closed ? `（保有 ${heldDays}日＝暦日）` : `（保有中・${heldDays}日目＝暦日）`}
-          </span>
-        </p>
-        <p className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-surface px-2 text-caption text-ink">{record.source === 'past' ? '実際の取引の記録' : '練習場の売買'}</span>
-          <span className="rounded-full bg-surface px-2 text-caption text-ink tabular-nums">{record.shares.toLocaleString()}株</span>
-        </p>
-      </header>
+          <p className="text-small text-ink-2 tabular-nums">
+            買った日 {formatDate(record.entryAt)} → {soldLine}
+            <span className="text-muted">
+              {closed ? `（保有 ${heldDays}日＝暦日）` : `（保有中・${heldDays}日目＝暦日）`}
+            </span>
+          </p>
+          <p className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-surface px-2 text-caption text-ink">{record.source === 'past' ? '実際の取引の記録' : '練習場の売買'}</span>
+            <span className="rounded-full bg-surface px-2 text-caption text-ink tabular-nums">{record.shares.toLocaleString()}株</span>
+          </p>
+        </header>
+      </div>
 
       {/* ── あなたが書いたこと ── */}
-      <section className="space-y-2">
-        <h2 className="text-small text-muted">あなたが書いたこと</h2>
+      <section className="space-y-3">
+        <h2 className="text-h2 text-ink">あなたが書いたこと</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <WrittenCard
             heading="見立て"
@@ -373,8 +377,8 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
 
       {/* ── 売るときに、あなたが書いたこと（売っていれば） ── */}
       {sells.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-small text-muted">売るときに、あなたが書いたこと</h2>
+        <section className="space-y-3">
+          <h2 className="text-h2 text-ink">売るときに、あなたが書いたこと</h2>
           <div className="bg-card rounded-card border border-border px-4 py-3 space-y-3">
             {sells.map((s, i) => (
               <div key={s.id + i} className="space-y-1">
@@ -389,9 +393,10 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
       )}
 
       {/* ── ロジックの検証 ── */}
-      <section className="space-y-2">
-        <h2 className="text-small text-muted">ロジックの検証</h2>
-        <p className="text-small text-ink-2 max-w-[42rem]">
+      <section className="space-y-3">
+        <h2 className="text-h2 text-ink">ロジックの検証</h2>
+        {/* 説明の注記（法務の注記ではない）: small/--muted */}
+        <p className="text-small text-muted max-w-[42rem]">
           書いたことを「前提 → だから → 結論 → 期間 → 注目 → 降りる条件」の順に並べ直したものです。付けるのは「書かれていません」だけで、良し悪しは付けません。
         </p>
         <PremiseChain
@@ -407,7 +412,7 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
 
       {/* ── 言ったこと vs やったこと ── */}
       <section className="space-y-3">
-        <h2 className="text-small text-muted">言ったこと vs やったこと</h2>
+        <h2 className="text-h2 text-ink">言ったこと vs やったこと</h2>
         <div className="bg-card rounded-card border border-border px-4 py-4 space-y-4">
           <div className="space-y-2">
             <p className="text-small text-muted">予定していた期間と、実際に持っていた期間</p>
@@ -433,8 +438,8 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
       </section>
 
       {/* ── 起きたことの頻度 ── */}
-      <section className="space-y-2">
-        <h2 className="text-small text-muted">起きたことの頻度</h2>
+      <section className="space-y-3">
+        <h2 className="text-h2 text-ink">起きたことの頻度</h2>
         <div className="bg-card rounded-card border border-border px-4 py-4 space-y-4">
           {figure === 'loading' ? (
             <LoadingFrame label="株価を取得しています" />
@@ -455,7 +460,7 @@ export default function ReviewRecordPage({ params }: { params: Promise<{ recordI
 
       {/* ── 数字はいちばん下（small・符号付き・色なし・P10）。「あなたの記録では」と出所を書く ── */}
       <section className="space-y-1">
-        <h2 className="text-small text-muted">あなたの記録の数字</h2>
+        <h2 className="text-h2 text-ink">あなたの記録の数字</h2>
         <p className="text-small text-ink-2 tabular-nums">
           あなたの記録では 買 {fmtPrice(record.symbol, record.entryPrice)}<span className="text-muted">（{formatDate(record.entryAt)}）</span>
           {sells.length === 0 && <span className="text-muted">・まだ売っていません（読み返すのはこれからです）</span>}

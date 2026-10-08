@@ -364,16 +364,46 @@ console.log('■ 9. 画面の構成（app/review/page.tsx）')
 {
   const page = stripComments(read('app/review/page.tsx'))
   check('h1「書いたことを、株価と並べて読み返す」・小見出し「03 読み返す」', page.includes('<h1 className="text-h1 text-ink">書いたことを、株価と並べて読み返す</h1>') && page.includes('03 読み返す'))
-  check('最初の1行（0件）「読み返す材料は、まだありません。」（text-h2 text-ink）', page.includes('<p className="text-h2 text-ink">読み返す材料は、まだありません。</p>'))
+  // 2026-10-05: 最初の1行はページのリード（h3 の大きさを 400・行間 1.9）。節の見出し h2（20/600）と並べない（DECISIONS 2026-10-05）
+  const LEAD = '<p className="text-h3 font-normal leading-[1.9] text-ink max-w-[42rem]">'
+  check('最初の1行（0件）「読み返す材料は、まだありません。」（リード＝text-h3 font-normal leading-[1.9]・h2 にしない）', page.includes(`${LEAD}読み返す材料は、まだありません。</p>`) && !page.includes('<p className="text-h2 text-ink">'))
+  check('最初の1行は5分岐すべて同じリードの形（text-h3 font-normal …）', count(page, LEAD) === 5, String(count(page, LEAD)))
   check('最初の1行（1件）「{SYMBOL} を買ったときに書いたことが、1件残っています。」', page.includes('を買ったときに書いたことが、1件残っています。'))
   check('最初の1行（2〜4件）「{N}件の記録が残っています。」＋「同じことを5回書くと、共通するところを1つだけ出します。いまは1件ずつ読み返せます。」', page.includes('件の記録が残っています。') && page.includes('回書くと、共通するところを1つだけ出します。いまは1件ずつ読み返せます。'))
   check('最初の1行（5件以上・偏りあり）「あなたのクセが、1つ見えてきた。」＋ pattern.text', page.includes('あなたのクセが、1つ見えてきた。') && page.includes('{pattern.text}'))
   check('最初の1行（5件以上・偏りなし）「…同じ向きに寄っているものは見つかりませんでした。」', page.includes('件を読み返しましたが、同じ向きに寄っているものは見つかりませんでした。'))
   check('「あと◯件」のカウントダウンにしない', !/あと\$\{|あと\d+件|残り\$\{/.test(page))
   check('クセは findPattern（lib/review/patterns.ts）から。画面で軸を作り直していない', page.includes("from '@/lib/review/patterns'") && page.includes('findPattern(judgements)') && !/降りる条件を決めないまま/.test(page))
-  check('h2「あなたが書いたことと、そのあとの株価」', page.includes('あなたが書いたことと、そのあとの株価'))
-  check('h2「いまの仮想資金（実際のお金は1円も動きません）」', page.includes('いまの仮想資金（実際のお金は1円も動きません）'))
-  check('h2「記録を足す・やり直す」が最後の節', page.includes('記録を足す・やり直す') && page.lastIndexOf('<h2') === page.indexOf('記録を足す・やり直す') - '<h2 className="text-small text-muted">'.length)
+  check('h2「あなたが書いたことと、そのあとの株価」（text-h2 text-ink）', page.includes('<h2 className="text-h2 text-ink text-balance">あなたが書いたことと、そのあとの株価</h2>'))
+  check('h2「いまの仮想資金（実際のお金は1円も動きません）」（text-h2 text-ink）', page.includes('<h2 className="text-h2 text-ink text-balance">いまの仮想資金（実際のお金は1円も動きません）</h2>'))
+  // 2026-10-05: 位置は文字長ではなく「最後の <h2 の直後に見出し文が来る」で見る（class を変えても壊れない）
+  check('h2「記録をやり直す」が最後の節（「記録を足す・やり直す」は無い）', page.slice(page.lastIndexOf('<h2')).startsWith('<h2 className="text-h2 text-ink">記録をやり直す</h2>') && !page.includes('記録を足す・やり直す'))
+  check('h2 は3つだけ・すべて text-h2 text-ink（small/--muted の見出しが無い）', count(page, '<h2') === 3 && count(page, '<h2 className="text-h2 text-ink') === 3)
+  check('段ラベル「03 読み返す」は caption/--muted の <p>（見出し要素にしない）・h1 の直前', page.includes('<p className="text-caption text-muted">03 読み返す</p>') && page.indexOf('<p className="text-caption text-muted">03 読み返す</p>') < page.indexOf('<h1 '))
+  check('段ラベル・h1・最初の1行は1つの <header className="space-y-2">（PageTitle が Opening を children で受ける）', page.includes('<header className="space-y-2">') && page.includes('<PageTitle>') && /<PageTitle>\s*<Opening /.test(page))
+  check('節の間は Ground の space-y-8・節の中は space-y-3（space-y-2 の節が無い）', page.includes('mx-auto space-y-8') && !page.includes('<section className="space-y-2">') && count(page, '<section className="space-y-3">') === 3)
+  check('節末の但し書き「1つの銘柄を何回かに分けて…」は caption/--muted（法務の注記ではない）', /<p className="text-caption text-muted max-w-\[42rem\]">\s*1つの銘柄を何回かに分けて売ったときは/.test(page))
+
+  // 2026-10-05: 「読み返す」の主役は過去の実取引を入れること（DECISIONS 2026-10-05 2本目）
+  console.log('■ 9b. 主役は「過去の取引を入れる」（主ボタン → /review/backfill・常に出す）')
+  {
+    const i = page.indexOf('function BackfillLead')
+    const lead = i >= 0 ? page.slice(i, page.indexOf('\n}\n', i)) : ''
+    const btn = /<Link\s+href="\/review\/backfill"\s+className="([^"]*)"\s*>\s*過去の取引を入れる\s*<\/Link>/.exec(lead)
+    check('主ボタン「過去の取引を入れる」の行き先は /review/backfill', btn !== null)
+    const cls = btn?.[1] ?? ''
+    check('主ボタンは 56px（h-14）・bg-brand・text-on-brand・rounded-card', cls.includes('h-14') && cls.includes('bg-brand') && cls.includes('text-on-brand') && cls.includes('rounded-card'), cls)
+    check('主ボタンに色付きの影が無い（R1: 影はトップの主ボタンだけ）・focus は outline', !/shadow/.test(cls) && cls.includes('focus-visible:outline-2'))
+    check('理由の1文は事実だけ: 「今日から読み返せます」＋「結果が出るまで数週間かかります」・「おすすめ」「べき」を書かない',
+      lead.includes('実際にやった売買を入れると、今日から読み返せます。') && lead.includes('練習場の記録は、結果が出るまで数週間かかります。') && !/おすすめ|べき/.test(lead))
+    check('主ボタンはヘッダー（PageTitle）の直後・節1の h2 より前', page.indexOf('<BackfillLead />') > page.indexOf('</PageTitle>') && page.indexOf('<BackfillLead />') < page.indexOf('あなたが書いたことと、そのあとの株価'))
+    check('主ボタンは記録の件数で出し分けない（BackfillLead が条件式の中に無い）', !/\{[^}]*&&\s*<BackfillLead/.test(page) && !/entryCount[^\n]*BackfillLead/.test(page))
+    check('最下部の節は「記録をすべて消す」だけ（backfill への文字リンクが無い・説明は1文）', (() => {
+      const s = page.slice(page.lastIndexOf('<h2 className="text-h2 text-ink">記録をやり直す</h2>'))
+      return !s.includes('/review/backfill') && s.includes('記録をすべて消す') && s.includes('元に戻せません。')
+    })())
+    check('/review/backfill への導線は主ボタンの1本だけ（空の状態の文字リンクも無い）', count(page, 'href="/review/backfill"') === 1)
+  }
   check('「取引履歴（最新10件）」の節が無い', !page.includes('取引履歴'))
   check('初期資本をファーストビューに出さない（INITIAL_CASH は仮想資金の節の中だけ）', !page.includes('初期資本') && page.indexOf('formatUSD(INITIAL_CASH)') > page.indexOf('いまの仮想資金'))
   check('図は最新3件まで（MAX_FIGURES = 3・i >= MAX_FIGURES は図なし）', page.includes('const MAX_FIGURES = 3') && page.includes("i >= MAX_FIGURES ? 'none'"))
@@ -388,7 +418,10 @@ console.log('■ 9. 画面の構成（app/review/page.tsx）')
   check('旧文言が無い（見るべきは儲けた額／その後の値動き／保有中（結果はまだ出ていません）／理由が残っていません／決めていなかった／資産（仮想資金）／リセット）',
     !/見るべきは儲けた額|その後の値動き|保有中（結果はまだ出ていません）|理由が残っていません|決めていなかった|資産（仮想資金）|リセット/.test(page))
   check('確認文「記録をすべて消しますか？書いた理由も、前に売買したことの記録も、元に戻せません。」', page.includes("confirm('記録をすべて消しますか？書いた理由も、前に売買したことの記録も、元に戻せません。')"))
-  check('空の状態: 主ボタンは /trade 1つ（bg-brand は1回）・文字リンク /review/backfill と /watch・架空のカードを描かない（見取り図は文字）', count(page, 'bg-brand ') === 2 /* 未ログイン画面のログイン＋空の状態の /trade（同時には出ない） */ && page.includes('href="/review/backfill"') && page.includes('href="/watch"') && page.includes('ここに並ぶもの') && page.includes('① あなたが書いた理由'))
+  // 2026-10-05: 主ボタンは「過去の取引を入れる」1つ。空の状態の /trade は副ボタン（枠線・bg-card）に下げた（1画面に主ボタン1つ・§6-1）
+  check('主ボタン（bg-brand）は 未ログイン画面のログイン＋「過去の取引を入れる」の2回だけ（同時には出ない）', count(page, 'bg-brand ') === 2, String(count(page, 'bg-brand ')))
+  check('空の状態: /trade は副ボタン（border-border-input bg-card・bg-brand でない）・文字リンク /watch・架空のカードを描かない（見取り図は文字）',
+    /href="\/trade"\s+className="[^"]*border border-border-input bg-card[^"]*"/.test(page) && !/href="\/trade"\s+className="[^"]*bg-brand/.test(page) && page.includes('href="/watch"') && page.includes('ここに並ぶもの') && page.includes('① あなたが書いた理由'))
   check('1件のとき: 【見立て】の再掲＋「それに気づけたことが、この記録のいちばんの中身です。」＋「ごろ、この記録を実際の株価と並べて読み返せます。」', page.includes("sectionOf(first.entryReason, '見立て')") && page.includes('それに気づけたことが、この記録のいちばんの中身です。') && page.includes('ごろ、この記録を実際の株価と並べて読み返せます。'))
   check('読み込み中の骨組み（aria-busy・animate-pulse）は残す（check-night-theme の許可リスト）', page.includes('aria-busy="true"') && page.includes('motion-safe:animate-pulse'))
   const bf = stripComments(read('app/review/backfill/page.tsx'))

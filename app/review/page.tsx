@@ -26,11 +26,20 @@ import {
  * この画面はサイト全体の見返り（払い戻し）。オーナー原文（2026-09-29）「実際の振り返りでももっとわかりやすい文章それから
  * 視覚的にわかりやすいように工夫してほしい」。designer 2026-09-29 の設計 A〜F をそのまま実装する:
  *  - h1 の直下に **最初の1行**（記録の件数で変わる。0／1／2〜4／5件以上・偏りあり／5件以上・偏りなし）
+ *  - その直下に **この画面の主ボタン1つ「過去の取引を入れる」**（→ /review/backfill・56px・色付きの影なし）と、理由の1文
+ *    （DECISIONS 2026-10-05「『読み返す』の主役を、練習場の記録から過去の実取引を入れることに入れ替える」。
+ *    練習場の記録は結果が出るまで数週間かかるが、過去の取引は今日から読み返せる。記録の件数で出し分けない＝常に出す）
  *  - 節1「あなたが書いたことと、そのあとの株価」: 判断記録カード（C ノート型）。並びは
  *      ①日付レール ②買う前に、あなたが書いたこと（主役・--ink） ③売るときに書いたこと ④そのあと、株価はこう動きました（図＋ずれの1文）
  *      ⑤数字はいちばん下。**図は最新3件まで**（Yahoo の 429 を避ける。4件目以降は図なし）
  *  - 節2「いまの仮想資金（実際のお金は1円も動きません）」: 資産と保有銘柄（最下部。金額をファーストビューに置かない）
- *  - 節3「記録を足す・やり直す」: /review/backfill への導線と「記録をすべて消す」（取り消しボタンは画面で唯一の --danger）
+ *  - 節3「記録をやり直す」: 「記録をすべて消す」だけ（取り消しボタンは画面で唯一の --danger）。/review/backfill への導線は
+ *    上の主ボタンに移した（2026-10-05）
+ *
+ * 見出しの階層（DECISIONS 2026-10-05「見出しは --text-h2 に統一し、注記は1か所も弱めない」・DESIGN.md §5-2）:
+ *  段ラベル「03 読み返す」＝ caption/--muted の <p>（見出し要素にしない）／h1＝text-h1 text-ink／最初の1行＝h3 の大きさを 400・行間 1.9 で
+ *  （文なので太らせない）／節の見出し h2＝text-h2 text-ink（20/600）。注記（説明の但し書き）は small〜caption の --muted に下げてよいが、
+ *  法務が要求する注記（図の出所・免責）は触らない。<details> で畳まない・opacity を重ねない。
  *
  * 守っていること:
  *  - 合成スコア・点数・ランクを作らない（lib/review/judgement.ts は1文字も変えない）。クセは lib/review/patterns.ts の純関数が
@@ -113,20 +122,42 @@ function periodFor(entryAt: number, now: number): Period {
 /** 図を付ける件数の上限（新しい順）。Yahoo の 429 を避ける（designer 2026-09-29 の推測値・未実測） */
 const MAX_FIGURES = 3
 
-/** 中央 760px に絞る。地は root の <body className="bg-background">（--bg・唯一の不透明な面）が塗る。 */
+/** 中央 760px に絞る。地は root の <body className="bg-background">（--bg・唯一の不透明な面）が塗る。節の間は 32px（見出しの上 ＞ 下）。 */
 function Ground({ children }: { children: React.ReactNode }) {
   return (
     <div className="pt-1 pb-4 md:pb-5">
-      <div className="max-w-[760px] mx-auto space-y-6">{children}</div>
+      <div className="max-w-[760px] mx-auto space-y-8">{children}</div>
     </div>
   )
 }
 
-function PageTitle() {
+/** 段ラベル（caption/--muted・見出し要素にしない）・h1・最初の1行（children）を1つの <header> に束ねる */
+function PageTitle({ children }: { children?: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-small text-muted">03 読み返す</p>
+    <header className="space-y-2">
+      <p className="text-caption text-muted">03 読み返す</p>
       <h1 className="text-h1 text-ink">書いたことを、株価と並べて読み返す</h1>
+      {children}
+    </header>
+  )
+}
+
+/**
+ * この画面の主ボタン（§6-1・1画面に1つ）: 過去の実取引を入れる。56px・bg-brand・色付きの影は付けない（R1 の影はトップの主ボタンだけ）。
+ * 理由の1文は事実だけ（「おすすめ」「べき」を書かない）。記録の件数で出し分けない（DECISIONS 2026-10-05: オーナーが「常に」を選択）。
+ */
+function BackfillLead() {
+  return (
+    <div className="space-y-3">
+      <p className="text-body text-ink max-w-[42rem]">
+        実際にやった売買を入れると、今日から読み返せます。練習場の記録は、結果が出るまで数週間かかります。
+      </p>
+      <Link
+        href="/review/backfill"
+        className="inline-flex h-14 w-full sm:w-auto items-center justify-center rounded-card bg-brand px-8 text-body font-semibold text-on-brand transition-colors hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+      >
+        過去の取引を入れる
+      </Link>
     </div>
   )
 }
@@ -322,12 +353,13 @@ function JudgementNote({
 /**
  * h1 の直下の最初の1行（designer 2026-09-29 の設計 A）。記録の件数で変える。
  * 「あと◯件」のカウントダウンにしない（R12）。5件以上のクセは patterns.ts が返したときだけ。
+ * 1行目はページのリード（h3 の大きさを 400・行間 1.9 で）。見出しではないので h2 の 20/600 と並べない（DECISIONS 2026-10-05）。
  */
 function Opening({ entryCount, first, pattern, now }: { entryCount: number; first: Judgement | null; pattern: Pattern | null; now: number }) {
   if (entryCount === 0) {
     return (
       <div className="space-y-1">
-        <p className="text-h2 text-ink">読み返す材料は、まだありません。</p>
+        <p className="text-h3 font-normal leading-[1.9] text-ink max-w-[42rem]">読み返す材料は、まだありません。</p>
         <p className="text-small text-ink-2 max-w-[42rem]">
           株を買う前に理由を書くと、ここに残ります。{MIN_ELAPSED_BUSINESS_DAYS}営業日ほど（約1か月）あとに、その理由と実際の株価を並べて読み返せます。
         </p>
@@ -340,7 +372,7 @@ function Opening({ entryCount, first, pattern, now }: { entryCount: number; firs
     const readableAt = addBusinessDays(first.entryAt, MIN_ELAPSED_BUSINESS_DAYS)
     return (
       <div className="space-y-2">
-        <p className="text-h2 text-ink">{first.symbol} を買ったときに書いたことが、1件残っています。</p>
+        <p className="text-h3 font-normal leading-[1.9] text-ink max-w-[42rem]">{first.symbol} を買ったときに書いたことが、1件残っています。</p>
         {thesis ? (
           <p className="text-body text-ink whitespace-pre-line max-w-[42rem]">{thesis}</p>
         ) : (
@@ -358,7 +390,7 @@ function Opening({ entryCount, first, pattern, now }: { entryCount: number; firs
   if (entryCount < MIN_RECORDS) {
     return (
       <div className="space-y-1">
-        <p className="text-h2 text-ink">{entryCount}件の記録が残っています。</p>
+        <p className="text-h3 font-normal leading-[1.9] text-ink max-w-[42rem]">{entryCount}件の記録が残っています。</p>
         <p className="text-small text-ink-2 max-w-[42rem]">同じことを{MIN_RECORDS}回書くと、共通するところを1つだけ出します。いまは1件ずつ読み返せます。</p>
       </div>
     )
@@ -366,13 +398,13 @@ function Opening({ entryCount, first, pattern, now }: { entryCount: number; firs
   if (pattern) {
     return (
       <div className="space-y-1">
-        <p className="text-h2 text-ink">あなたのクセが、1つ見えてきた。</p>
+        <p className="text-h3 font-normal leading-[1.9] text-ink max-w-[42rem]">あなたのクセが、1つ見えてきた。</p>
         <p className="text-body text-ink max-w-[42rem]">{pattern.text}</p>
       </div>
     )
   }
   return (
-    <p className="text-h2 text-ink">{entryCount}件を読み返しましたが、同じ向きに寄っているものは見つかりませんでした。</p>
+    <p className="text-h3 font-normal leading-[1.9] text-ink max-w-[42rem]">{entryCount}件を読み返しましたが、同じ向きに寄っているものは見つかりませんでした。</p>
   )
 }
 
@@ -517,15 +549,20 @@ export default function ReviewPage() {
 
   return (
     <Ground>
-      <PageTitle />
-      <Opening entryCount={entryCount} first={judgements[judgements.length - 1] ?? null} pattern={pattern} now={now} />
+      <PageTitle>
+        <Opening entryCount={entryCount} first={judgements[judgements.length - 1] ?? null} pattern={pattern} now={now} />
+      </PageTitle>
 
-      {/* 節1: あなたが書いたことと、そのあとの株価 — この面の主役。金額より先に出す（P10） */}
-      <section className="space-y-2">
-        <h2 className="text-small text-muted">あなたが書いたことと、そのあとの株価</h2>
+      {/* 主役: 過去の取引を入れる（この画面で唯一の主ボタン・常に出す） */}
+      <BackfillLead />
+
+      {/* 節1: あなたが書いたことと、そのあとの株価 — 記録の一覧。金額より先に出す（P10） */}
+      <section className="space-y-3">
+        <h2 className="text-h2 text-ink text-balance">あなたが書いたことと、そのあとの株価</h2>
 
         {entryCount === 0 ? (
-          // 空: 何が無いか＋ここに並ぶものの見取り図（文字だけ）＋次の一手のボタン1つ（§6-12）。架空のカードで埋めない。
+          // 空: 何が無いか＋ここに並ぶものの見取り図（文字だけ）＋次の一手（§6-12）。架空のカードで埋めない。
+          // /trade へのボタンは副（枠線）: 主ボタンは上の「過去の取引を入れる」1つ（§6-1）。
           <div className="bg-card rounded-card px-4 py-5 space-y-3">
             <p className="text-body text-ink">ここに並ぶもの</p>
             <ol className="space-y-1 text-body text-ink-2 max-w-[42rem]">
@@ -536,13 +573,12 @@ export default function ReviewPage() {
             <div className="pt-1">
               <Link
                 href="/trade"
-                className="inline-flex h-12 items-center justify-center rounded-card bg-brand px-5 text-body font-semibold text-on-brand transition-colors hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+                className="inline-flex h-12 items-center justify-center rounded-card border border-border-input bg-card px-5 text-body font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
               >
                 01 書く で最初の記録を書く
               </Link>
             </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-small">
-              <Link href="/review/backfill" className="text-brand hover:underline">過去に買った株を、いま記録する</Link>
               <Link href="/watch" className="text-brand hover:underline">AIの判断を読む（ログイン不要）</Link>
             </p>
           </div>
@@ -576,7 +612,8 @@ export default function ReviewPage() {
               })}
             </ol>
 
-            <p className="text-small text-muted max-w-[42rem]">
+            {/* 運用上の但し書き（法務の注記ではない）。caption/--muted まで下げる（12px・--muted が下限） */}
+            <p className="text-caption text-muted max-w-[42rem]">
               1つの銘柄を何回かに分けて売ったときは、古い買いから順に対応させています。
               練習場の売買と「実際の取引の記録」は別々に対応させます。
               {shown.length > MAX_FIGURES && `図は新しい${MAX_FIGURES}件に付けています。`}
@@ -587,9 +624,9 @@ export default function ReviewPage() {
       </section>
 
       {/* 節2: いまの仮想資金（最下部寄り）。1行の数字＋保有銘柄の表。取れていない値は —。数字の近くに時点（§6-2） */}
-      <section className="space-y-2">
+      <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-4 flex-wrap">
-          <h2 className="text-small text-muted">いまの仮想資金（実際のお金は1円も動きません）</h2>
+          <h2 className="text-h2 text-ink text-balance">いまの仮想資金（実際のお金は1円も動きません）</h2>
           {totalsReady && quotedAtLatest > 0 && (
             <span className="text-caption text-muted tabular-nums">{formatClock(quotedAtLatest)} 時点</span>
           )}
@@ -682,13 +719,13 @@ export default function ReviewPage() {
         )}
       </section>
 
-      {/* 節3: 記録を足す・やり直す（最下部）。取り消しボタン（§6-1）は副の形で文字だけ --danger＝この画面で唯一 */}
-      <section className="space-y-2">
-        <h2 className="text-small text-muted">記録を足す・やり直す</h2>
+      {/* 節3: 記録をやり直す（最下部）。取り消しボタン（§6-1）は副の形で文字だけ --danger＝この画面で唯一。
+          /review/backfill への導線は上の主ボタンに移した（2026-10-05） */}
+      <section className="space-y-3">
+        <h2 className="text-h2 text-ink">記録をやり直す</h2>
         <div className="bg-card rounded-card px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <p className="text-small text-ink-2 max-w-[42rem]">
-            すでに実際に売買したことがあるなら、
-            <Link href="/review/backfill" className="text-brand hover:underline">過去の取引を入れて、今日から読み返せます</Link>。
+            書いた理由も、売買の記録も、すべて消して最初からにします。元に戻せません。
           </p>
           <button
             onClick={handleReset}

@@ -103,7 +103,7 @@ function StartScreen({ onStart }: { onStart: (capital: number, persona?: Investo
 
   return (
     <section className="space-y-2">
-      <h2 className="text-small text-muted">AI TRADER</h2>
+      <h2 className="text-h2 text-ink">AI TRADER</h2>
       <div className="bg-card rounded-card px-4 py-5 space-y-4">
         <p className="text-body text-ink-2 max-w-[42rem]">
           Claude が自律的にリアルタイム市場データを分析し、ファンダメンタル＋テクニカル＋ニュースを総合判断して仮想売買を行います
@@ -180,7 +180,7 @@ function PageHeader({ session, ticking }: PageHeaderProps) {
   return (
     <header>
       {/* S1「3段の道」（2026-09-29）: このページはナビの段（01〜03）から外れたので、段番号ではなく中身の名前を置く */}
-      <p className="text-small text-muted">AIの判断</p>
+      <p className="text-caption text-muted">AIの判断</p>
       <h1 className="text-h1 text-ink text-balance">AIの判断と、その根拠を読む</h1>
       <p className="mt-1 flex flex-wrap items-center gap-x-3 text-small text-muted">
         <span>Beta</span>
@@ -517,7 +517,7 @@ export function AISessionClient() {
         <section className="space-y-2">
           {/* 見出しは帯の外（灰の上）に small/--muted（§6-6） */}
           <div className="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
-            <h2 className="text-small text-muted">
+            <h2 className="text-h2 text-ink">
               {decisionsFromLatestTick || watchlist.length === 0 ? 'この回のAIの判断' : '最後に記録されたAIの判断'}
             </h2>
             {/* どの人格（投資家の考え方）で判断したかを読者に見せる（2026-09-17 S2・DESIGN §6-11）。
@@ -553,7 +553,7 @@ export function AISessionClient() {
         {olderDecisions.length > 0 && (showOlder ? (
           <section className="space-y-2">
             <div className="flex items-baseline justify-between gap-4 flex-wrap">
-              <h2 className="text-small text-muted">これより前の判断</h2>
+              <h2 className="text-h2 text-ink">これより前の判断</h2>
               <span className="text-caption text-muted tabular-nums">
                 {Math.min(olderDecisions.length, OLDER_DECISION_LIMIT)}件を表示 / 記録{olderDecisions.length}件
               </span>
@@ -602,7 +602,7 @@ export function AISessionClient() {
           並び順は旧スマホ幅（1列に落ちたとき）の順のまま。 */}
       <div className="max-w-[760px] mx-auto mt-12 space-y-6">
         <div className="border-t border-border pt-6">
-          <h2 className="text-body font-semibold text-ink">運用の記録</h2>
+          <h2 className="text-h2 text-ink">運用の記録</h2>
           <p className="text-small text-muted mt-1 max-w-[42rem]">
             判断の積み重ねが、仮想資金の増減としてどう出たか。銘柄ごとの取引チャートと往復・成績・売買履歴・学んだ教訓。
           </p>
