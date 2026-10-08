@@ -6,6 +6,7 @@ import { EarningsPanel } from '@/components/EarningsPanel'
 import { PeriodSelector } from '@/components/PeriodSelector'
 import { RealtimeQuote } from '@/components/RealtimeQuote'
 import { TradeButton } from '@/components/TradeButton'
+import { AnnualStatements } from '@/components/stocks/AnnualStatements'
 
 interface Props {
   params: Promise<{ symbol: string }>
@@ -33,7 +34,7 @@ export default async function StockPage({ params, searchParams }: Props) {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold text-ink">{symbol}</h1>
+              <h1 className="text-h1 text-ink">{symbol}</h1>
               {/* 市場の別を示すだけの札で、危険・良し悪しの意味は無いので中立の bg-surface/text-ink-2
                   に揃える（下の「市場休場中」の札と同じ扱い）。JP/US で色を変えない。 */}
               <span className="text-xs px-2 py-0.5 rounded bg-surface text-ink-2">
@@ -65,6 +66,9 @@ export default async function StockPage({ params, searchParams }: Props) {
 
         {/* Earnings Panel */}
         <EarningsPanel symbol={symbol} />
+
+        {/* 1年ごとの決算（2026-10-07）: SEC EDGAR の XBRL から年次 5 期。米国株だけ（.T は部品が null を返す） */}
+        <AnnualStatements symbol={symbol} />
       </div>
     )
   } catch (err) {
