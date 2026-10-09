@@ -420,8 +420,9 @@ console.log('■ 9. 画面の構成（app/review/page.tsx）')
   check('確認文「記録をすべて消しますか？書いた理由も、前に売買したことの記録も、元に戻せません。」', page.includes("confirm('記録をすべて消しますか？書いた理由も、前に売買したことの記録も、元に戻せません。')"))
   // 2026-10-05: 主ボタンは「過去の取引を入れる」1つ。空の状態の /trade は副ボタン（枠線・bg-card）に下げた（1画面に主ボタン1つ・§6-1）
   check('主ボタン（bg-brand）は 未ログイン画面のログイン＋「過去の取引を入れる」の2回だけ（同時には出ない）', count(page, 'bg-brand ') === 2, String(count(page, 'bg-brand ')))
-  check('空の状態: /trade は副ボタン（border-border-input bg-card・bg-brand でない）・文字リンク /watch・架空のカードを描かない（見取り図は文字）',
-    /href="\/trade"\s+className="[^"]*border border-border-input bg-card[^"]*"/.test(page) && !/href="\/trade"\s+className="[^"]*bg-brand/.test(page) && page.includes('href="/watch"') && page.includes('ここに並ぶもの') && page.includes('① あなたが書いた理由'))
+  // 2026-10-09: /watch のリンクは lib/features.ts の SHOW_AI_WATCH で出し分ける（公開か全面非表示かの二択。規則は scripts/check-watch-reachable.ts）
+  check('空の状態: /trade は副ボタン（border-border-input bg-card・bg-brand でない）・文字リンク /watch は {SHOW_AI_WATCH && ( の内側・架空のカードを描かない（見取り図は文字）',
+    /href="\/trade"\s+className="[^"]*border border-border-input bg-card[^"]*"/.test(page) && !/href="\/trade"\s+className="[^"]*bg-brand/.test(page) && page.includes('href="/watch"') && page.includes('{SHOW_AI_WATCH && (') && page.includes('ここに並ぶもの') && page.includes('① あなたが書いた理由'))
   check('1件のとき: 【見立て】の再掲＋「それに気づけたことが、この記録のいちばんの中身です。」＋「ごろ、この記録を実際の株価と並べて読み返せます。」', page.includes("sectionOf(first.entryReason, '見立て')") && page.includes('それに気づけたことが、この記録のいちばんの中身です。') && page.includes('ごろ、この記録を実際の株価と並べて読み返せます。'))
   check('読み込み中の骨組み（aria-busy・animate-pulse）は残す（check-night-theme の許可リスト）', page.includes('aria-busy="true"') && page.includes('motion-safe:animate-pulse'))
   const bf = stripComments(read('app/review/backfill/page.tsx'))

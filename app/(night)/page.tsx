@@ -9,6 +9,7 @@ import { SERIES, svgDash, type SeriesStyle } from '@/components/chartTheme'
 import { fieldsFor } from '@/lib/trade/reason'
 import { firstSentence } from '@/lib/entry/samples'
 import { MIN_ELAPSED_BUSINESS_DAYS } from '@/lib/entry/answer-examples'
+import { SHOW_AI_WATCH } from '@/lib/features'
 
 /**
  * トップページ＝入口画面。S2「プレゼン型ホーム」（2026-09-29・DECISIONS.md 同日の2エントリ。オーナーが人間ゲート①で承認）。
@@ -16,7 +17,8 @@ import { MIN_ELAPSED_BUSINESS_DAYS } from '@/lib/entry/answer-examples'
  * 説明文の羅列ではなく「このサイトが何をする場所かを、実際の3画面の断片を1本のレールで順に見せる」。
  * 構成（上から順に。正は DESIGN.md §3「トップページの構成」）:
  *   1. ヒーロー: h1 → リード → 主ボタン1つ（/trade「1件目のメモを書く」・56px・色付きの影はここだけ）→ 「保存するときだけログインが要ります」
- *      → 文字リンク2本（/review/backfill・/watch）。パソコンでは右に「残るもの（例）」カード1枚（スマホでは下に回る）。
+ *      → 文字リンク（/review/backfill。lib/features.ts の SHOW_AI_WATCH が true のときは /watch も＝2本）。
+ *        パソコンでは右に「残るもの（例）」カード1枚（スマホでは下に回る）。
  *      **ヒーローに騰落率を置かない**（R3・2026-09-29 オーナー判断。数字は 03 の節で初めて出す）
  *   2. 「このサイトは、3つの画面でできています／書く → くらべる → 読み返す」
  *   3. 左に1本のレール（2px・上が --brand で下に向かって消える）に沿って3段。各段＝左に説明／右にその画面の実物の断片。
@@ -139,7 +141,7 @@ const TIME_LABEL: Partial<Record<(typeof NAV)[number]['href'], string>> = {
   '/review': `${MIN_ELAPSED_BUSINESS_DAYS}営業日ほど経つと`,
 }
 
-/** 注記（法務 C）。AIの判断を見せる節・/watch へ送る節の直下に、地の上・small・--ink-2 で置く（畳まない＝R7・R11） */
+/** 注記（法務 C）。AIの判断を見せる節（SHOW_AI_WATCH が true なら /watch へ送る節でもある）の直下に、地の上・small・--ink-2 で置く（畳まない＝R7・R11） */
 const NOTE_AI =
   'これは、このサイトのAIが仮想資金で出した判断の記録です。▲▼はAIの判断の分類で、特定の銘柄の売買を推奨するものではありません。'
 /** 実例2件の選び方（法務 2026-09-29 論点5。一字も変えない。scripts/check-answer-examples.ts が見る） */
@@ -249,7 +251,10 @@ export default function Home() {
 
           <ul className={`mt-5 flex flex-wrap gap-x-6 gap-y-1 ${RISE[3]}`}>
             <li><Link href="/review/backfill" className={TEXT_LINK}>過去に買った株を、いま記録する</Link></li>
-            <li><Link href="/watch" className={TEXT_LINK}>AIの判断を読む（ログイン不要）</Link></li>
+            {/* /watch は SHOW_AI_WATCH（lib/features.ts）で出し分ける。公開か全面非表示かの二択。ログイン状態で分けない */}
+            {SHOW_AI_WATCH && (
+              <li><Link href="/watch" className={TEXT_LINK}>AIの判断を読む（ログイン不要）</Link></li>
+            )}
           </ul>
         </div>
 
@@ -401,7 +406,9 @@ function CompareFragment({ older, state }: { older: Example | null; state: HomeS
       </p>
       <p className="max-w-[42rem] text-small text-ink-2">{NOTE_AI}</p>
       <p className="text-caption text-muted">いまの「02 くらべる」の画面では、{NAV[1].hint}ことができます。左右に並べて読む画面は準備中です。</p>
-      <Link href="/watch" className={TEXT_LINK}>AIの判断を全部読む →</Link>
+      {SHOW_AI_WATCH && (
+        <Link href="/watch" className={TEXT_LINK}>AIの判断を全部読む →</Link>
+      )}
     </div>
   )
 }

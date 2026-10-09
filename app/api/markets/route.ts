@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
 import { barsFromChartArrays, changeFromPrevClose, previousCloseFromBars } from '@/lib/market/previous-close'
+import { SHOW_AI_WATCH } from '@/lib/features'
 
 /**
- * GET /api/markets — 主要指数の要約（/watch の「いまの相場」が読む）。
+ * GET /api/markets — 主要指数の要約（/watch の「いまの相場」＝components/MarketOverview.tsx だけが読む）。
+ *
+ * 2026-10-09 オーナー指示「いったん全面的に隠す」: 読む画面ごと隠れているので、lib/features.ts の SHOW_AI_WATCH が false の間は
+ * 404・no-store を返し、取得元（Yahoo）にも行かない（公開か全面非表示かの二択。ログイン状態で分けない＝監督指針 VII-3-1(2)②）。
+ * 定数を true に戻せば従来どおり。検査: scripts/check-markets.ts (e)・scripts/check-watch-reachable.ts の E。
  *
  * 取得に失敗した指数は `ok: false` と null を返す。固定値・0・前回値で埋めない
  * （原則9。2026-09-14 オーナー決定「取れない時は『取得できず』と出す」）。
@@ -124,6 +129,7 @@ async function fetchIndex(symbol: string): Promise<IndexQuote> {
 }
 
 export async function GET() {
+  if (!SHOW_AI_WATCH) return NextResponse.json({ error: 'not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } })
   const indices = await Promise.all(Object.keys(INDEX_NAMES).map(fetchIndex))
   const body: MarketsResponse = { indices }
   return NextResponse.json(body, {

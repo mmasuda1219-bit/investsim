@@ -1323,6 +1323,10 @@ async function sectionK() {
   console.log('K. chart API の失敗時応答（502・no-store・和文）と成功時の不変、旧チャート部品（TradingChart / ReferencePanel / api/chart）の削除')
   // 差し替えの前に本物を掴んでおく（変更前の版は一時ディレクトリに置くので、そこからは next/server を見つけられない）
   const nextServer = require('next/server')
+  // lib/features.ts の差し替え（この検査の中だけ）: 隠し中（SHOW_AI_WATCH=false・2026-10-09）でも route の中身の検査を続けるため
+  // 既定では true に差し替える。実際の値での振る舞い（false なら 404）は 6b で差し替えを外し、route を読み直して確かめる
+  const realFeatures = require(path.join(PROJECT_ROOT, 'lib/features')) as { SHOW_AI_WATCH: boolean; SHOW_INVESTOR_MODELS: boolean }
+  const featuresState = { forceShowWatch: true }
   type ModuleWithLoad = typeof Module & { _load: (request: string, ...rest: unknown[]) => unknown }
   const M = Module as unknown as ModuleWithLoad
   const realLoad = M._load
@@ -1331,6 +1335,7 @@ async function sectionK() {
     if (request === '@/lib/ai-trader/engine') return chartEngineStub
     if (request === '@/lib/market') return chartMarketStub
     if (request === 'next/server') return nextServer
+    if (request === '@/lib/features' && featuresState.forceShowWatch) return { ...realFeatures, SHOW_AI_WATCH: true }
     return realLoad.call(this, request, ...rest)
   }
   try {
@@ -1460,6 +1465,23 @@ async function sectionK() {
     check("route.ts: 'Session not found' / 'Failed to fetch chart' の英語を使わない", !routeCode.includes('Session not found') && !routeCode.includes('Failed to fetch chart'))
     check('route.ts: catch に console.error がある', /catch \(err\) \{[\s\S]*console\.error\(/.test(routeCode))
     check('route.ts: 画面向けの 2 文は定数に置く', routeCode.includes(`const HISTORY_FAILED_MESSAGE = '${HISTORY_FAILED}'`) && routeCode.includes(`const SESSION_NOT_FOUND_MESSAGE = '${SESSION_NOT_FOUND}'`))
+
+    // ── 6b. lib/features.ts の SHOW_AI_WATCH（画面 /watch と同じ二択・2026-10-09）: false なら 404・no-store・engine にも市場にも触らない ──
+    check('route.ts: lib/features.ts の SHOW_AI_WATCH を import し、GET の先頭で false なら 404・no-store',
+      routeCode.includes("import { SHOW_AI_WATCH } from '@/lib/features'") && /export async function GET\([^)]*\)\s*\{\s*if \(!SHOW_AI_WATCH\) return NextResponse\.json\([^\n]*status: 404[^\n]*'Cache-Control': 'no-store'/.test(routeCode))
+    featuresState.forceShowWatch = false
+    delete require.cache[require.resolve(path.join(PROJECT_ROOT, CHART_ROUTE_REL))]
+    const realRoute = require(path.join(PROJECT_ROOT, CHART_ROUTE_REL)) as ChartRoute
+    chartStub.session = kSession; chartStub.history = K_BARS; chartStub.throws = null
+    const g = await callChartRoute(realRoute, 'k-session', 'CVX')
+    if (realFeatures.SHOW_AI_WATCH) {
+      check(`SHOW_AI_WATCH=true（実際の値）: 公開（成功の応答と同じ）`, g.status === 200 && g.text === ok.text, `${g.status}`)
+    } else {
+      check('SHOW_AI_WATCH=false（実際の値）: 404・no-store', g.status === 404 && g.cache === 'no-store', `${g.status} ${g.cache}`)
+      check('SHOW_AI_WATCH=false: getSession も getHistory も呼ばない', g.calls.getSession.length === 0 && g.calls.getHistory.length === 0, JSON.stringify(g.calls))
+      check('SHOW_AI_WATCH=false: 本文に history / trades が無い・console.error も出ない', g.body.history === undefined && g.body.trades === undefined && g.logged.length === 0, g.text)
+    }
+    featuresState.forceShowWatch = true
 
     // ── 7. 旧チャート部品の削除: 3 ファイルが無く、コード（コメント以外）からの参照が 0 件 ──
     const GONE = ['components/TradingChart.tsx', 'components/ReferencePanel.tsx', 'app/api/chart/route.ts', 'app/api/chart']

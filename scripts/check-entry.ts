@@ -143,8 +143,10 @@ check('h1: 640px 未満は font-size だけ 40px（className の末尾に max-sm
 check('リードは h3 の大きさ・400・行間 1.9・--ink-2・最大幅 540px・文言どおり（「実際のお金は1円も動きません」）',
   /text-h3 font-normal leading-\[1\.9\] text-ink-2/.test(hero) && hero.includes('max-w-[540px]') && hero.includes('数週間後、書いた理由と実際の株価を並べて読み返せます。売買で実際のお金は1円も動きません。'))
 check('主ボタンの直下に「保存するときだけログインが要ります」（small・--muted）', hero.includes('<p className="mt-2 text-small text-muted">保存するときだけログインが要ります</p>') && hero.indexOf('1件目のメモを書く') < hero.indexOf('保存するときだけログインが要ります'))
-check('文字リンク2本: /review/backfill「過去に買った株を、いま記録する」・/watch「AIの判断を読む（ログイン不要）」',
-  /<Link href="\/review\/backfill"[^>]*>過去に買った株を、いま記録する<\/Link>/.test(hero) && /<Link href="\/watch"[^>]*>AIの判断を読む（ログイン不要）<\/Link>/.test(hero))
+// 2026-10-09: /watch のリンクは lib/features.ts の SHOW_AI_WATCH で出し分ける（公開か全面非表示かの二択。規則は scripts/check-watch-reachable.ts）。
+// ここでは「文言が変わっていない」「{SHOW_AI_WATCH && ( の内側にある」だけを見る（定数の値に依らない）
+check('文字リンク: /review/backfill「過去に買った株を、いま記録する」・/watch「AIの判断を読む（ログイン不要）」は {SHOW_AI_WATCH && ( の内側',
+  /<Link href="\/review\/backfill"[^>]*>過去に買った株を、いま記録する<\/Link>/.test(hero) && /\{SHOW_AI_WATCH && \(\s*<li><Link href="\/watch"[^>]*>AIの判断を読む（ログイン不要）<\/Link><\/li>\s*\)\}/.test(hero))
 check('ヒーローに騰落率が無い（changePct・fmtSignedPct・answerSentence・% をヒーローとカードの関数に置かない＝R3）',
   hero.length > 0 && heroCard.length > 0 && !/changePct|fmtSignedPct|answerSentence|%/.test(hero + heroCard))
 check('「残るもの（例）」カード: 実例が無ければ出さない（{older && <HeroCard}）・読み込み中は薄い枠', hero.includes('{older && <HeroCard example={older} />}') && hero.includes("{state === 'loading' && <Skeleton"))
@@ -206,7 +208,7 @@ check('02: 右は older（2件のうち判断日が古い方）の理由の全�
 check('02: 「ちがい」の1文は静的な説明文（差を自動判定して採点しない。「判定しません」）', compareFrag.includes('どちらが良いかを、このサイトは判定しません。') && !/changePct|score|点/.test(compareFrag))
 check('02: 選び方の注記「右は、下の 03 に出る2件のうち判断日が古い方です。」', compareFrag.includes('右は、下の 03 に出る2件のうち判断日が古い方です。'))
 check('02: 注記（C）（small・--ink-2・地の上）が /watch へのリンクより前にある', compareFrag.includes('<p className="max-w-[42rem] text-small text-ink-2">{NOTE_AI}</p>') && compareFrag.indexOf('{NOTE_AI}') < compareFrag.indexOf('href="/watch"') && page.includes(`const NOTE_AI =\n  '${NOTE_AI}'`))
-check('02: /watch へ「AIの判断を全部読む →」', /<Link href="\/watch"[^>]*>AIの判断を全部読む →<\/Link>/.test(compareFrag))
+check('02: /watch へ「AIの判断を全部読む →」は {SHOW_AI_WATCH && ( の内側（出し分けの規則は scripts/check-watch-reachable.ts）', /\{SHOW_AI_WATCH && \(\s*<Link href="\/watch"[^>]*>AIの判断を全部読む →<\/Link>\s*\)\}/.test(compareFrag))
 check('02: 並べて読む画面は準備中と明示（いまの機能は NAV[1].hint から。無いものを約束しない）', compareFrag.includes('{NAV[1].hint}') && compareFrag.includes('左右に並べて読む画面は準備中です。'))
 check('02: 右列は loading／error／empty で出し分け、error は role="status" の文（失敗を「無い」と見せない）', compareFrag.includes("state === 'loading'") && compareFrag.includes('<p role="status" className="mt-2 text-small text-ink-2">{ERROR_LINE}</p>') && compareFrag.includes('{EMPTY_LINE}'))
 
@@ -293,7 +295,7 @@ check('app/layout.tsx: フッターの枠に 運営者情報／お問い合わ�
 const operatorLine = footer.split('\n').find(l => l.includes('運営者情報')) ?? ''
 check('app/layout.tsx: 運営者情報／お問い合わせ／プライバシーポリシー／利用規約 の行は <a>・<Link> にしない（行き先が未整備）・border-t border-border・small/--muted',
   operatorLine.length > 0 && !/<a\b|<Link\b/.test(operatorLine) && footer.includes('border-t border-border') && footer.includes('text-small text-muted'))
-check('app/layout.tsx: フッターに /watch への常設リンクが1本ある（無条件かどうかは scripts/check-watch-reachable.ts）', count(footer, 'href="/watch"') === 1)
+check('app/layout.tsx: フッターに /watch への常設リンクが1本ある（{SHOW_AI_WATCH && ( の内側。出し分けの規則は scripts/check-watch-reachable.ts）', count(footer, 'href="/watch"') === 1 && footer.includes('{SHOW_AI_WATCH && ('))
 check('app/layout.tsx: 「無料」はフッターの1文だけ・打消しとセット', count(rootLayout, '無料') === 1 && footer.includes('現在は無料で公開しています。将来、有料の機能を作る可能性があります。'))
 check('app/(night)/layout.tsx: フッターを持たない（root に移したので二重に出さない）', !layout.includes('<footer'))
 check("layout: 'use client' を付けていない（viewport は Server Component から）", !/['"]use client['"]/.test(layout))

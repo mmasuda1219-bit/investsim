@@ -1,13 +1,20 @@
 import { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { SHOW_AI_WATCH } from '@/lib/features'
 import { AISessionClient } from './client'
 
 // 「AI自動売買」は実決済と誤読されうるため layout.tsx でサイト名から外した経緯が
 // ある。S1「3段の道」（2026-09-29）でこのページはナビの段から外れたので、段の呼び名（旧「見る」）ではなく
-// 中身の名前「AIの判断」にする。noindex にしない・sitemap（app/sitemap.ts）に残す（未ログインで読める状態を
-// 維持する法務の不変条件・DECISIONS.md 2026-09-29。scripts/check-watch-reachable.ts が見る）。
-export const metadata: Metadata = { title: 'AIの判断 — InvestSim' }
+// 中身の名前「AIの判断」にする。
+//
+// 2026-10-09 オーナー指示「いったん全面的に隠す」: lib/features.ts の SHOW_AI_WATCH が false の間は notFound() で 404 にする。
+// 公開（未ログインで誰でも読める・noindex にしない・sitemap に載せる）か、全面非表示かの**二択**。
+// 「ログインした人にだけ見せる」形は作らない（監督指針 VII-3-1(2)②。scripts/check-watch-reachable.ts が両方の規則を見る）。
+// 中身 ./client.tsx は1行も変えていない。定数を true に戻せばそのまま復活する。
+export const metadata: Metadata = SHOW_AI_WATCH ? { title: 'AIの判断 — InvestSim' } : {}
 
 export default function WatchPage() {
+  if (!SHOW_AI_WATCH) notFound()
   return (
     // 地は root の <body className="bg-background">（--bg・唯一の不透明な面）が塗る。
     // SV1b（2026-09-25）: 切り分け3a で入れた「--surface を 100vmax の影で画面の端まで塗る」仕掛けは撤去した。

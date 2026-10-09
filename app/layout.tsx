@@ -12,6 +12,7 @@ import '@fontsource-variable/noto-sans-jp'
 import './globals.css'
 import Link from 'next/link'
 import { SiteNav } from '@/components/SiteNav'
+import { SHOW_AI_WATCH } from '@/lib/features'
 
 // 「AI自動売買」は (1) 実決済と誤読されうる (2) 助言性を帯びる、の2点で
 // legal-compliance の懸念があり、原則11の転換（ゴールは人間の投資スキル向上）
@@ -80,15 +81,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main> の外の <footer> なので、支援技術には contentinfo（ページ情報の目印）として伝わる。
 
             /watch への常設リンク（S1「3段の道」・DECISIONS.md 2026-09-29）: ナビの段から外した /watch（AIの判断）へ、
-            全ページから到達できる唯一の固定導線。**無条件で1本**（ログイン状態・流入元・記録の有無で出し分けない。
-            session / cookies / headers / 三項 / && をこの中に入れない）。未ログインで読める状態を維持する法務の不変条件
-            （監督指針 VII-3-1(2)②イ「随時に利用可能」の外形）で、scripts/check-watch-reachable.ts が機械で見る。
+            全ページから到達できる唯一の固定導線。lib/features.ts の SHOW_AI_WATCH（2026-10-09 オーナー指示「いったん全面的に隠す」）
+            に連動する**二択**: true なら**無条件で1本**（ログイン状態・流入元・記録の有無で出し分けない。
+            session / cookies / headers / 三項 / && をこの中に入れない）、false なら出さない（画面も 404）。
+            その中間＝ログインした人にだけ見せる形は作らない（監督指針 VII-3-1(2)②）。scripts/check-watch-reachable.ts が
+            同じ定数を読んで両方の規則を機械で見る。SHOW_AI_WATCH && の1つだけが許された分岐。
             「無料」はサイトでここ1か所だけ・打消し（将来、有料の機能を作る可能性）とセット（legal-compliance 2026-09-28・DESIGN.md §7）。 */}
         <footer className="w-full max-w-6xl mx-auto px-4 sm:px-6 pb-20 md:pb-5">
           <div className="mt-8 border-t border-border pt-4 space-y-2">
-            <p className="text-small">
-              <Link href="/watch" className="text-brand hover:underline">AIの判断を読む（ログイン不要）</Link>
-            </p>
+            {SHOW_AI_WATCH && (
+              <p className="text-small">
+                <Link href="/watch" className="text-brand hover:underline">AIの判断を読む（ログイン不要）</Link>
+              </p>
+            )}
             <p className="text-small text-muted">
               現在は無料で公開しています。将来、有料の機能を作る可能性があります。
             </p>

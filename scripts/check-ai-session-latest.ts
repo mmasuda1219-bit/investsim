@@ -8,6 +8,8 @@
 //  - 成功（記録あり・記録なし）の Cache-Control は public, s-maxage=60, stale-while-revalidate=300
 //  - 判断100件・各判断に数百字の technicals / fundamentals を持つセッションでも、応答の JSON は 2KB 未満
 //  - persona はそのまま返る／無ければ null／記録なしでも null。3つの成功の形すべてに persona キーがある
+//  - lib/features.ts の SHOW_AI_WATCH が false の間は 404・no-store・listSessions を呼ばない（2026-10-09「いったん全面的に隠す」。
+//    画面 /watch と同じ二択）。中身の検査は `@/lib/features` を true に差し替えて続け、実際の値での振る舞いは最後に差し替えを外して確かめる
 //
 // 実ネットワーク不要: `@/lib/ai-trader/engine` を Module._load で listSessions だけの偽物に差し替え（重い engine.ts を
 // 読み込まない）、route.ts の GET をそのまま呼ぶ。差し替えで返す値は検査用の合成値で、製品コードには入れない
@@ -20,6 +22,7 @@ import path from 'path'
 import Module from 'module'
 import type { AIDecision, AISession } from '../lib/ai-trader/engine'
 import type { InvestorId } from '../types'
+import * as realFeatures from '../lib/features'
 
 let passed = 0
 let failed = 0
@@ -103,12 +106,16 @@ const engineStub = {
   },
 }
 
+// lib/features.ts の差し替え（この検査の中だけ）: 隠し中（SHOW_AI_WATCH=false）でも経路の中身の検査を続けるため、既定では true に
+// 差し替える。実際の値での振る舞い（false なら 404）は 10 で差し替えを外し、route を読み直して確かめる
+const featuresState = { forceShowWatch: true }
 type ModuleWithLoad = typeof Module & { _load: (request: string, ...rest: unknown[]) => unknown }
 const M = Module as unknown as ModuleWithLoad
 const realLoad = M._load
 M._load = function (request: string, ...rest: unknown[]) {
   if (request === 'server-only') return {}
   if (request === '@/lib/ai-trader/engine') return engineStub
+  if (request === '@/lib/features' && featuresState.forceShowWatch) return { ...realFeatures, SHOW_AI_WATCH: true }
   return realLoad.call(this, request, ...rest)
 }
 
@@ -120,7 +127,9 @@ type Body = {
   error?: string
 }
 type RouteModule = { GET: () => Promise<Response> }
-async function callRoute() {
+/** fresh: require のキャッシュを捨てて route を読み直す（@/lib/features の差し替えを切り替えた後に使う） */
+async function callRoute(fresh = false) {
+  if (fresh) delete require.cache[require.resolve(path.join(ROOT, ROUTE_REL))]
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const route = require(path.join(ROOT, ROUTE_REL)) as RouteModule
   const logged: string[] = []
@@ -149,6 +158,8 @@ function staticChecks() {
   const valueSpecs = (m?.[1] ?? '').split(',').map(s => s.trim()).filter(s => s && !s.startsWith('type '))
   check('engine の値 import は listSessions だけ', JSON.stringify(valueSpecs) === JSON.stringify(['listSessions']), JSON.stringify(valueSpecs))
   check('store を直接 import しない', !src.includes('@/lib/ai-trader/store'))
+  check('lib/features.ts の SHOW_AI_WATCH を import し、GET の先頭で false なら 404・no-store（画面 /watch と同じ二択）',
+    src.includes("import { SHOW_AI_WATCH } from '@/lib/features'") && /export async function GET\(\) \{\s*if \(!SHOW_AI_WATCH\) return NextResponse\.json\([^\n]*status: 404[^\n]*'Cache-Control': 'no-store'/.test(src))
 }
 
 // ── 1. 応答（route.ts の GET を実際に呼ぶ） ──
@@ -260,6 +271,23 @@ async function behaviour() {
     check('中身は HUNDRED.slice(0, 3) の4項目', JSON.stringify(r.body.decisions) === JSON.stringify(HUNDRED.slice(0, 3).map(pick4)))
     console.log(`  （応答 ${r.bytes} bytes / セッション全体 ${sessionBytes} bytes ≒ 1/${Math.round(sessionBytes / r.bytes)}）`)
   }
+
+  console.log(`■ 10. lib/features.ts の SHOW_AI_WATCH（実際の値 ${realFeatures.SHOW_AI_WATCH}・画面 /watch と同じ二択）: false なら 404・no-store・listSessions を呼ばない`)
+  featuresState.forceShowWatch = false
+  state.sessions = [session({ id: 'real', lastTickAt: '2026-09-18T00:00:00.000Z', tickCount: 1, persona: 'buffett' })]
+  {
+    const r = await callRoute(true)
+    if (realFeatures.SHOW_AI_WATCH) {
+      check('SHOW_AI_WATCH=true: 公開（200・記録あり3件）', r.status === 200 && r.body.decisions?.length === 3, `${r.status} ${r.text}`)
+    } else {
+      check('SHOW_AI_WATCH=false: 404', r.status === 404, String(r.status))
+      check('SHOW_AI_WATCH=false: no-store（true に戻したとき CDN に 404 が残らない）', r.cache === 'no-store', r.cache)
+      check('SHOW_AI_WATCH=false: listSessions を呼ばない（記録の置き場に触らない）', r.calls === 0, String(r.calls))
+      check('SHOW_AI_WATCH=false: 本文は error だけ（decisions / lastTickAt / persona を含まない）', JSON.stringify(sortedKeys(r.body)) === JSON.stringify(['error']), r.text)
+      check('SHOW_AI_WATCH=false: console.error は出ない（障害ではない）', r.logged.length === 0, JSON.stringify(r.logged))
+    }
+  }
+  featuresState.forceShowWatch = true
 }
 
 async function main() {

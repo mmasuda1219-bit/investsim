@@ -10,6 +10,7 @@ import { findPattern, keyOf, MIN_RECORDS, type Pattern } from '@/lib/review/patt
 import { isNoRule, parseExitLevel } from '@/lib/review/exit-rule'
 import { parseReason } from '@/lib/trade/reason'
 import { MIN_ELAPSED_BUSINESS_DAYS } from '@/lib/entry/answer-examples'
+import { SHOW_AI_WATCH } from '@/lib/features'
 import type { HistoricalBar } from '@/types'
 import type { Period } from '@/lib/market'
 import {
@@ -506,15 +507,18 @@ export default function ReviewPage() {
             ここには、<strong className="font-semibold">あなたが</strong>買う前に書いた理由と、そのあとの株価が並びます。
           </p>
           <p className="text-small text-ink-2">
-            記録はアカウントに保存されるので、ログインが必要です。「AIの判断を読む」「くらべる」はログインなしで使えます。
+            記録はアカウントに保存されるので、ログインが必要です。{SHOW_AI_WATCH ? '「AIの判断を読む」「くらべる」' : '「くらべる」'}はログインなしで使えます。
           </p>
           <div className="flex flex-wrap items-center gap-4 pt-1">
             <LoginLink className="inline-flex h-12 items-center justify-center rounded-card bg-brand px-5 text-body font-semibold text-on-brand transition-colors hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2">
               ログインして記録を読み返す
             </LoginLink>
-            <Link href="/watch" className="text-small text-brand hover:underline">
-              ログインせずに「AIの判断」を読む
-            </Link>
+            {/* /watch は SHOW_AI_WATCH（lib/features.ts）で出し分ける。公開か全面非表示かの二択。ログイン状態で分けない */}
+            {SHOW_AI_WATCH && (
+              <Link href="/watch" className="text-small text-brand hover:underline">
+                ログインせずに「AIの判断」を読む
+              </Link>
+            )}
           </div>
         </div>
       </Ground>
@@ -578,9 +582,11 @@ export default function ReviewPage() {
                 01 書く で最初の記録を書く
               </Link>
             </div>
-            <p className="flex flex-wrap gap-x-4 gap-y-1 text-small">
-              <Link href="/watch" className="text-brand hover:underline">AIの判断を読む（ログイン不要）</Link>
-            </p>
+            {SHOW_AI_WATCH && (
+              <p className="flex flex-wrap gap-x-4 gap-y-1 text-small">
+                <Link href="/watch" className="text-brand hover:underline">AIの判断を読む（ログイン不要）</Link>
+              </p>
+            )}
           </div>
         ) : (
           <>

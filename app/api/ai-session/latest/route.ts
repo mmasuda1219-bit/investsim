@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { listSessions, type AIDecision } from '@/lib/ai-trader/engine'
+import { SHOW_AI_WATCH } from '@/lib/features'
 import type { InvestorId } from '@/types'
 
 // GET /api/ai-session/latest — トップページの「直近の AI の判断3件」のためだけの軽い応答（2026-09-18）。
@@ -22,6 +23,10 @@ import type { InvestorId } from '@/types'
 // （実測 1.8 秒）を待たずに済む。失敗（502）だけは no-store（一時的な障害を CDN に残さない。app/api/signals/[symbol]/route.ts と同じ）。
 //
 // 既存の GET /api/ai-session（/watch が使う全件の経路）は変えない。検査: scripts/check-ai-session-latest.ts
+//
+// 2026-10-09 オーナー指示「いったん全面的に隠す」: いまのトップページはこの経路を使っていない（見本は /api/entry/examples が
+// listSessions() を直接読む）。lib/features.ts の SHOW_AI_WATCH が false の間は、画面 /watch と同じく 404・no-store で、
+// listSessions() も呼ばない（公開か全面非表示かの二択。ログイン状態で分けない＝監督指針 VII-3-1(2)②）。定数を true に戻せば従来どおり。
 
 const DECISION_LIMIT = 3
 const CACHE_1MIN = 'public, s-maxage=60, stale-while-revalidate=300'
@@ -39,6 +44,7 @@ type LatestBody = {
 const EMPTY: LatestBody = { lastTickAt: null, tickCount: 0, persona: null, decisions: [] }
 
 export async function GET() {
+  if (!SHOW_AI_WATCH) return NextResponse.json({ error: 'not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } })
   try {
     const sessions = await listSessions()
     // 最後に動いたセッションを1件だけ（app/page.tsx の選び方と同じ。配列の順序には依らない）

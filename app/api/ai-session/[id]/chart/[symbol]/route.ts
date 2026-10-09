@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/ai-trader/engine'
 import { getHistory } from '@/lib/market'
+import { SHOW_AI_WATCH } from '@/lib/features'
 
 // A trade is drawn on the chart only if a real bar exists within this window.
 // Trades older than the fetched range would otherwise snap onto the oldest bar
@@ -15,10 +16,14 @@ const MAX_SNAP_SEC = 3 * 24 * 60 * 60
 const HISTORY_FAILED_MESSAGE = '取得元から応答がありません'
 const SESSION_NOT_FOUND_MESSAGE = 'セッションが見つかりません'
 
+// 2026-10-09 オーナー指示「いったん全面的に隠す」: この経路を読むのは /watch のチャート面と ProcessReplay だけなので、
+// lib/features.ts の SHOW_AI_WATCH が false の間は画面と同じく 404・no-store（engine にも市場データにも触らない）。
+// 公開か全面非表示かの二択。ログイン状態で分けない（監督指針 VII-3-1(2)②）。定数を true に戻せば従来どおり。
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; symbol: string }> }
 ) {
+  if (!SHOW_AI_WATCH) return NextResponse.json({ error: 'not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } })
   const { id, symbol } = await params
   const session = await getSession(id)
   if (!session) return NextResponse.json({ error: SESSION_NOT_FOUND_MESSAGE }, { status: 404 })

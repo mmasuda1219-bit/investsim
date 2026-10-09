@@ -7,13 +7,37 @@
 // globalThis.fetch はこの検査の中だけで差し替える（実ネットワーク不要）。差し替えで返す
 // 指数値は検査用の合成値で、製品コードには入れない（原則9の範囲内）。
 //
+// 2026-10-09「いったん全面的に隠す」: この経路を読むのは /watch の MarketOverview だけなので、lib/features.ts の SHOW_AI_WATCH が
+// false の間は 404・no-store を返し取得元に行かない（画面と同じ二択）。中身の検査（a〜d）は `@/lib/features` を true に差し替えて
+// 続け、実際の値での振る舞いは (e) で差し替えを外し route を読み直して確かめる。
+//
 // 実行: npx tsx scripts/check-markets.ts
 
 import fs from 'fs'
 import path from 'path'
-import { GET } from '../app/api/markets/route'
+import Module from 'module'
 import type { IndexQuote, MarketsResponse } from '../app/api/markets/route'
 import { asOfCaption, allFailedLine } from '../components/MarketOverview'
+import * as realFeatures from '../lib/features'
+
+// lib/features.ts の差し替え（この検査の中だけ。route は差し替えを入れてから require で読む）
+const featuresState = { forceShowWatch: true }
+type ModuleWithLoad = typeof Module & { _load: (request: string, ...rest: unknown[]) => unknown }
+const M = Module as unknown as ModuleWithLoad
+const realLoad = M._load
+M._load = function (request: string, ...rest: unknown[]) {
+  if (request === '@/lib/features' && featuresState.forceShowWatch) return { ...realFeatures, SHOW_AI_WATCH: true }
+  return realLoad.call(this, request, ...rest)
+}
+const ROUTE_ABS = path.join(process.cwd(), 'app/api/markets/route.ts')
+type MarketsRoute = { GET: () => Promise<Response> }
+/** fresh: require のキャッシュを捨てて route を読み直す（差し替えを切り替えた後に使う） */
+function loadRoute(fresh = false): MarketsRoute {
+  if (fresh) delete require.cache[require.resolve(ROUTE_ABS)]
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require(ROUTE_ABS) as MarketsRoute
+}
+const { GET } = loadRoute()
 
 let passed = 0
 let failed = 0
@@ -339,6 +363,24 @@ async function main() {
   const overview = fs.readFileSync(path.join(process.cwd(), 'components/MarketOverview.tsx'), 'utf8')
   check('MarketOverview: 取れなかった指数に「取得できませんでした」を出す', overview.includes('取得できませんでした'))
   check('MarketOverview: 時点は text-caption text-muted', overview.includes('text-caption text-muted'))
+
+  // ── (e) lib/features.ts の SHOW_AI_WATCH（画面 /watch と同じ二択）: false なら 404・no-store・取得元に行かない ──
+  console.log(`(e) SHOW_AI_WATCH（実際の値 ${realFeatures.SHOW_AI_WATCH}）`)
+  check('route.ts: lib/features.ts の SHOW_AI_WATCH を import し、GET の先頭で false なら 404・no-store',
+    routeCode.includes("import { SHOW_AI_WATCH } from '@/lib/features'") && /export async function GET\(\) \{\s*if \(!SHOW_AI_WATCH\) return NextResponse\.json\([^\n]*status: 404[^\n]*'Cache-Control': 'no-store'/.test(routeCode))
+  featuresState.forceShowWatch = false
+  const fresh = loadRoute(true)
+  stubFetch(s => goodChart(s))
+  const res = await fresh.GET()
+  const text = await res.text()
+  if (realFeatures.SHOW_AI_WATCH) {
+    check('SHOW_AI_WATCH=true: 公開（200・indices 5本）', res.status === 200 && requested.length === 5, `${res.status} ${requested.join(',')}`)
+  } else {
+    check('SHOW_AI_WATCH=false: 404・no-store', res.status === 404 && (res.headers.get('cache-control') ?? '') === 'no-store', `${res.status} ${res.headers.get('cache-control')}`)
+    check('SHOW_AI_WATCH=false: 取得元（Yahoo）に行かない', requested.length === 0, requested.join(','))
+    check('SHOW_AI_WATCH=false: 本文に indices が無い・console.warn も出ない', !text.includes('indices') && warns.length === 0, `${text} ${JSON.stringify(warns)}`)
+  }
+  featuresState.forceShowWatch = true
 }
 
 main()
@@ -349,6 +391,7 @@ main()
   .finally(() => {
     globalThis.fetch = realFetch
     console.warn = realWarn
+    M._load = realLoad
     console.log('')
     console.log(`PASS ${passed} 件 / FAIL ${failed} 件`)
     if (failed) process.exit(1)

@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { safeNextPath } from '@/lib/auth/next-path'
+import { SHOW_AI_WATCH } from '@/lib/features'
 
 function LoginForm() {
   const searchParams = useSearchParams()
@@ -61,9 +62,10 @@ function LoginForm() {
         </button>
 
         {/* 「見るだけOK・保存はログイン」の方針をここでも明示する。
-            旧文言は削除済みのスクリーナー機能を指していた。 */}
+            旧文言は削除済みのスクリーナー機能を指していた。
+            「AIの判断を読む」（/watch）は lib/features.ts の SHOW_AI_WATCH で出し分ける（/review と同じ形。2026-10-09「いったん全面的に隠す」） */}
         <p className="text-muted text-xs mt-4 leading-relaxed">
-          「AIの判断を読む」「くらべる」はログインなしで使えます。
+          {SHOW_AI_WATCH ? '「AIの判断を読む」「くらべる」' : '「くらべる」'}はログインなしで使えます。
           {next && (
             <>
               <br />
