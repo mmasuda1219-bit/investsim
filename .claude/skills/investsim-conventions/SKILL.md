@@ -29,6 +29,7 @@ href・label・順序は `scripts/check-features.ts`・`check-night-theme.ts` �
 | 03 の1件 | `/review/[recordId]` | 「1件のふりかえり」（S3a 2026-09-30）。`recordId` は買いの `Trade.id`（uuid）。AI なし・SQL なし。バッジとフッターの「判定しません」を常時。`app/review/backfill` は固定の区切りなので優先される。sitemap に載せない。S3c（2026-10-01）で「あなたが書いていないことの、出どころ」（発行会社の一次情報の一覧・要約なし・`lib/review/primary-sources/`・`0010_primary_sources.sql`）を §5 の下に足した |
 | 段外 | `/watch` | AIの判断と根拠を読む。**ログイン不要**。ナビの段には置かず、02 の中と全ページ共通フッターの常設リンク（`app/layout.tsx`・無条件）から到達。noindex にしない・`app/sitemap.ts` に残す（`scripts/check-watch-reachable.ts`） |
 | 銘柄詳細 | `/stocks/[symbol]` | |
+| 隠し | `/lab/9983` | 「添削プロトタイプ」（S-A 2026-10-09・DECISIONS 同日）。ファーストリテイリング1社・**手入力の実データ**（数値は `lib/lab/9983.ts` の1か所だけ・全数値に出典 `Sourced<T>`）。画面1 いつ見るか → 2 見る → 3 つなげる → 4 書く → 5 添削（7節固定・AI なし）→ 6 学ぶ。`SHOW_LAB_9983`（`lib/features.ts`・既定 false）が false なら `notFound()`。true でも noindex・`app/sitemap.ts` に足さない・どこからもリンクしない。到達条件に session/auth を入れない。§3 の AI は S-B（`LAB_CRITIQUE_AI`・`/privacy`・`/terms` の公開前に true にしない）。検査 `scripts/check-lab-9983.ts` |
 | 認証 | `/auth/login`, `/auth/callback` | |
 
 ナビから外したが残しているもの: `/simulate`（複数銘柄運用の受け皿が `/learn` に

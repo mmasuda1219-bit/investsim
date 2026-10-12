@@ -1,0 +1,819 @@
+// 「添削プロトタイプ」（/lab/9983・2026-10-09・S-A）の検査。
+//   $env:PATH = "C:\Program Files\nodejs;$env:PATH"; npx tsx scripts/check-lab-9983.ts
+//
+// 正は DECISIONS.md 2026-10-09「「添削プロトタイプ」を隠しページ /lab/9983 …」の不変条件。
+// 見るもの（記号は builder への指示書のまま）:
+//  (a) 画面の文字列に禁止語が無い（forbidden.ts の2一覧＋lib/lab/forbidden-extra.ts。Disclaimer の定型文と「将来を予測するものではありません」だけ例外）
+//  (b) lib/lab/9983.ts の全数値に SourceRef があり、URL が www.fastretailing.com / www.jpx.co.jp / www.nikkei.com
+//  (c) 解説文・固定文の本文に2桁以上の数字の直書きが無い（{var} で埋める。「30秒」だけ許可）
+//  (d) components/lab/** に色の直値（--success／--danger／生の色）が無い
+//  (e) app/sitemap.ts に /lab が無い・page.tsx に index: false と notFound()・どこからもリンクしない・到達条件に session 等が無い
+//  (f) import 禁止（lib/report/claude.ts・lib/ai-trader/**・lib/investors/**（forbidden.ts を除く））・凍結ファイルが HEAD と無変更
+//  (g) 3フラグ（SHOW_LAB_9983・LAB_CRITIQUE_AI・LAB_SIGN_COLOR）の既定が false
+//  (h) 添削の見出しが7つ・固定順（データと描画の両方）
+//  (i) compose を実際に呼ぶ（結論が空／ROE と ROA／全欄埋め／営業利益と純利益の混同／PER の平均 ほか）
+//  (j) MiniTrend の座標計算（lineGeometry）が正負で同じ倍率
+//  (k) money.ts の整形（実データの値で）＋前期比の計算値が会社公表の % と一致
+//  ほか: 見出しの階層（check-headings.ts と同じ規則）・role="img"・出所の文が無条件に描かれる・U+2212
+//  2026-10-12（オーナーの読みやすさの指示5点・DECISIONS 2026-10-09 の追記）:
+//  (l) 描画結果の Sourced 由来の数字の直後に [N]（出典の番号）がある・解説文のかけらをつなぐと fill と同じ文
+//  (m) 出典の節が <details> の中に無く、--muted より薄くなく、aria-hidden が無い・全出典が番号順・番号は初出順で固定
+//  (n) 免責の文（Disclaimer・「当社の分析や評価は含まれていません」・「将来を予測するものではありません」・「良し悪しを判定しません」・「送信も保存もしていません」）が消えていない
+//  (o) 「2通りの読み方」の囲み（Readings）に border-l-brand がある
+//  (p) 用語の囲み（Term）が評価語（好調・注意・危険 など）を囲んでいない・囲むのは用語集の語だけ。
+//      囲みは <button type="button" aria-expanded> で、押すと説明の箱が段落の直下に出る（aria-controls＝箱の id・同じ段落で1つだけ・Esc で閉じる・title は残す。2026-10-12 スマホ対応）
+//  (q) Timeline に role="img"・aria-label があり「あと◯日」の文字が無い
+//  (r) new Date を読むのは Timeline.tsx と client.tsx の useEffect の中だけ
+//
+// 実ネットワーク不要。利用者のメモの見本は検査の中だけ（製品コードに入れない）。
+
+import fs from 'fs'
+import path from 'path'
+import { spawnSync } from 'child_process'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { LAB_9983, METRIC_ITEMS, EXPLAIN_CHAIN, SOURCES, fyLabel } from '../lib/lab/9983'
+import { fill, labVars, labVarEntries, lineGeometry, segmentShare, yoyText, yoyComputedText, yoySentence, yoyPointDelta, signStyle } from '../lib/lab/display'
+import { citationIndex, citationList, sourceKey, publisherOf } from '../lib/lab/citations'
+import { termTokens, splitTerms, richParagraphs, piecesText } from '../lib/lab/rich'
+import type { SourceRef, Sourced } from '../lib/lab/types'
+import { MINUS, formatByUnit, formatMillionYen, formatPercent, formatSignedPercent, formatSignedPoint, formatSignedYen, formatTimes, formatYen } from '../lib/lab/money'
+import { MEMO_FIELDS, EMPTY_MEMO, DECISION_OPTIONS, type LabMemo } from '../lib/lab/memo-fields'
+import { GLOSSARY_EXTRA } from '../lib/lab/glossary-extra'
+import { labForbiddenWordsIn, LAB_FORBIDDEN } from '../lib/lab/forbidden-extra'
+import { CRITIQUE_SECTIONS, NOTES_TEXT, CRITIQUE_TITLE } from '../lib/lab/critique/sections'
+import { CATALOGUE, numbersNear, approxEqual, catalogueById, NOTHING_FOUND, CHECK_SCOPE_NOTE } from '../lib/lab/critique/catalogue'
+import { LEARN_THEMES, pickTheme, THEME_FOR_MISSING } from '../lib/lab/critique/learn-themes'
+import { composeCritique, CONNECT_TEMPLATES, mentionedMetrics, EXTRA_NAMES, NAMES_HEADING } from '../lib/lab/critique/compose'
+import { SHOW_LAB_9983, LAB_CRITIQUE_AI, LAB_SIGN_COLOR } from '../lib/features'
+import { DISCLAIMER_TEXT } from '../components/ui/Disclaimer'
+import { Lab9983Client, PAGE_KICKER, PAGE_LEAD, WHEN_TITLE, GLOSSARY_TITLE, NEXT_NOTE } from '../app/lab/9983/client'
+import { CritiqueView, CRITIQUE_LEAD, BADGE, NO_QUOTES, OPEN_LEARN, CLOSE_LEARN, KIND_LABEL } from '../components/lab/CritiqueView'
+import { MetricRows, METRICS_TITLE, METRICS_LEAD, SOURCE_NOTE, EXPLAIN_BUTTON, EXPLAIN_CLOSE } from '../components/lab/MetricRows'
+import { CausalMap, chainNodes, CHAIN_TITLE, CHAIN_LEAD, PRICE_NOTE, CHAIN_NOTE } from '../components/lab/CausalMap'
+import { CitationList, CITATIONS_TITLE, CITATIONS_LEAD, LINK_NOTE } from '../components/lab/CitationList'
+import { Readings, READINGS_LABEL } from '../components/lab/Readings'
+import { Term, TermBox, TermGroup, TERM_BOX_CLASS, TERM_CLASS, TERM_OPEN_CLASS, isCloseKey, nextOpenName, termBoxId } from '../components/lab/Term'
+import { Pieces } from '../components/lab/RichText'
+import { Timeline, timelineAria, formatIsoDate, PREV_LABEL, TODAY_LABEL, NEXT_LABEL, TIMELINE_TITLE } from '../components/lab/Timeline'
+import { MiniTrend, miniTrendAria } from '../components/lab/MiniTrend'
+import { LearnPanel, LEARN_PANEL_NOTE } from '../components/lab/LearnPanel'
+import { MEMO_TITLE, MEMO_LEAD, SUBMIT_LABEL, MODE_FREE_LABEL, MODE_FIELDS_LABEL, FREE_HELP, DECISION_LEGEND, DECISION_HELP } from '../components/lab/MemoForm'
+
+let passed = 0
+let failed = 0
+function check(name: string, ok: boolean, detail = '') {
+  if (ok) {
+    passed++
+    console.log(`  PASS ${name}`)
+  } else {
+    failed++
+    console.error(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`)
+  }
+}
+
+const ROOT = process.cwd()
+const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const exists = (rel: string) => fs.existsSync(path.join(ROOT, rel))
+const j = (v: unknown) => JSON.stringify(v)
+/** 注釈を落とす（文字列の中は残す。check-primary-sources.ts と同じ） */
+function stripComments(src: string): string {
+  let out = ''
+  let i = 0
+  while (i < src.length) {
+    const c = src[i]
+    const n = src[i + 1]
+    if (c === '"' || c === "'" || c === '`') {
+      out += c; i++
+      while (i < src.length && src[i] !== c) {
+        if (src[i] === '\\') { out += src[i]; i++ }
+        out += src[i] ?? ''; i++
+      }
+      out += src[i] ?? ''; i++
+      continue
+    }
+    if (c === '/' && n === '/') { while (i < src.length && src[i] !== '\n') i++; continue }
+    if (c === '/' && n === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue }
+    out += c; i++
+  }
+  return out
+}
+function walk(rel: string, re = /\.tsx?$/): string[] {
+  const abs = path.join(ROOT, rel)
+  if (!fs.existsSync(abs)) return []
+  const out: string[] = []
+  for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
+    const r = `${rel}/${e.name}`
+    if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== '.next') out.push(...walk(r, re)) }
+    else if (re.test(e.name)) out.push(r)
+  }
+  return out
+}
+/** 描画結果 → 文字だけ（innerText の近似）。エスケープを戻す */
+const textOf = (html: string) =>
+  html.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()
+const render = (el: React.ReactElement) => renderToStaticMarkup(el)
+const h = React.createElement
+/**
+ * 開始タグが re に当たる要素を中身ごと取り除く。同じタグ名の入れ子を数えて対応する閉じタグまで飛ばす。
+ *   role="img"（図・時系列）… 中の文字は見た目用（aria-label が同じ内容を運ぶ）
+ *   data-critique="flow"（添削 §1）… 利用者の原文（数字が書かれていても出典は付けない）
+ */
+function stripMatching(html: string, re: RegExp): string {
+  let out = ''
+  let i = 0
+  while (i < html.length) {
+    const open = html.indexOf('<', i)
+    if (open < 0) { out += html.slice(i); break }
+    out += html.slice(i, open)
+    const close = html.indexOf('>', open)
+    if (close < 0) { out += html.slice(open); break }
+    const tag = html.slice(open, close + 1)
+    const m = /^<([a-zA-Z][\w-]*)\b/.exec(tag)
+    if (!m || !re.test(tag)) { out += tag; i = close + 1; continue }
+    const name = m[1]
+    const tagRe = new RegExp(`<(/?)${name}\\b[^>]*>`, 'g')
+    tagRe.lastIndex = close + 1
+    let depth = 1
+    let end = html.length
+    let mm: RegExpExecArray | null
+    while ((mm = tagRe.exec(html))) {
+      if (mm[1] === '/') depth--
+      else if (!mm[0].endsWith('/>')) depth++
+      if (depth === 0) { end = mm.index + mm[0].length; break }
+    }
+    i = end
+  }
+  return out
+}
+const stripRoleImg = (html: string) => stripMatching(html, /\brole="img"/)
+/** 添削の 1 節（data-critique="…"）の HTML */
+const critiqueSection = (html: string, key: string) => {
+  const i = html.indexOf(`data-critique="${key}"`)
+  if (i < 0) return ''
+  const next = html.indexOf('data-critique="', i + 10)
+  return html.slice(i, next < 0 ? undefined : next)
+}
+
+// ── 利用者のメモの見本（検査の中だけ） ───────────────────────────────────────
+const memo = (over: Partial<LabMemo>): LabMemo => ({ ...EMPTY_MEMO, parts: {}, ...over })
+const MEMO_EMPTY = memo({})
+const MEMO_ROE_ROA = memo({ decision: 'hold', parts: { metrics: 'ROEは21.2%でROAは11.6%。差が大きい。', conclusion: '次の決算まで保留' } })
+const MEMO_FULL = memo({
+  decision: 'buy',
+  parts: {
+    market: '日経平均は決算シーズン。',
+    sector: '小売は海外の景気次第。',
+    pick: '海外ユニクロの伸びが気になった。',
+    metrics: 'PER は加重平均より大きい。EPS と純利益は同じ率で伸びた。営業利益も増えた。ROE と ROA、自己資本比率、営業CF と手元資金、配当、セグメントの内訳を見た。',
+    concerns: '来期予想の伸びが小さい理由を確かめていない。',
+    conclusion: '利益は増えているが、株価は決算の翌日に下げた。来期の伸びが小さい。',
+  },
+})
+const MEMO_OP_NET = memo({ decision: 'pass', parts: { metrics: '営業利益は5,425億円で前期比プラス。', conclusion: '様子見。' } })
+const MEMO_PER_AVG = memo({ decision: 'buy', parts: { metrics: 'PERは小売業の平均より高い。', conclusion: '様子を見て買う。' } })
+const MEMO_FREE = memo({ mode: 'free', decision: null, free: '海外の伸びが大きいので買う。' })
+const MEMO_FREE_NO_DECISION = memo({ mode: 'free', decision: null, free: '海外の伸びが大きい。' })
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (b) lib/lab/9983.ts の全数値に SourceRef がある・URL のホストが3つだけ')
+{
+  const HOSTS = new Set(['www.fastretailing.com', 'www.jpx.co.jp', 'www.nikkei.com'])
+  const bare: string[] = []
+  const badSource: string[] = []
+  let sourced = 0
+  const isSourced = (o: unknown): o is { value: unknown; source: { url: string; label: string; asOf: string } } =>
+    typeof o === 'object' && o !== null && 'value' in o && 'source' in o && typeof (o as { source: unknown }).source === 'object'
+  const visit = (v: unknown, p: string) => {
+    if (typeof v === 'number') { bare.push(`${p}=${v}`); return }
+    if (Array.isArray(v)) { v.forEach((x, i) => visit(x, `${p}[${i}]`)); return }
+    if (typeof v === 'object' && v !== null) {
+      if (isSourced(v)) {
+        const s = v.source
+        let host = ''
+        try { host = new URL(s.url).host } catch { host = '' }
+        if (!HOSTS.has(host) || !s.label || !s.asOf) badSource.push(`${p}: ${j(s)}`)
+        if (typeof v.value === 'number') sourced++
+        return
+      }
+      for (const [k, x] of Object.entries(v)) visit(x, `${p}.${k}`)
+    }
+  }
+  visit(LAB_9983, 'LAB_9983')
+  check(`出典の無い number が 0 件（出典つきの number ${sourced} 件）`, bare.length === 0, bare.slice(0, 8).join(', '))
+  check('すべての SourceRef の URL が www.fastretailing.com / www.jpx.co.jp / www.nikkei.com で、label・asOf が空でない', badSource.length === 0, badSource.slice(0, 5).join(' | '))
+  check('SOURCES は8本（短信・過去5年・1株当たり・ROE/ROA・CF・決算発表・日経・JPX）', Object.keys(SOURCES).length === 8, Object.keys(SOURCES).join(','))
+  check('出さないと決めたもの: 2026年8月期の ROA が null（会社未開示）', LAB_9983.roa.points[4].value === null && LAB_9983.roa.points[4].missing === '会社未開示')
+  check('出さないと決めたもの: 10/08 の終値（74,800）がデータに無い', !read('lib/lab/9983.ts').includes('74_800') && !read('lib/lab/9983.ts').includes('74800'))
+  check('出さないと決めたもの: 小売業の平均自己資本比率が無い（PER 以外に comparisons を持つ項目が無い）', METRIC_ITEMS.every(it => it.key === 'per' || !it.comparisons || it.comparisons.length === 0))
+  check('次回の決算は「未定（例年1月上旬）」（日付を書かない）', LAB_9983.company.nextAnnouncement === '未定（例年1月上旬）')
+  check('画面1の案内に「おすすめ」が無い・決められた文', LAB_9983.howToUse === '決算前に判断メモを書き、決算後に読み返す、という使い方ができます。')
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (k) money.ts の整形（実データの値）・前期比の計算値が会社公表の % と一致')
+{
+  check('3,963,389百万円 → 3兆9,634億円', formatMillionYen(3_963_389) === '3兆9,634億円', formatMillionYen(3_963_389))
+  check('743,128百万円 → 7,431億円', formatMillionYen(743_128) === '7,431億円', formatMillionYen(743_128))
+  check('1,007,586百万円 → 1兆76億円', formatMillionYen(1_007_586) === '1兆76億円', formatMillionYen(1_007_586))
+  check('128,500百万円 → 1,285億円／4,450,000百万円 → 4兆4,500億円', formatMillionYen(128_500) === '1,285億円' && formatMillionYen(4_450_000) === '4兆4,500億円')
+  check('マイナスは U+2212（−1,285億円）・0 は 0円', formatMillionYen(-128_500) === `${MINUS}1,285億円` && formatMillionYen(0) === '0円' && MINUS.charCodeAt(0) === 0x2212)
+  check('円: 1,768.08円／71,780円／891.8円／850円', formatYen(1_768.08) === '1,768.08円' && formatYen(71_780) === '71,780円' && formatYen(891.8) === '891.8円' && formatYen(850) === '850円')
+  check('割合・倍率: 62.6%／1.25%／39.3倍／7.73倍', formatPercent(62.6) === '62.6%' && formatPercent(1.25) === '1.25%' && formatTimes(39.3) === '39.3倍' && formatTimes(7.73) === '7.73倍')
+  check('符号付き: +25.3%／−2.3%／±0.0%／−3,020円', formatSignedPercent(25.3) === '+25.3%' && formatSignedPercent(-2.3) === `${MINUS}2.3%` && formatSignedPercent(0) === '±0.0%' && formatSignedYen(-3_020) === `${MINUS}3,020円`)
+  // 前期比はデータの値から計算する。会社公表の %（fr-9983-verified.md）と一致すること
+  const expectYoy: [string, string][] = [
+    [yoyText(LAB_9983.sales) ?? '', '+16.6%'],
+    [yoyText(LAB_9983.operatingProfit) ?? '', '+31.7%'],
+    [yoyText(LAB_9983.netProfit) ?? '', '+25.3%'],
+    [yoyText(LAB_9983.eps) ?? '', '+25.3%'],
+    [yoyText(LAB_9983.businessProfit) ?? '', '+30.4%'],
+    [yoyText(LAB_9983.pretaxProfit) ?? '', '+23.4%'],
+  ]
+  check('画面に出す前期比は会社公表の値: 売上 +16.6%・営業利益 +31.7%・純利益 +25.3%・EPS +25.3%・事業利益 +30.4%・税引前 +23.4%', expectYoy.every(([a, b]) => a === b), expectYoy.map(x => x.join('≠')).join(' / '))
+  const consistency = [LAB_9983.sales, LAB_9983.operatingProfit, LAB_9983.netProfit, LAB_9983.eps, LAB_9983.businessProfit, LAB_9983.pretaxProfit].map(sr => {
+    const computed = yoyComputedText(sr)
+    const stated = sr.yoy?.value ?? NaN
+    const c = computed ? Number.parseFloat(computed.replace(MINUS, '-').replace('%', '')) : NaN
+    return [sr.key, c, stated, Math.abs(c - stated)] as const
+  })
+  check('値から計算した前期比が会社公表の値と 0.1pt 以内（事業利益は丸めで +30.3% vs +30.4%）', consistency.every(x => x[3] <= 0.1 + 1e-9), consistency.map(x => x[0] + ':' + x[1] + '/' + x[2]).join(' '))
+  check('来期予想の前期比（会社公表）: 売上 +12.3%・事業利益 +15.5%・純利益 +3.2% が値からも再現できる（0.1pt 以内）',
+    LAB_9983.forecasts.every(f => {
+      const base = f.key === 'sales' ? LAB_9983.sales : f.key === 'businessProfit' ? LAB_9983.businessProfit : LAB_9983.netProfit
+      const prev = base.points[4].value?.value ?? 0
+      return Math.abs((f.value.value / prev - 1) * 100 - f.yoy.value) < 0.1
+    }))
+  check('海外ユニクロの構成比 ≒ 61%（会社の概数から計算）', segmentShare(LAB_9983, 'overseas') === 61, String(segmentShare(LAB_9983, 'overseas')))
+  check('実績PER 40.6倍 = 終値 ÷ 基本的EPS（0.05 以内）', Math.abs(LAB_9983.price.close.value / (LAB_9983.eps.points[4].value?.value ?? 1) - LAB_9983.price.trailingPer.value) < 0.05)
+  check(
+    LAB_SIGN_COLOR
+      ? 'signStyle: LAB_SIGN_COLOR=true なのでプラス・マイナスに色が返り、0 は色なし'
+      : 'signStyle: LAB_SIGN_COLOR=false なので全部空（色を戻す口）',
+    LAB_SIGN_COLOR
+      ? signStyle(-1) !== '' && signStyle(1) !== '' && signStyle(0) === ''
+      : signStyle(-1) === '' && signStyle(1) === '' && signStyle(0) === '')
+  // レビュー W1（2026-10-09）: 比率（%）の前期比は比ではなく差（ポイント）
+  const roeS = yoySentence(LAB_9983.roe)
+  const eqS = yoySentence(LAB_9983.equityRatio)
+  check('W1: yoySentence(ROE) が「ポイント」を含み「%です」を含まない／自己資本比率も同様', roeS.includes('ポイント') && !roeS.includes('%です') && eqS.includes('ポイント') && !eqS.includes('%です'), `${roeS} / ${eqS}`)
+  check('W1: ROE 20.2% → 21.2% は「前の期は 20.2%。+1.0ポイントです。」／自己資本比率 58.9% → 62.6% は +3.7ポイント', roeS === '前の期は 20.2%。+1.0ポイントです。' && yoyText(LAB_9983.equityRatio) === '+3.7ポイント' && yoyPointDelta(LAB_9983.equityRatio) === 3.7, `${roeS} / ${yoyText(LAB_9983.equityRatio)}`)
+  check('W1: formatSignedPoint: +3.7ポイント／−1.2ポイント（U+2212）／±0.0ポイント', formatSignedPoint(3.7) === '+3.7ポイント' && formatSignedPoint(-1.2) === `${MINUS}1.2ポイント` && formatSignedPoint(0) === '±0.0ポイント')
+  check('W1: 金額の系列は従来どおり %（営業利益 +31.7%・会社公表の値）', yoySentence(LAB_9983.operatingProfit) === '前の期は 5,643億円。前期比 +31.7% です（会社公表の値）。', yoySentence(LAB_9983.operatingProfit))
+  // レビュー S4: テンプレ内の比較の断定をデータで検証（データを差し替えたとき黙って偽にならないように）
+  const last = (sr: { points: { value: { value: number } | null }[] }) => sr.points[sr.points.length - 1]?.value?.value ?? NaN
+  const prev = (sr: { points: { value: { value: number } | null }[] }) => sr.points[sr.points.length - 2]?.value?.value ?? NaN
+  const d = LAB_9983
+  check('S4: 営業CF > 純利益（explain.cash「純利益より大きい額です」）', last(d.operatingCf) > last(d.netProfit))
+  check('S4: 自己資本比率が毎期大きくなっている（explain.equityRatio「毎期大きくなっています」）', d.equityRatio.points.every((pt, i) => i === 0 || (pt.value?.value ?? -1) > (d.equityRatio.points[i - 1].value?.value ?? Infinity)))
+  const overseas = d.segments.find(x => x.key === 'overseas')
+  check('S4: 海外ユニクロの前期比 > 売上収益の前期比（explain.segments「全体の伸びを上回っている」）', (overseas?.yoy.value ?? -1) > (d.sales.yoy?.value ?? Infinity))
+  check('S4: 営業利益の伸び > 純利益の伸び（explain.profit「より大きい」）・EPS の伸び ≒ 純利益の伸び（0.1pt 以内。「同じ率で伸びている」）', (d.operatingProfit.yoy?.value ?? -1) > (d.netProfit.yoy?.value ?? Infinity) && Math.abs((d.eps.yoy?.value ?? 0) - (d.netProfit.yoy?.value ?? 99)) <= 0.1)
+  const nextNet = d.forecasts.find(f => f.key === 'netProfit')
+  check('S4: 売上・営業利益・純利益・EPS がすべて前期より増えた（explainChain「すべて増えました」）・翌日の株価は前日比マイナス・来期予想の伸び < 今期の伸び（「それまでの伸びより小さく」）',
+    [d.sales, d.operatingProfit, d.netProfit, d.eps].every(sr => last(sr) > prev(sr)) && d.price.changePct.value < 0 && (nextNet?.yoy.value ?? Infinity) < (d.netProfit.yoy?.value ?? -1))
+  check('S4: 手元資金・配当は前の期より増え、配当性向は大きくなり、ROE は前期の ROA より大きい（explain.cash／dividend／roeRoa の記述）', last(d.cash) > prev(d.cash) && last(d.dividend) > prev(d.dividend) && d.payoutRatio.curr.value > d.payoutRatio.prev.value && last(d.roe) > prev(d.roa))
+  check('S4: 「株数がほぼ変わらず」の断定が無い（推論の形に）', !read('lib/lab/9983.ts').includes('株数がほぼ変わらず'))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (j) lineGeometry（折れ線の座標）が正負で同じ倍率')
+{
+  const g = lineGeometry([-10, 20, null, 0], 60)
+  check('k = plotH / (maxPos + maxNeg) = 2・ゼロ線 y = 40', g.k === 2 && g.zeroY === 40, j(g))
+  check('プラスは上（y=0）・マイナスは下（y=60）・欠損は null・0 はゼロ線', g.ys[0] === 60 && g.ys[1] === 0 && g.ys[2] === null && g.ys[3] === 40)
+  check('単位あたりの px が正負で等しい', (g.zeroY - (g.ys[1] as number)) / 20 === ((g.ys[0] as number) - g.zeroY) / 10)
+  const z = lineGeometry([null, null], 60)
+  check('全部欠損なら k=0・ゼロ線は下端', z.k === 0 && z.zeroY === 60)
+  const aria = miniTrendAria('試験', 'millionYen', [{ fy: 'FY2025', value: -128_500 }, { fy: 'FY2026', value: null, missing: '会社未開示' }])
+  check('aria-label: マイナスは「（マイナス）」・欠損は理由（会社未開示）', aria.includes(`${MINUS}1,285億円（マイナス）`) && aria.includes('2026年8月期 は会社未開示'), aria)
+  const svg = render(h(MiniTrend, { label: '試験', unit: 'millionYen', points: [{ fy: 'FY2025', value: -1 }, { fy: 'FY2026', value: 2 }], initialWidth: 320 }))
+  check('MiniTrend: role="img"・aria-label・SVG は aria-hidden・ゼロ線は var(--axis)・マイナスの点は塗り、プラスは中空', /role="img"/.test(svg) && /aria-label="/.test(svg) && svg.includes('aria-hidden="true"') && svg.includes('stroke="var(--axis)"') && svg.includes('fill="var(--ink)"') && /fill="var\(--card\)"/.test(svg) && /stroke="var\(--ink\)"/.test(svg))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (h) 添削の見出しが7つ・固定順（データと描画）')
+{
+  const titles = CRITIQUE_SECTIONS.map(s => s.title)
+  check('sections.ts: 7節・順番固定', j(titles) === j(['あなたの判断の流れ', '書けていたこと', '誤り・要確認', '確認が抜けている項目', '情報のつなげ方の例', '次に学ぶとよいテーマ', '注意事項']), titles.join(' / '))
+  check('sections.ts: 番号が 1..7', j(CRITIQUE_SECTIONS.map(s => s.no)) === j([1, 2, 3, 4, 5, 6, 7]))
+  const html = render(h(CritiqueView, { critique: composeCritique(MEMO_FULL) }))
+  const order = [...html.matchAll(/<h3 class="text-h3 text-ink">§(\d) ([^<]+)<\/h3>/g)].map(m => [Number(m[1]), m[2]])
+  check('CritiqueView: h3 が §1〜§7 の順で7つ・見出し文が sections.ts と同じ', j(order) === j(CRITIQUE_SECTIONS.map(s => [s.no, s.title])), j(order))
+  check('CritiqueView: h2 は「添削」・バッジ「このサイトは良し悪しを判定しません」', html.includes(`<h2 id="lab-critique-heading" class="text-h2 text-ink">${CRITIQUE_TITLE}</h2>`) && html.includes(BADGE))
+  check('CritiqueView: 「役に立った」のボタンが無い（S-A では保存先が無い）', !html.includes('役に立'))
+  check('CritiqueView: §7 に Disclaimer（part="general"）の定型文と固定文3本', html.includes(DISCLAIMER_TEXT) && NOTES_TEXT.every(t => html.includes(t)))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (i) compose を実際に呼ぶ')
+{
+  const ids = (m: LabMemo) => composeCritique(m).check.hits.map(x => x.id)
+  check('結論が空のメモ → §3 に conclusion-empty', ids(MEMO_EMPTY).includes('conclusion-empty'), ids(MEMO_EMPTY).join(','))
+  check('ROE と ROA の差について書いたメモ → §3 に roe-roa-mix。開示値 11.6% は roa-unpublished にならない', ids(MEMO_ROE_ROA).includes('roe-roa-mix') && !ids(MEMO_ROE_ROA).includes('roa-unpublished'), ids(MEMO_ROE_ROA).join(','))
+  const full = composeCritique(MEMO_FULL)
+  check('全欄埋まったメモ → §2 に「6つの欄のうち 6つに記入」・結論: 買う', full.written.lines[0].startsWith(`${MEMO_FIELDS.length}つの欄のうち ${MEMO_FIELDS.length}つに記入がありました`) && full.written.lines.includes('結論: 買う。') && full.written.filledKeys.length === 6, full.written.lines.join(' / '))
+  check('全欄埋まったメモ → §1 は原文の逐語引用（6本・順番は欄の順・書き換え無し）', full.flow.quotes.length === 6 && full.flow.quotes.every((q, i) => q.label === MEMO_FIELDS[i].label && q.text === MEMO_FULL.parts[MEMO_FIELDS[i].key]) && full.flow.decision === '買う')
+  check('全欄埋まったメモ（8項目すべてに言及）→ §4 は「ありません」・§6 は chain', full.missing.items.length === 0 && full.missing.noneText !== null && full.learn.theme.key === 'chain', `${full.missing.items.map(m => m.key).join(',')} / ${full.learn.theme.key}`)
+  check('全欄埋まったメモ → §3 に結論が空・理由が空は出ない', !ids(MEMO_FULL).includes('conclusion-empty') && !ids(MEMO_FULL).includes('conclusion-reason-empty'), ids(MEMO_FULL).join(','))
+  const empty = composeCritique(MEMO_EMPTY)
+  check('空のメモ → §1 は「書かれた文はありません」・§4 は8項目全部・§6 は perGrowth（規則の先頭）', empty.flow.quotes.length === 0 && empty.missing.items.length === METRIC_ITEMS.length && empty.learn.theme.key === 'perGrowth')
+  check('営業利益に純利益の数字（5,425億円）を書いたメモ → §3 に op-net-mix', ids(MEMO_OP_NET).includes('op-net-mix'), ids(MEMO_OP_NET).join(','))
+  check('「PER は小売業の平均より高い」→ §3 に per-average-kind と per-only', ids(MEMO_PER_AVG).includes('per-average-kind') && ids(MEMO_PER_AVG).includes('per-only'), ids(MEMO_PER_AVG).join(','))
+  check('自由記述で「買う」と書けば結論が空にならない／書かなければ空になる', !ids(MEMO_FREE).includes('conclusion-empty') && ids(MEMO_FREE_NO_DECISION).includes('conclusion-empty'))
+  const free = composeCritique(MEMO_FREE)
+  check('自由記述 → §1 は「自由記述」1本の逐語引用・§2 は文字数', free.flow.quotes.length === 1 && free.flow.quotes[0].label === '自由記述' && free.flow.quotes[0].text === MEMO_FREE.free && /自由記述で \d+ 文字/.test(free.written.lines[0]))
+  // 本文の穴埋めが全部埋まっている（{…} が残らない）
+  const all = [MEMO_EMPTY, MEMO_ROE_ROA, MEMO_FULL, MEMO_OP_NET, MEMO_PER_AVG, MEMO_FREE].map(m => composeCritique(m))
+  const leftovers = all.flatMap(c => [...c.check.hits.map(x => x.body), ...c.connect.lines, ...c.written.lines]).filter(t => /\{[A-Za-z]+\}/.test(t))
+  check('§3 の本文・§5 の併置文に {var} が残っていない', leftovers.length === 0, leftovers.slice(0, 3).join(' | '))
+  check('§5 は固定の併置文4本（買う／買わないを言わない）', full.connect.lines.length === 4 && CONNECT_TEMPLATES.length === 4 && full.connect.lines.every(l => !/買う|買わない|売る|売らない/.test(l)))
+  check('§3 の文に「間違っていた」「買うべき」が無い（カタログの本文）', CATALOGUE.every(e => !/間違っていた|買うべき|買わないべき/.test(e.title + e.body)))
+  check('カタログ: id が一意・kind は calc/check・本文は {var} 以外に2桁以上の数字を直書きしない', new Set(CATALOGUE.map(e => e.id)).size === CATALOGUE.length && CATALOGUE.every(e => (e.kind === 'calc' || e.kind === 'check') && !/\d{2,}/.test(e.body.replace(/\{[A-Za-z]+\}/g, ''))))
+  check('numbersNear: 「営業利益は5,425億円」→ 5425・approxEqual は 0.5% 以内', j(numbersNear('営業利益は5,425億円で', '営業利益')) === j([5425]) && approxEqual(5425, 5425.16) && !approxEqual(5425, 7431))
+  check('mentionedMetrics: 「海外の景気」だけではセグメントに触れたことにならない', !mentionedMetrics('海外の景気次第').itemKeys.includes('segments') && mentionedMetrics('海外ユニクロの売上').itemKeys.includes('segments'))
+  check('pickTheme: 規則の表は画面2の項目 key だけを指す・テーマは8本で key が一意', THEME_FOR_MISSING.every(r => METRIC_ITEMS.some(it => it.key === r.metricKey)) && LEARN_THEMES.length === 8 && new Set(LEARN_THEMES.map(t => t.key)).size === 8 && pickTheme(['dividend']).key === 'dividend')
+  check('テーマの parts は画面2の項目 key か chain だけ', LEARN_THEMES.every(t => (t.parts.metricKeys ?? []).every(k => METRIC_ITEMS.some(it => it.key === k)) && ((t.parts.metricKeys?.length ?? 0) > 0 || t.parts.chain === true)))
+  // レビュー W2（2026-10-09）: 共起だけで発火しない
+  check('W2: 誤りの無い手本メモ（MEMO_FULL）→ §3 は「見つかりませんでした」（hits 0）', ids(MEMO_FULL).length === 0 && composeCritique(MEMO_FULL).check.nothingFound === NOTHING_FOUND, ids(MEMO_FULL).join(','))
+  check('W2: 「ROEとROAを見た」（共起だけ）→ roe-roa-mix が出ない', !ids(memo({ decision: 'hold', parts: { metrics: 'ROEとROAを見た', conclusion: '保留' } })).includes('roe-roa-mix'))
+  check('W2: 「ROEは21.2%でROAは11.6%。差が大きい。」（次の文に比較の語）→ roe-roa-mix が出る', ids(MEMO_ROE_ROA).includes('roe-roa-mix'))
+  check('W2: roe-roa-mix は kind=check・題は「ROE と ROA を同じ期で比べているか」（計算の誤りを示唆しない）', catalogueById('roe-roa-mix').kind === 'check' && catalogueById('roe-roa-mix').title === 'ROE と ROA を同じ期で比べているか')
+  check('W2: 「事業利益」1語 → business-vs-operating が出ない／「事業利益」と「営業利益」の両方 → 出る',
+    !ids(memo({ decision: 'hold', parts: { metrics: '事業利益が増えた', conclusion: '保留' } })).includes('business-vs-operating')
+    && ids(memo({ decision: 'hold', parts: { metrics: '事業利益と営業利益を見た', conclusion: '保留' } })).includes('business-vs-operating'))
+  check('W2: 別の文の「加重平均」では equity-average が出ない（同じ文の中だけ）', !ids(memo({ decision: 'hold', parts: { metrics: 'PER は加重平均より大きい。自己資本比率を見た。', conclusion: '保留' } })).includes('equity-average'))
+  // レビュー W3: §2 の「指標」からセグメント名と「株価」を外す
+  const seg = mentionedMetrics('海外ユニクロの売上')
+  check('W3: mentionedMetrics(「海外ユニクロの売上」) の names に「海外ユニクロ」を含まず、segments に含み、itemKeys に segments を含む', !seg.names.includes('海外ユニクロ') && seg.segments.includes('海外ユニクロ') && seg.itemKeys.includes('segments'), j(seg))
+  check('W3: EXTRA_NAMES に「株価」が無い／「目標株価」「株価収益率」で「株価」が指標に数えられない', EXTRA_NAMES.every(n => n.name !== '株価') && !mentionedMetrics('目標株価と株価収益率').names.includes('株価'))
+  check('W3: MEMO_FULL の §2 は「名前で書かれた指標:」と「触れていた内訳:」の2行・小見出しは「名前で書かれた項目」', full.written.nameLines.length === 2 && full.written.nameLines[0].startsWith('名前で書かれた指標: ') && !full.written.nameLines[0].includes('海外ユニクロ') && full.written.nameLines[1] === '触れていた内訳: セグメント、海外ユニクロ。' && full.written.namesHeading === NAMES_HEADING && NAMES_HEADING === '名前で書かれた項目', full.written.nameLines.join(' | '))
+  check('W3: 内訳に触れていないメモは「触れていた内訳」の行が出ない', composeCritique(MEMO_ROE_ROA).written.nameLines.length === 1)
+  // レビュー S3: 英字の語は単語境界
+  check('S3: "approach"／"heroes"／"roads"（英字に埋まった PER／ROE／ROA）は指標に数えられず、"PER" "ROE" "ROA" は数えられる',
+    !mentionedMetrics('approach と heroes と roads').names.some(n => n === 'PER' || n === 'ROE' || n === 'ROA') && ['PER', 'ROE', 'ROA'].every(n => mentionedMetrics('PER と ROE と ROA').names.includes(n)))
+  check('S3: catalogue の PER も単語境界（"approach は平均より" で per-average-kind が出ない）', !ids(memo({ decision: 'buy', parts: { metrics: 'approach は平均より', conclusion: '買う' } })).includes('per-average-kind'))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (a) 画面の文字列に禁止語が無い')
+{
+  const vars = labVars(LAB_9983)
+  const strings: string[] = []
+  const collect = (v: unknown) => {
+    if (typeof v === 'string') strings.push(v)
+    else if (Array.isArray(v)) v.forEach(collect)
+    else if (typeof v === 'object' && v !== null) Object.values(v).forEach(collect)
+  }
+  collect(LAB_9983)
+  collect(MEMO_FIELDS)
+  collect(DECISION_OPTIONS)
+  collect(GLOSSARY_EXTRA)
+  collect(CRITIQUE_SECTIONS)
+  collect(NOTES_TEXT)
+  collect(LEARN_THEMES)
+  collect(CATALOGUE.map(e => ({ title: e.title, body: fill(e.body, vars) })))
+  collect(CONNECT_TEMPLATES.map(t => fill(t, vars)))
+  collect([PAGE_KICKER, PAGE_LEAD, WHEN_TITLE, GLOSSARY_TITLE, CRITIQUE_LEAD, BADGE, NO_QUOTES, OPEN_LEARN, CLOSE_LEARN, ...Object.values(KIND_LABEL),
+    METRICS_TITLE, METRICS_LEAD, SOURCE_NOTE, LINK_NOTE, EXPLAIN_BUTTON, EXPLAIN_CLOSE, READINGS_LABEL, CHAIN_TITLE, CHAIN_LEAD, PRICE_NOTE, CHAIN_NOTE,
+    CITATIONS_TITLE, CITATIONS_LEAD, NEXT_NOTE, PREV_LABEL, TODAY_LABEL, NEXT_LABEL, TIMELINE_TITLE,
+    LEARN_PANEL_NOTE, MEMO_TITLE, MEMO_LEAD, SUBMIT_LABEL, MODE_FREE_LABEL, MODE_FIELDS_LABEL, FREE_HELP, DECISION_LEGEND, DECISION_HELP, NOTHING_FOUND, CHECK_SCOPE_NOTE])
+  // 描画結果（初期状態・解説を開いた状態・添削・学ぶの全テーマ・出典の節）
+  const pages = [
+    render(h(Lab9983Client)),
+    render(h(MetricRows, { defaultOpen: true })),
+    render(h(CausalMap)),
+    render(h(CitationList)),
+    ...[MEMO_EMPTY, MEMO_ROE_ROA, MEMO_FULL, MEMO_OP_NET, MEMO_PER_AVG, MEMO_FREE].map(m => render(h(CritiqueView, { critique: composeCritique(m) }))),
+    ...LEARN_THEMES.map(t => render(h(LearnPanel, { theme: t }))),
+  ].map(textOf)
+  const stripDisclaimer = (t: string) => t.split(DISCLAIMER_TEXT).join('')
+  const hits = [...strings, ...pages].flatMap(t => labForbiddenWordsIn(stripDisclaimer(t)).map(w => `「${w}」 in ${t.slice(0, 40)}…`))
+  check(`データ・固定文・描画結果（${strings.length} 本＋${pages.length} 画面）に禁止語が無い（forbidden.ts＋LAB_FORBIDDEN ${LAB_FORBIDDEN.length} 語。免責の定型文と「将来を予測するものではありません」は除く）`, hits.length === 0, [...new Set(hits)].slice(0, 8).join(' | '))
+  // 部品・画面のソース（注釈を除く）にも無い
+  const srcHits: string[] = []
+  for (const f of [...walk('components/lab'), ...walk('app/lab')]) {
+    const src = stripComments(read(f))
+    for (const w of labForbiddenWordsIn(src)) srcHits.push(`${f}: ${w}`)
+  }
+  check('components/lab/**・app/lab/** のソース（注釈を除く）に禁止語が無い', srcHits.length === 0, srcHits.join(' | '))
+  check('EPS × PER の積を株価として描かない（描画結果に「÷ EPS ＝ PER」の注記があり、株価の箱は終値 71,780円）', pages[2].includes('PER は株価から計算した数字') && pages[2].includes('71,780円') && pages[2].includes(PRICE_NOTE))
+  check('描画結果にハイフンの負号（-4.04 / -3,020 / -2.3）が無く U+2212 で出る', pages.every(p => !/-\d/.test(p.replace(/\d{4}-\d{2}-\d{2}/g, ''))) && pages[2].includes(`${MINUS}4.04%`) && pages[2].includes(`${MINUS}3,020円`))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (c) 解説文・固定文の本文に2桁以上の数字の直書きが無い（{var} で埋める）')
+{
+  const ALLOW = ['30秒']
+  const templates: [string, string][] = []
+  for (const it of METRIC_ITEMS) for (const t of [...it.explain.facts, ...it.explain.readings]) templates.push([`explain.${it.key}`, t])
+  for (const t of [...EXPLAIN_CHAIN.facts, ...EXPLAIN_CHAIN.readings]) templates.push(['explainChain', t])
+  for (const e of CATALOGUE) templates.push([`catalogue.${e.id}`, e.title], [`catalogue.${e.id}`, e.body])
+  CONNECT_TEMPLATES.forEach((t, i) => templates.push([`connect[${i}]`, t]))
+  for (const t of LEARN_THEMES) templates.push([`theme.${t.key}`, t.title], [`theme.${t.key}`, t.lead])
+  NOTES_TEXT.forEach((t, i) => templates.push([`notes[${i}]`, t]))
+  for (const g of GLOSSARY_EXTRA) templates.push([`glossary.${g.name}`, g.body])
+  for (const f of MEMO_FIELDS) templates.push([`memo.${f.key}`, f.question], [`memo.${f.key}`, f.help], [`memo.${f.key}`, f.placeholder])
+  for (const [k, t] of Object.entries({ PAGE_LEAD, METRICS_LEAD, SOURCE_NOTE, CHAIN_LEAD, PRICE_NOTE, CHAIN_NOTE, CITATIONS_LEAD, NEXT_NOTE, MEMO_LEAD, FREE_HELP, DECISION_HELP, CRITIQUE_LEAD, CHECK_SCOPE_NOTE, LEARN_PANEL_NOTE, EXPLAIN_BUTTON, howToUse: LAB_9983.howToUse })) templates.push([k, t])
+  const bad = templates.filter(([, t]) => {
+    let s = t.replace(/\{[A-Za-z][A-Za-z0-9]*\}/g, '')
+    for (const a of ALLOW) s = s.split(a).join('')
+    return /\d{2,}/.test(s)
+  })
+  check(`${templates.length} 本の本文に2桁以上の数字の直書きが無い（許可: ${ALLOW.join('・')}）`, bad.length === 0, bad.map(([k, t]) => `${k}: ${t.slice(0, 30)}`).slice(0, 5).join(' | '))
+  // 変数が全部埋まる（未定義の {var} が無い）
+  const vars = labVars(LAB_9983)
+  const unfilled = templates.filter(([, t]) => { try { fill(t, vars); return false } catch { return true } })
+  check('すべての {var} が labVars で埋まる（未定義が無い）', unfilled.length === 0, unfilled.map(([k]) => k).join(', '))
+  check('labVars の値に {…} や undefined が無い', Object.values(vars).every(v => typeof v === 'string' && v.length > 0 && !v.includes('{') && v !== 'undefined'))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (d) components/lab/** に色の直値が無い・見出しの階層・role="img"・出所が無条件')
+{
+  const files = [...walk('components/lab'), ...walk('app/lab')]
+  check('components/lab/** は14ファイル（2026-10-12 に CitationMark・CitationList・Readings・RichText・Term・Timeline を追加）・app/lab/9983 は page.tsx と client.tsx', walk('components/lab').length === 14 && exists('app/lab/9983/page.tsx') && exists('app/lab/9983/client.tsx'), files.join(','))
+  const COLOR = /--success|--danger|--warning-ink|text-success|text-danger|text-warning-ink|bg-success|bg-danger|bg-warning|border-success|border-danger|text-red|text-green|bg-red|bg-green|#[0-9A-Fa-f]{3,8}\b|rgba?\(/
+  for (const f of files) {
+    const src = stripComments(read(f))
+    check(`${f}: --success／--danger／--warning-ink／生の色（#… rgb(…）が無い`, !COLOR.test(src), (COLOR.exec(src) ?? [''])[0])
+    check(`${f}: font-bold／font-extrabold が無い・12px 未満の class（text-[10px] 等）が無い`, !/font-bold|font-extrabold|text-\[(?:[0-9]|1[01])px\]/.test(src))
+    const h2s = [...src.matchAll(/<h2(\s[^>]*)?>/g)].map(m => m[1] ?? '')
+    const h1s = [...src.matchAll(/<h1(\s[^>]*)?>/g)].map(m => m[1] ?? '')
+    const h3s = [...src.matchAll(/<h3(\s[^>]*)?>/g)].map(m => m[1] ?? '')
+    check(`${f}: h1/h2/h3 の class が text-h1/h2/h3 text-ink（h1 ${h1s.length}・h2 ${h2s.length}・h3 ${h3s.length}）`,
+      h1s.every(a => /className="text-h1 text-ink/.test(a)) && h2s.every(a => /className="text-h2 text-ink/.test(a)) && h3s.every(a => /className="text-h3 text-ink/.test(a)))
+    check(`${f}: 回り続ける動き（infinite／animate-spin・pulse・ping・bounce）が無い`, !/\binfinite\b|animate-(?:spin|pulse|ping|bounce)/.test(src))
+  }
+  const mini = stripComments(read('components/lab/MiniTrend.tsx'))
+  check('MiniTrend.tsx: role="img"・aria-label・ResizeObserver・viewBox', mini.includes('role="img"') && mini.includes('aria-label=') && mini.includes('ResizeObserver') && mini.includes('viewBox='))
+  const rows = stripComments(read('components/lab/MetricRows.tsx'))
+  check('MetricRows.tsx: figcaption（出所）は条件分岐の外・<details で畳まない・帯1本＋border-t の区切り', rows.includes('<figcaption') && !rows.includes('<details') && rows.includes("const ROW = 'mx-4 border-t border-border first:border-t-0") && (rows.match(/<figure/g) ?? []).length === 1)
+  const page = textOf(render(h(Lab9983Client)))
+  check('初期描画に 出所の固定文・リンクの注記・免責の定型文・画面1の案内文がある', page.includes(SOURCE_NOTE) && page.includes(LINK_NOTE) && page.includes(DISCLAIMER_TEXT) && page.includes(LAB_9983.howToUse))
+  const pageHtml = render(h(Lab9983Client))
+  check('初期描画: 画面2の8項目が固定の順で出る（データだけから描く）', (() => { let last = -1; for (const it of METRIC_ITEMS) { const i = pageHtml.indexOf(`data-metric="${it.key}"`); if (i <= last) return false; last = i } return true })())
+  check('初期描画: 主ボタンは「添削を読む」1つ（bg-brand の button が1つ）', (pageHtml.match(/<button[^>]*bg-brand[^>]*>/g) ?? []).length === 1)
+  check('初期描画: 添削は出ていない（送信前）・「残り日数」の行が無い（次回決算日が未定）', !page.includes(`§1 ${CRITIQUE_SECTIONS[0].title}`) && !/残り\s*日数|あと\s*\d+\s*日/.test(page) && page.includes(LAB_9983.company.nextAnnouncement))
+  const nodes = chainNodes()
+  check('CausalMap: 箱は 売上収益 → 営業利益 → 純利益 → EPS → 株価（終値）の5つ・つなぎは4本', j(nodes.map(n => n.key)) === j(['sales', 'operatingProfit', 'netProfit', 'eps', 'price']) && nodes.filter(n => n.link).length === 4 && nodes[4].valueText === '71,780円')
+  check('CausalMap: 各箱に出典の番号（cite）があり、前期比・前日比の数字（会社公表・日経）にも番号がある', nodes.every(n => n.cite != null && (n.yoy == null || n.yoy.values.every(v => v.cite != null))), j(nodes.map(n => [n.key, n.cite, n.yoy?.values.map(v => v.cite)])))
+  // レビュー S1: 期は値のラベル側（periodText）に置く。2026-10-12 からは出所が右肩の番号なので、出所の行そのものが無い
+  check('S1: CausalMap の各箱は periodText を持つ（期は値のラベル側）', nodes.every(n => n.periodText.length > 0), nodes.map(n => n.periodText).join(' | '))
+  check('S1→(a): MetricRows・SegmentBars・CausalMap・YearBarsLab・MiniTrend・client.tsx のソースに「出所:」の行・「出所（」の見出し・sourceLine が無い（出所は右肩の [N]）',
+    ['components/lab/MetricRows.tsx', 'components/lab/SegmentBars.tsx', 'components/lab/CausalMap.tsx', 'components/lab/YearBarsLab.tsx', 'components/lab/MiniTrend.tsx', 'app/lab/9983/client.tsx'].every(f => { const s = stripComments(read(f)); return !s.includes('出所:') && !s.includes('出所（') && !s.includes('sourceLine') }))
+  check('S1: 画面1は「2026-10-08 [N] 発表・2026年8月期（通期）」の形（日付の直後に出典の番号）', /2026-10-08 \[\d+\] 発表・2026年8月期（通期）/.test(page))
+  // レビュー S6: 「連結・IFRS・円」は会社開示の出典だけに付け、JPX・日経には付けない（2026-10-12 からは「出典」の一覧の発行元の欄）
+  const cites = citationList()
+  check('S6: 出典の一覧で「連結・IFRS・円」が付くのは www.fastretailing.com の出典だけ。JPX・日経の発行元には付かない', cites.every(c => (c.url.includes('www.fastretailing.com') ? c.publisher.includes('連結・IFRS・円') : !c.publisher.includes('連結・IFRS・円'))) && cites.some(c => c.publisher.includes('JPX')) && cites.some(c => c.publisher.includes('日経')), cites.map(c => c.publisher).join(' | '))
+  // レビュー S8: signStyle を接続（既定 false では何も変わらない）
+  check('S8: signStyle が MetricRows（セグメントの前期比）と CausalMap（箱の前期比・内訳）に接続されている', rows.includes('signStyle(') && stripComments(read('components/lab/CausalMap.tsx')).includes('signStyle('))
+  {
+    const painted = render(h(CausalMap)) + render(h(MetricRows, { defaultOpen: true }))
+    // 色は足すだけ。形（中空と塗り）・符号（U+2212）・語（マイナス）の手がかりが消えていないこと
+    check('S8: 色が入っても符号 U+2212 と「マイナス」の語が残る（色だけに頼らない）',
+      painted.includes('\u2212') && /マイナス/.test(painted))
+    check(
+      LAB_SIGN_COLOR
+        ? 'S8: LAB_SIGN_COLOR=true なので --success／--danger が描画に出る'
+        : 'S8: LAB_SIGN_COLOR=false なので --success／--danger が描画に出ない',
+      LAB_SIGN_COLOR ? /--success|--danger/.test(painted) : !/--success|--danger/.test(painted))
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (l) 描画結果の Sourced 由来の数字の直後に [N] がある（2026-10-12 読みやすさ (a)）')
+{
+  const d = LAB_9983
+  // 期待する数字の文字列: データの全 Sourced<number> を画面と同じ整形で
+  const expected = new Set<string>()
+  const add = (s: Sourced<number> | null | undefined, f: (n: number) => string) => { if (s) expected.add(f(s.value)) }
+  const allSeries = [d.sales, d.businessProfit, d.operatingProfit, d.pretaxProfit, d.netProfit, d.eps, d.bps, d.dividend, d.totalAssets, d.equity, d.equityRatio, d.roe, d.roa, d.operatingCf, d.cash]
+  for (const sr of allSeries) { for (const p of sr.points) add(p.value, n => formatByUnit(n, sr.unit)); add(sr.yoy, formatSignedPercent) }
+  for (const it of METRIC_ITEMS) { for (const hd of it.headlines ?? []) add(hd.value, n => formatByUnit(n, hd.unit)); for (const c of it.comparisons ?? []) add(c.value, n => formatByUnit(n, c.unit)) }
+  for (const sg of d.segments) { add(sg.prev, formatMillionYen); add(sg.curr, formatMillionYen); add(sg.yoy, formatSignedPercent) }
+  add(d.price.close, formatYen); add(d.price.changeYen, formatSignedYen); add(d.price.changePct, formatSignedPercent)
+  add(d.price.forwardPer, formatTimes); add(d.price.trailingPer, formatTimes); add(d.price.pbr, formatTimes); add(d.price.dividendYield, formatPercent)
+  for (const p of Object.values(d.perAverages)) add(p, formatTimes)
+  add(d.payoutRatio.prev, formatPercent); add(d.payoutRatio.curr, formatPercent)
+  for (const v of [d.dividendRevision.before, d.dividendRevision.after, d.dividendRevision.termEndBefore, d.dividendRevision.termEndAfter]) add(v, formatYen)
+  add(d.dividendForecast.value, formatYen)
+  for (const f of d.forecasts) { add(f.value, n => formatByUnit(n, f.unit)); add(f.yoy, formatSignedPercent) }
+  check(`期待する数字の文字列を ${expected.size} 本集めた（30 本以上）`, expected.size >= 30)
+
+  // 描画結果（role="img" の中＝図と時系列は見た目用で、aria-label が同じ内容を運ぶので除く）
+  const CRITIQUE_MEMOS: [string, LabMemo][] = [['空', MEMO_EMPTY], ['ROE/ROA', MEMO_ROE_ROA], ['全欄', MEMO_FULL], ['営業/純', MEMO_OP_NET], ['PER平均', MEMO_PER_AVG], ['自由', MEMO_FREE]]
+  const pagesHtml: [string, string][] = [
+    ['初期描画', render(h(Lab9983Client))],
+    ['画面2（解説を開いた状態）', render(h(MetricRows, { defaultOpen: true }))],
+    ['画面3', render(h(CausalMap))],
+    ...LEARN_THEMES.map(t => [`学ぶ:${t.key}`, render(h(LearnPanel, { theme: t }))] as [string, string]),
+    // 添削（画面5）。§1 の利用者の原文は除く（本人の文に出典は付けない）
+    ...CRITIQUE_MEMOS.map(([name, m]) => [`添削:${name}`, stripMatching(render(h(CritiqueView, { critique: composeCritique(m) })), /\bdata-critique="flow"/)] as [string, string]),
+  ]
+  const NUMCH = /[0-9,.]/
+  const SIGN = /[+−±]/
+  const uncited = (text: string): string[] => {
+    const bad: string[] = []
+    for (const v of expected) {
+      let from = 0
+      for (;;) {
+        const i = text.indexOf(v, from)
+        if (i < 0) break
+        from = i + v.length
+        const before = text[i - 1]
+        // 数字の途中（1,768.08円 の中の 768.08円）・符号付きの一部（+16.6% の中の 16.6%）は別の数字
+        if (before && (NUMCH.test(before) || (SIGN.test(before) && !SIGN.test(v[0])))) continue
+        if (!/^\s*\[\d+\]/.test(text.slice(from))) bad.push(`${v} @ …${text.slice(Math.max(0, i - 12), from + 4)}…`)
+      }
+    }
+    return bad
+  }
+  for (const [name, html] of pagesHtml) {
+    const bad = uncited(textOf(stripRoleImg(html)))
+    check(`${name}: 出典つきの数字の直後に必ず [N] がある`, bad.length === 0, bad.slice(0, 5).join(' | '))
+    const loose = [...html.matchAll(/<span[^>]*data-sourced=""[^>]*>[^<]*<\/span>(?!<sup[^>]*data-cite=)/g)]
+    const count = (html.match(/data-sourced=""/g) ?? []).length
+    check(`${name}: data-sourced の span（${count} 個）の直後は必ず <sup data-cite>`, loose.length === 0 && count > 0, loose.slice(0, 3).map(m => m[0]).join(' | '))
+  }
+  // 解説文のかけらをつなぐと fill と同じ文（用語の囲み・番号で文を1字も変えない）
+  const vars = labVarEntries(d)
+  const index = citationIndex(d)
+  const cite = (s: SourceRef | null) => (s ? index.get(sourceKey(s)) ?? null : null)
+  const tokens = termTokens()
+  const plainVars = labVars(d)
+  const mismatches: string[] = []
+  for (const it of METRIC_ITEMS) {
+    const all = [...it.explain.facts, ...it.explain.readings]
+    const paras = richParagraphs(all, vars, cite, tokens)
+    all.forEach((t, i) => { if (piecesText(paras[i]) !== fill(t, plainVars)) mismatches.push(`${it.key}[${i}]`) })
+  }
+  check('richParagraphs のかけらをつなぐと fill と同じ文', mismatches.length === 0, mismatches.join(','))
+  // 添削: §3 の bodyPieces・§5 の pieces をつなぐと body・lines と同じ文（文字の形は変えない。検査 (i) が文字で固定）
+  const critiqueMismatch: string[] = []
+  for (const [name, m] of CRITIQUE_MEMOS) {
+    const c = composeCritique(m)
+    c.check.hits.forEach(hit => { if (piecesText(hit.bodyPieces) !== hit.body) critiqueMismatch.push(`${name}:§3:${hit.id}`) })
+    c.connect.lines.forEach((l, i) => { if (piecesText(c.connect.pieces[i] ?? []) !== l) critiqueMismatch.push(`${name}:§5[${i}]`) })
+    if (c.connect.pieces.length !== c.connect.lines.length) critiqueMismatch.push(`${name}:§5:length`)
+  }
+  check('添削: §3 の bodyPieces と §5 の pieces をつなぐと body・lines と同じ文', critiqueMismatch.length === 0, critiqueMismatch.join(','))
+  const roeHit = composeCritique(MEMO_ROE_ROA).check.hits.find(x => x.id === 'roe-roa-mix')
+  check('添削 §3（roe-roa-mix）: 21.2%・11.6% のかけらに出典の番号がある／§5 の 4 本に出典つきの値が 10 個以上', !!roeHit && roeHit.bodyPieces.some(p => p.kind === 'value' && p.text === '21.2%' && p.cite != null) && roeHit.bodyPieces.some(p => p.kind === 'value' && p.text === '11.6%' && p.cite != null)
+    && composeCritique(MEMO_FULL).connect.pieces.flat().filter(p => p.kind === 'value' && p.cite != null).length >= 10)
+  check('labVars は labVarEntries の text と同じ（添削 compose が読む文字は変わらない）', Object.entries(plainVars).every(([k, v]) => vars[k]?.text === v) && Object.keys(plainVars).length === Object.keys(vars).length)
+  check('出典のある変数（sales・roe・per・nextNetYoy・divBefore・opYoy）に source があり、期の名前（fy・fyNext）と構成比（計算値）には無い',
+    !!vars.sales.source && !!vars.roe.source && !!vars.per.source && !!vars.nextNetYoy.source && !!vars.divBefore.source && !!vars.opYoy.source && vars.fy.source === null && vars.fyNext.source === null && vars.segOverseasShare.source === null)
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (m) 出典の節: <details> の中に無い・--muted より薄くない・aria-hidden が無い・番号順・初出順で固定')
+{
+  const src = stripComments(read('components/lab/CitationList.tsx'))
+  check('CitationList.tsx: <details> を使わない・aria-hidden を付けない・text-muted／text-caption を使わない・text-small text-ink-2', !src.includes('<details') && !src.includes('aria-hidden') && !src.includes('text-muted') && !src.includes('text-caption') && src.includes('text-small text-ink-2'))
+  const html = render(h(Lab9983Client))
+  const at = html.indexOf('data-section="lab-citations"')
+  check('初期描画に「出典」の節（h2）があり、<details> の中に無い', at > 0 && html.includes(`<h2 id="lab-citations-heading" class="text-h2 text-ink">${CITATIONS_TITLE}</h2>`) && (html.slice(0, at).match(/<details/g) ?? []).length === (html.slice(0, at).match(/<\/details>/g) ?? []).length)
+  check('「出典」はページ下部（最後の h2）', html.lastIndexOf('<h2') === html.lastIndexOf('<h2 id="lab-citations-heading"'))
+  const list = citationList()
+  const index = citationIndex()
+  check(`一覧は ${list.length} 本・番号は 1..N の連番で昇順・index と同じ数`, list.length === index.size && list.every((c, i) => c.n === i + 1))
+  check('描画の li#cite-N が 1..N の順', j([...html.matchAll(/<li id="cite-(\d+)"/g)].map(m => Number(m[1]))) === j(list.map(c => c.n)))
+  check('同じ data で2回呼んでも同じ番号（乱数・時刻を入れない）', j(citationList()) === j(citationList()) && j([...citationIndex()]) === j([...citationIndex()]) && !/Math\.random|new Date|Date\.now/.test(stripComments(read('lib/lab/citations.ts'))))
+  check('SourceRef の同一性は label・url・asOf・note（note が違えば別の番号）', sourceKey({ label: 'a', url: 'u', asOf: 'd' }) !== sourceKey({ label: 'a', url: 'u', asOf: 'd', note: 'n' }) && sourceKey({ label: 'a', url: 'u', asOf: 'd' }) === sourceKey({ label: 'a', url: 'u', asOf: 'd' }))
+  check('一覧は data の全 SourceRef を網羅する（多くも少なくもない）', (() => {
+    const keys = new Set<string>()
+    const visit = (v: unknown) => {
+      if (Array.isArray(v)) { v.forEach(visit); return }
+      if (typeof v === 'object' && v !== null) {
+        if ('value' in v && 'source' in v) { keys.add(sourceKey((v as Sourced<unknown>).source)); return }
+        Object.values(v).forEach(visit)
+      }
+    }
+    visit(LAB_9983)
+    return [...keys].every(k => index.has(k)) && keys.size === index.size
+  })())
+  // 初出順: 初期描画（解説は閉じた状態）で [N] が初めて出る順が 1, 2, 3 … と増える
+  const seq = [...textOf(html).matchAll(/\[(\d+)\]/g)].map(m => Number(m[1]))
+  const firstSeen: number[] = []
+  for (const n of seq) if (!firstSeen.includes(n)) firstSeen.push(n)
+  check(`初出順: 初期描画で [N] が初めて出る順が 1, 2, 3 … の昇順（${firstSeen.length} 本）`, firstSeen.every((n, i) => n === i + 1), firstSeen.join(','))
+  check('描画の [N] はすべて一覧の番号の範囲内・[N] の a は #cite-N で aria-label「出典 N」', seq.every(n => n >= 1 && n <= list.length) && [...html.matchAll(/<sup[^>]*data-cite="(\d+)"[^>]*><a href="#cite-(\d+)" aria-label="出典 (\d+)"/g)].every(m => m[1] === m[2] && m[2] === m[3]))
+  check('一覧の各行に 資料名・発行元・取得日・URL（リンク）がある', list.every(c => c.label && c.publisher && c.asOf && /^https:\/\//.test(c.url)) && html.includes('href="https://www.fastretailing.com/') && html.includes('href="https://www.jpx.co.jp/') && html.includes('href="https://www.nikkei.com/'))
+  check('注記（旧・括弧書き）が一覧に移っている: 会社公表の前期比・概数・PER の計算・加重／単純', list.some(c => c.note === '会社公表の前期比') && list.some(c => c.note?.includes('概数')) && list.some(c => c.note?.includes('会社予想利益で計算')) && list.some(c => c.note === '小売業・加重平均') && list.some(c => c.note === '小売業・単純平均'))
+  check('発行元: publisherOf が3つのホストを呼び名にする', publisherOf('https://www.fastretailing.com/x').includes('ファーストリテイリング') && publisherOf('https://www.jpx.co.jp/x').includes('JPX') && publisherOf('https://www.nikkei.com/x').includes('日経'))
+  check('画面の文字に「注記」の括弧書き（（2027年8月期の会社予想利益で計算）・（会社公表の前期比）・（2026年8月期は会社の億円表示からの概数））が無い（一覧以外）', (() => { const t = textOf(html.slice(0, at)); return !t.includes('（2027年8月期の会社予想利益で計算）') && !t.includes('（会社公表の前期比）') && !t.includes('（2026年8月期は会社の億円表示からの概数）') && !t.includes('2026-10-09 閲覧') })())
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (n) 免責の文が消えていない（出所ではなく法務の注記）')
+{
+  const page = textOf(render(h(Lab9983Client)))
+  const critique = textOf(render(h(CritiqueView, { critique: composeCritique(MEMO_FULL) })))
+  check('初期描画: Disclaimer の定型文・「当社の分析や評価は含まれていません」・「将来を予測するものではありません」が残る（画面2 の注記・画面3 の figcaption・画面3 の直下）',
+    page.includes(DISCLAIMER_TEXT) && (page.match(/当社の分析や評価は含まれていません/g) ?? []).length >= 2 && (page.match(/将来を予測するものではありません/g) ?? []).length >= 2 && page.includes(SOURCE_NOTE) && page.includes(CHAIN_NOTE))
+  check('添削: 「このサイトは良し悪しを判定しません」・「送信も保存もしていません」・Disclaimer が残る', critique.includes(BADGE) && critique.includes('送信も保存もしていません') && critique.includes(DISCLAIMER_TEXT))
+  check('CitationList.tsx に免責の文を移していない（出典の節は出典だけ）', !stripComments(read('components/lab/CitationList.tsx')).includes('Disclaimer') && !textOf(render(h(CitationList))).includes('将来を予測'))
+  check('client.tsx: Disclaimer part="general" が画面3（CausalMap）の直下に残る', /<CausalMap data=\{data\} \/>\s*<Disclaimer part="general" \/>/.test(read('app/lab/9983/client.tsx')))
+  check('MetricRows.tsx: figcaption は無条件・SOURCE_NOTE を描く／CausalMap.tsx: figcaption は CHAIN_NOTE', stripComments(read('components/lab/MetricRows.tsx')).includes('<p>{SOURCE_NOTE}</p>') && stripComments(read('components/lab/CausalMap.tsx')).includes('{CHAIN_NOTE}</figcaption>'))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (o) 「2通りの読み方」の囲み（Readings）')
+{
+  const html = render(h(Readings, { items: ['a', 'b'] }))
+  check('Readings: bg-surface・border・border-l-2 border-l-brand・rounded-card・見出し text-small font-semibold text-ink・項目 text-body text-ink・番号付き',
+    html.includes('bg-surface') && html.includes('border border-border border-l-2 border-l-brand') && html.includes('rounded-card') && html.includes(`<p class="text-small font-semibold text-ink">${READINGS_LABEL}</p>`) && (html.match(/<li class="text-body text-ink">/g) ?? []).length === 2 && html.includes('list-decimal'))
+  check('Readings: 項目は text-ink（--ink-2 に下げない）・上下に間（my-3）', html.includes('my-3') && !html.includes('text-ink-2'))
+  const rows = render(h(MetricRows, { defaultOpen: true }))
+  const chain = render(h(CausalMap))
+  check('画面2 の各項目の解説と画面3 の図の下が Readings（data-readings）になっている', (rows.match(/data-readings=""/g) ?? []).length === METRIC_ITEMS.length && (chain.match(/data-readings=""/g) ?? []).length === 1)
+  check('「2通りの読み方」の見出しは Readings の中にだけ（MetricRows・CausalMap に直書きしない）', (rows.match(/2通りの読み方/g) ?? []).length === METRIC_ITEMS.length && !stripComments(read('components/lab/MetricRows.tsx')).includes('2通りの読み方') && !stripComments(read('components/lab/CausalMap.tsx')).includes('2通りの読み方'))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (p) 用語の囲み（Term）は用語だけ。評価・状態の札を作らない。囲みは <button> で、押すと説明の箱が段落の直下に出る')
+{
+  const EVAL = ['好調', '注意', '危険', '悪化', '改善', '健全', '優良', '割安', '割高', '堅調', '低迷', '増収', '増益', '減益', '買い', '売り']
+  const critiqueHtml = (m: LabMemo) => render(h(CritiqueView, { critique: composeCritique(m) }))
+  const pages = [render(h(Lab9983Client)), render(h(MetricRows, { defaultOpen: true })), render(h(CausalMap)), ...LEARN_THEMES.map(t => render(h(LearnPanel, { theme: t }))), ...[MEMO_EMPTY, MEMO_ROE_ROA, MEMO_FULL, MEMO_PER_AVG].map(critiqueHtml)]
+  const boxed = pages.flatMap(p => [...p.matchAll(/<button[^>]*data-term="([^"]*)"[^>]*>([^<]*)<\/button>/g)].map(m => [m[1], m[2]] as const))
+  const tokens = termTokens()
+  check(`囲まれた語 ${boxed.length} 個はすべて用語集（GLOSSARY_EXTRA）の語（名前・「（」より前・別名）`, boxed.length > 0 && boxed.every(([name, text]) => GLOSSARY_EXTRA.some(t => t.name === name) && tokens.some(t => t.token === text && t.term.name === name)),
+    boxed.filter(([name, text]) => !tokens.some(t => t.token === text && t.term.name === name)).slice(0, 5).map(x => x.join(':')).join(' | '))
+  check('囲まれた語に評価・状態の語が無い', boxed.every(([, text]) => !EVAL.some(w => text.includes(w))), [...new Set(boxed.map(b => b[1]))].join('・'))
+  // 囲みは <button type="button">（<abbr> ではない。スマホで触っても開く）。title は残す。開閉の規則は純関数
+  const roe = GLOSSARY_EXTRA.find(t => t.name.startsWith('ROE'))!
+  const roa = GLOSSARY_EXTRA.find(t => t.name.startsWith('ROA'))!
+  const termHtml = render(h(Term, { term: GLOSSARY_EXTRA[0] }))
+  check('Term.tsx: --card の面＋--border 1px＋rounded-field・text-small font-semibold text-ink・<button type="button"> ＋ aria-expanded ＋ aria-controls ＋ title・<abbr>／tabIndex を使わない・ピル（rounded-full）にしない',
+    TERM_CLASS.includes('rounded-field') && / border /.test(TERM_CLASS) && TERM_CLASS.includes('border-border') && TERM_CLASS.includes('bg-card') && TERM_CLASS.includes('text-small font-semibold') && TERM_CLASS.includes('text-ink') && !TERM_CLASS.includes('rounded-full')
+      && termHtml.startsWith('<button type="button"') && termHtml.includes('aria-expanded="false"') && termHtml.includes('aria-controls="') && termHtml.includes('title="') && !termHtml.includes('<abbr') && !termHtml.includes('tabindex'), termHtml.slice(0, 160))
+  check('Term の title に用語の説明（算式を含む）が残っている（マウスの人の近道）', render(h(Term, { term: roe })).includes(`title="${roe.name}：`) && render(h(Term, { term: roe })).includes('算式: ROE ＝'))
+  check('開いている囲みは枠が --brand（TERM_OPEN_CLASS）。閉じているときは --border', TERM_OPEN_CLASS.includes('border-brand') && !TERM_OPEN_CLASS.includes('border-border') && !TERM_CLASS.includes('border-brand'))
+  check('説明の箱の class は bg-surface rounded-card border border-border px-3 py-2 mt-2 text-small text-ink-2', TERM_BOX_CLASS === 'bg-surface rounded-card border border-border px-3 py-2 mt-2 text-small text-ink-2')
+  // 開閉の純関数: 押すと開く／もう一度押すと閉じる／同じ段落で別の用語を押すと前のが閉じる（開けるのは1つ）／Esc で閉じる
+  check('nextOpenName: 閉じている→押すと開く・開いている用語をもう一度押すと閉じる・別の用語を押すと切り替わる（同じ段落で1つだけ）', nextOpenName(null, roe.name) === roe.name && nextOpenName(roe.name, roe.name) === null && nextOpenName(roe.name, roa.name) === roa.name)
+  check('isCloseKey: Escape（と古い Esc）だけが閉じる。Enter・Space・Tab では閉じない', isCloseKey('Escape') && isCloseKey('Esc') && !isCloseKey('Enter') && !isCloseKey(' ') && !isCloseKey('Tab'))
+  check('termBoxId: 段落の id ＋ 用語名（空白は _）', termBoxId('g', roe.name) === `g-term-${roe.name}` && !/\s/.test(termBoxId('g', 'a b')))
+  // 静的描画: 段落（TermGroup）に ROE と ROA の2つの囲み。閉じているときは箱が無い／ROE を開くと箱が段落（</p>）の直下に出て aria-controls と id が一致／ROA は閉じたまま
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const btnTag = (html: string, name: string) => (html.match(new RegExp(`<button[^>]*data-term="${esc(name)}"[^>]*>`)) ?? [''])[0]
+  const boxTag = (html: string) => (html.match(/<div[^>]*data-term-box="[^"]*"[^>]*>/) ?? [''])[0]
+  const attr = (tag: string, a: string) => (tag.match(new RegExp(`\\b${a}="([^"]*)"`)) ?? [])[1] ?? null
+  const para = (open: typeof roe | null) => render(h(TermGroup, { id: 'g', defaultOpen: open, children: h('p', null, h(Pieces, { pieces: splitTerms('ROE と ROA', tokens, new Set()) })) }))
+  const closed = para(null)
+  const openRoe = para(roe)
+  const openRoa = para(roa)
+  check('静的描画（閉）: 2つの囲みが <button type="button" aria-expanded="false">・説明の箱（data-term-box）は無い・aria-controls は開いたときの箱の id を指す', (closed.match(/<button type="button"/g) ?? []).length === 2 && attr(btnTag(closed, roe.name), 'aria-expanded') === 'false' && attr(btnTag(closed, roa.name), 'aria-expanded') === 'false' && !closed.includes('data-term-box') && attr(btnTag(closed, roe.name), 'aria-controls') === termBoxId('g', roe.name), closed)
+  const roeBtn = btnTag(openRoe, roe.name)
+  check('静的描画（ROE を押す）: ROE の囲みが aria-expanded="true"・枠が border-brand・aria-controls が箱の id と一致・箱は段落（</p>）の直下（浮かせない）', attr(roeBtn, 'aria-expanded') === 'true' && roeBtn.includes('border-brand') && !roeBtn.includes('border-border') && attr(roeBtn, 'aria-controls') === attr(boxTag(openRoe), 'id') && attr(boxTag(openRoe), 'id') === termBoxId('g', roe.name) && /<\/p><div id="[^"]*" class="bg-surface rounded-card border border-border px-3 py-2 mt-2 text-small text-ink-2" data-term-box="/.test(openRoe), openRoe)
+  check('静的描画（ROE を押す）: 箱の先頭に用語名（font-semibold text-ink）、その下に body（算式を含む）。ROA は閉じたまま・箱は1つ', openRoe.includes(`<span class="block font-semibold text-ink">${roe.name}</span>`) && textOf(openRoe).includes(roe.body) && roe.body.includes('算式:') && attr(btnTag(openRoe, roa.name), 'aria-expanded') === 'false' && (openRoe.match(/data-term-box=/g) ?? []).length === 1)
+  check('静的描画（ROE が開いた段落で ROA を押す＝nextOpenName）: ROA が開き ROE は閉じる・箱は1つだけ', nextOpenName(roe.name, roa.name) === roa.name && attr(btnTag(openRoa, roa.name), 'aria-expanded') === 'true' && attr(btnTag(openRoa, roe.name), 'aria-expanded') === 'false' && (openRoa.match(/data-term-box=/g) ?? []).length === 1 && attr(boxTag(openRoa), 'data-term-box') === roa.name)
+  check('説明の箱（全用語）に禁止語が無い', GLOSSARY_EXTRA.every(t => labForbiddenWordsIn(textOf(render(h(TermBox, { id: 'x', term: t })))).length === 0), GLOSSARY_EXTRA.flatMap(t => labForbiddenWordsIn(textOf(render(h(TermBox, { id: 'x', term: t }))))).join('・'))
+  check('Term.tsx: Esc の keydown で閉じる（isCloseKey を onKeyDown で使う）・開閉にアニメーション（transition／animate-）を付けない', (() => { const s = stripComments(read('components/lab/Term.tsx')); return s.includes('onKeyDown') && s.includes('isCloseKey(e.key)') && !/transition|animate-/.test(s) })())
+  check('MetricRows・CausalMap・CritiqueView: 段落ごとに TermGroup で包む（MetricRows 3・CausalMap 3・CritiqueView 2＝§4 と §5。§3 の固定文は包まない）', (() => { const n = (f: string) => (stripComments(read(f)).match(/<TermGroup\b/g) ?? []).length; return n('components/lab/MetricRows.tsx') === 3 && n('components/lab/CausalMap.tsx') === 3 && n('components/lab/CritiqueView.tsx') === 2 })())
+  check('初期描画（ページ全体）: 開いている囲みも説明の箱も無い（aria-expanded="true" の data-term が無い・data-term-box が無い）', !/<button[^>]*aria-expanded="true"[^>]*data-term="/.test(pages[0]) && !pages[0].includes('data-term-box'))
+  const rowsHtml = render(h(MetricRows))
+  const labelBoxes = (k: string) => { const i = rowsHtml.indexOf(`data-metric="${k}"`); return (rowsHtml.slice(i, rowsHtml.indexOf('</p>', i)).match(/<button[^>]*data-term="/g) ?? []).length }
+  check('項目名（画面2）の用語が囲まれている（ROE と ROA → 2・営業利益と純利益 → 2・PER → 1・セグメント別売上 → 1・配当 → 1）', labelBoxes('roeRoa') === 2 && labelBoxes('profit') === 2 && labelBoxes('per') === 1 && labelBoxes('segments') === 1 && labelBoxes('dividend') === 1, METRIC_ITEMS.map(it => `${it.key}:${labelBoxes(it.key)}`).join(' '))
+  check('同じ解説の中で同じ用語を2回囲まない（初出だけ）', splitTerms('ROE と ROE', tokens, new Set()).filter(p => p.kind === 'term').length === 1)
+  check('英字の用語は前後が英数字なら拾わない（approach・heroes・roads）', splitTerms('approach と heroes と roads', tokens, new Set()).every(p => p.kind === 'text'))
+  check('「予想PER」は PER の囲みとして丸ごと（「予想」＋「PER」に割れない）', (() => { const ps = splitTerms('予想PER は', tokens, new Set()); return ps[0]?.kind === 'term' && ps[0].text === '予想PER' && ps[0].term.name.startsWith('PER') })())
+  check('用語の説明（glossary-extra）に算式がある: ROE・ROA・EPS・自己資本比率・PER・配当性向・配当利回り', ['ROE（自己資本利益率）', 'ROA（総資産利益率）', 'EPS（1株当たり利益）', '自己資本比率', 'PER（株価収益率）', '配当性向', '配当利回り'].every(n => GLOSSARY_EXTRA.find(t => t.name === n)?.body.includes('算式:')))
+  const rowsSrc = stripComments(read('components/lab/MetricRows.tsx'))
+  check('MetricRows.tsx: 算式の行（definition）を描かない・値を2度書く行が無い（見出しの数字に出ている系列は名前と値を繰り返さない）', !rowsSrc.includes('definition') && !rowsSrc.includes('＝') && rowsSrc.includes('const showHeading = !!main || si > 0'))
+  check('画面2（ROE）: 見出しの数字 21.2% の後に「ROE: 21.2%」の行が無い（図の中の値ラベルは除いて 1 回だけ）', !textOf(rowsHtml).includes('ROE: 21.2%') && (textOf(stripRoleImg(rowsHtml)).match(/21\.2%/g) ?? []).length === 1)
+  // 画面3: 箱のラベル（売上収益・営業利益・純利益・EPS・株価）は囲む。矢印の上のラベルは囲まない。下の文の用語は箱で囲んだ語をもう囲まない
+  const chainHtml = render(h(CausalMap))
+  const chainLabels = [...chainHtml.matchAll(/<p class="text-small font-semibold text-ink" data-chain-label="">([\s\S]*?)<\/p>/g)].map(m => (m[1].match(/<button[^>]*data-term="/g) ?? []).length)
+  check('画面3: 5つの箱のラベルがそれぞれ用語の囲み（EPS（基本的1株当たり利益）は EPS だけ・株価（終値）は丸ごと）', j(chainLabels) === j([1, 1, 1, 1, 1]) && /<button[^>]*data-term="株価（終値）"[^>]*>株価（終値）<\/button>/.test(chainHtml) && /<button[^>]*data-term="EPS（1株当たり利益）"[^>]*>EPS<\/button>（基本的1株当たり利益）/.test(chainHtml), j(chainLabels))
+  check('画面3: 矢印の上のラベル（data-flow-arrow）に囲みが無い', [...chainHtml.matchAll(/<div[^>]*data-flow-arrow=""[^>]*>[\s\S]*?<\/div>/g)].every(m => !m[0].includes('data-term="')))
+  const chainBelow = chainHtml.slice(chainHtml.indexOf('</figure>'))
+  check('画面3: 図の下の文に用語の囲みがあり、箱で囲んだ語（売上収益・営業利益・純利益・EPS・株価）は下でもう囲まない（初出だけ）', (chainBelow.match(/<button[^>]*data-term="/g) ?? []).length >= 1 && !/<button[^>]*data-term="(?:売上収益|営業利益|純利益（親会社の所有者に帰属する当期利益）|EPS（1株当たり利益）|株価（終値）)"/.test(chainBelow), [...chainBelow.matchAll(/data-term="([^"]*)"/g)].map(m => m[1]).join('・'))
+  // 画面5: §4 の項目名と §5 の用語は囲む。§1 の原文と §3 の固定文は囲まない
+  const full = critiqueHtml(MEMO_FULL)
+  const empty = critiqueHtml(MEMO_EMPTY)
+  const roeRoa = critiqueHtml(MEMO_ROE_ROA)
+  check('画面5 §4: 8 項目の項目名に用語の囲み（PER・EPS・営業利益・純利益・ROE・ROA・自己資本比率・営業CF・手元資金・配当・セグメント別売上 = 11）', (critiqueSection(empty, 'missing').match(/<button[^>]*data-term="/g) ?? []).length === 11, String((critiqueSection(empty, 'missing').match(/<button[^>]*data-term="/g) ?? []).length))
+  check('画面5 §5: 併置文に用語の囲みがあり（売上収益・営業利益・純利益・EPS・PER・ROE・ROA・自己資本比率 …）、同じ語は §5 の中で 1 回だけ', (() => { const names = [...critiqueSection(full, 'connect').matchAll(/data-term="([^"]*)"/g)].map(m => m[1]); return names.length >= 6 && new Set(names).size === names.length })(), [...critiqueSection(full, 'connect').matchAll(/data-term="([^"]*)"/g)].map(m => m[1]).join('・'))
+  check('画面5 §1: 利用者の原文（PER・EPS・ROE…を含む）に囲みが無い／§3 の固定文（ROE と ROA を含む）に囲みが無い／§2・§6・§7 にも無い', !critiqueSection(full, 'flow').includes('data-term="') && !critiqueSection(roeRoa, 'check').includes('data-term="') && !critiqueSection(full, 'written').includes('data-term="') && !critiqueSection(full, 'learn').includes('data-term="') && !critiqueSection(full, 'notes').includes('data-term="'))
+  check('画面5 §1: 原文は逐語（囲みも番号も付けず whitespace-pre-wrap のまま）', critiqueSection(full, 'flow').includes('whitespace-pre-wrap') && !critiqueSection(full, 'flow').includes('data-cite'))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (q) 画面1 の時系列（Timeline）')
+{
+  const props = { prev: { date: '2026-10-08', detail: '配当予想を 640円→850円 に修正' }, today: '2026-10-12', next: { date: '未定（例年1月上旬）' } }
+  const html = render(h(Timeline, props))
+  const aria = timelineAria(props)
+  check('Timeline: role="img"・aria-label に 前回・今日・次回の内容と日付', html.includes('role="img"') && html.includes(`aria-label="${aria}"`) && aria.includes('2026-10-08') && aria.includes('2026-10-12') && aria.includes('未定（例年1月上旬）') && aria.includes(PREV_LABEL) && aria.includes(TODAY_LABEL) && aria.includes(NEXT_LABEL) && aria.includes(TIMELINE_TITLE))
+  check('Timeline: 「あと◯日」「残り日数」の文字が無い（カウントダウンを出さない・R12）', !/あと\s*\d+\s*日|残り\s*\d+\s*日|残り日数|カウントダウン/.test(textOf(html) + aria))
+  check('Timeline: 点の色は 前回＝bg-ink・今日＝bg-brand・次回＝中空（border-2 border-ink bg-card）・軸は bg-axis', html.includes('bg-ink"') && html.includes('bg-brand"') && html.includes('border-2 border-ink bg-card') && html.includes('bg-axis'))
+  check('Timeline: 点の上に内容・下に日付（3列の grid・1行目に内容・4行目に日付）', html.includes('grid-cols-3') && html.includes('row-start-1') && html.includes('row-start-4') && textOf(html).includes('2026-10-08') && textOf(html).includes('2026-10-12') && textOf(html).includes('配当予想を 640円→850円 に修正'))
+  const empty = render(h(Timeline, { ...props, today: null }))
+  check('Timeline: today が null（描画の初回）なら今日の日付が空（水和のずれを避ける）', !textOf(empty).includes('2026-10-12') && empty.includes('role="img"') && timelineAria({ ...props, today: null }).includes(TODAY_LABEL))
+  check('formatIsoDate: 2026-01-05 → "2026-01-05"（ゼロ埋め・端末の時間帯）', formatIsoDate(new Date(2026, 0, 5)) === '2026-01-05')
+  const page = render(h(Lab9983Client))
+  check('初期描画: 画面1 に Timeline（data-timeline）があり、前回の決算の内容は配当予想の修正（640円→850円）・次回は未定', page.includes('data-timeline=""') && textOf(page).includes('配当予想を 640円→850円 に修正') && (page.match(/未定（例年1月上旬）/g) ?? []).length >= 2)
+  check('初期描画: Timeline の中に [N] のリンクを置かない（role="img" の中は読み上げの対象外。数字と番号は直下の文が運ぶ）', !/<div role="img" aria-label="決算の時系列[^"]*"[^>]*>(?:(?!<\/div>).)*data-cite/.test(page))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (r) new Date を読むのは Timeline.tsx と client.tsx の useEffect の中だけ')
+{
+  const files = [...walk('lib/lab'), ...walk('components/lab'), ...walk('app/lab')]
+  const offenders: string[] = []
+  for (const f of files) {
+    const src = stripComments(read(f))
+    const hits = [...src.matchAll(/new Date\b|Date\.now\(/g)]
+    if (hits.length === 0) continue
+    if (f === 'components/lab/Timeline.tsx') continue
+    if (f !== 'app/lab/9983/client.tsx') { offenders.push(f); continue }
+    for (const m of hits) {
+      const at = m.index ?? 0
+      const start = src.lastIndexOf('useEffect(', at)
+      if (start < 0) { offenders.push(`${f}@${at}`); continue }
+      let depth = 0
+      let inside = false
+      for (let i = start; i < src.length; i++) {
+        if (src[i] === '{') depth++
+        else if (src[i] === '}') { depth--; if (depth === 0) { inside = i > at; break } }
+      }
+      if (!inside) offenders.push(`${f}@${at}`)
+    }
+  }
+  check('new Date／Date.now は Timeline.tsx と client.tsx の useEffect の中以外に無い（lib/lab・components/lab・app/lab）', offenders.length === 0, offenders.join(', '))
+  const client = read('app/lab/9983/client.tsx')
+  check('client.tsx: useState<string | null>(null) → useEffect の中で setToday(formatIsoDate(new Date())) → Timeline に today を渡す', /useState<string \| null>\(null\)/.test(client) && /useEffect\(\(\) => \{\s*(?:\/\/[^\n]*\n\s*)*setToday\(formatIsoDate\(new Date\(\)\)\)\s*\}, \[\]\)/.test(client) && client.includes('today={today}'))
+  check('Timeline.tsx: new Date を読まない（呼び手から today を受け取る）', !/new Date\b|Date\.now/.test(stripComments(read('components/lab/Timeline.tsx'))))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (e) sitemap に無い・noindex・notFound・リンクしない・到達条件に session 等が無い')
+{
+  const sitemap = stripComments(read('app/sitemap.ts'))
+  check('app/sitemap.ts に /lab が無い', !sitemap.includes('/lab'))
+  const page = stripComments(read('app/lab/9983/page.tsx'))
+  check('page.tsx: robots index: false・follow: false（両方の枝）', (page.match(/index: false/g) ?? []).length === 2 && (page.match(/follow: false/g) ?? []).length === 2)
+  check('page.tsx: if (!SHOW_LAB_9983) notFound()・@/lib/features と next/navigation を import', /if \(!SHOW_LAB_9983\) notFound\(\)/.test(page) && page.includes("from 'next/navigation'") && page.includes("from '@/lib/features'"))
+  check('page.tsx・client.tsx: 到達・表示の条件に session / user / cookies / headers / auth / signedIn が無い', !/\b(session|cookies|headers|auth|signedIn|user)\b/.test(page) && !/\b(session|cookies|headers|auth|signedIn)\b/.test(stripComments(read('app/lab/9983/client.tsx'))))
+  const linkers: string[] = []
+  for (const f of [...walk('app'), ...walk('components')]) {
+    if (f.startsWith('app/lab/')) continue
+    const src = stripComments(read(f))
+    if (/["'`]\/lab(?:\/|["'`])/.test(src)) linkers.push(f)
+  }
+  check('app/・components/ のどこにも /lab へのリンク・参照が無い', linkers.length === 0, linkers.join(', '))
+  check('client.tsx: fetch／localStorage／sessionStorage／document.cookie を使わない（ブラウザの中の state だけ・保存も送信も無い）', !/fetch\(|localStorage|sessionStorage|document\.cookie/.test(stripComments(read('app/lab/9983/client.tsx'))))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (f) import 禁止・凍結ファイルが HEAD と無変更')
+{
+  const BANNED = /from\s+['"](?:@\/|\.{1,2}\/(?:\.\.\/)*)(?:lib\/)?(?:report\/claude|ai-trader\/|investors\/)/
+  const offenders: string[] = []
+  for (const f of [...walk('lib/lab'), ...walk('app/lab'), ...walk('components/lab')]) {
+    const src = stripComments(read(f))
+    for (const m of src.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
+      const spec = m[1]
+      const isForbiddenTs = /investors\/rulebooks\/forbidden$/.test(spec)
+      if (isForbiddenTs && f.startsWith('lib/lab/')) continue
+      if (BANNED.test(`from '${spec}'`) || /report\/claude|ai-trader\/|investors\//.test(spec)) offenders.push(`${f}: ${spec}`)
+    }
+  }
+  check('lib/lab/**・app/lab/**・components/lab/** は lib/report/claude.ts・lib/ai-trader/**・lib/investors/**（forbidden.ts を除く・lib/lab だけ）を import しない', offenders.length === 0, offenders.join(' | '))
+  check('forbidden.ts を直接 import するのは lib/lab/forbidden-extra.ts だけ（app/・components/ からは読まない）', stripComments(read('lib/lab/forbidden-extra.ts')).includes("from '@/lib/investors/rulebooks/forbidden'") && [...walk('app/lab'), ...walk('components/lab')].every(f => !read(f).includes('rulebooks/forbidden')))
+  check('lib/lab/** に fetch／process.env／Anthropic／server-only が無い（S-A は純関数と定数だけ）', walk('lib/lab').every(f => !/fetch\(|process\.env|anthropic|server-only/i.test(stripComments(read(f)))))
+  const FROZEN = ['lib/trade/reason.ts', 'lib/ai-trader/glossary.ts', 'lib/investors/rulebooks/forbidden.ts', 'lib/statements', 'components/stocks', 'components/review', 'components/ReasonFields.tsx', 'app/sitemap.ts', 'next.config.ts', 'app/watch', 'app/api']
+  for (const p of FROZEN) {
+    const ls = spawnSync('git', ['ls-files', '--', `:(literal)${p}`], { cwd: ROOT, encoding: 'utf8' })
+    const tracked = ls.status === 0 && (ls.stdout ?? '').trim() !== ''
+    const diff = spawnSync('git', ['diff', '--quiet', 'HEAD', '--', `:(literal)${p}`], { cwd: ROOT })
+    const status = spawnSync('git', ['status', '--porcelain', '--untracked-files=all', '--', `:(literal)${p}`], { cwd: ROOT, encoding: 'utf8' })
+    const dirty = (status.stdout ?? '').trim()
+    check(`${p}: git に追跡されていて HEAD と無変更・未追跡ファイルも無い`, tracked && diff.status === 0 && dirty === '', !tracked ? '追跡なし' : dirty.replace(/\n/g, ' | '))
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (g) 3フラグの既定が false・SHOW_AI_WATCH のすぐ下')
+{
+  const features = stripComments(read('lib/features.ts'))
+  check('SHOW_LAB_9983・LAB_CRITIQUE_AI・LAB_SIGN_COLOR が boolean で export されている', typeof SHOW_LAB_9983 === 'boolean' && typeof LAB_CRITIQUE_AI === 'boolean' && typeof LAB_SIGN_COLOR === 'boolean'
+    && /export const SHOW_LAB_9983: boolean = (?:true|false)/.test(features) && /export const LAB_CRITIQUE_AI: boolean = (?:true|false)/.test(features) && /export const LAB_SIGN_COLOR: boolean = (?:true|false)/.test(features))
+  const order = ['SHOW_AI_WATCH', 'SHOW_LAB_9983', 'LAB_CRITIQUE_AI', 'LAB_SIGN_COLOR'].map(n => features.indexOf(`export const ${n}`))
+  check('並び: SHOW_AI_WATCH → SHOW_LAB_9983 → LAB_CRITIQUE_AI → LAB_SIGN_COLOR', order.every((v, i) => v >= 0 && (i === 0 || v > order[i - 1])), order.join(','))
+  check('既定: SHOW_LAB_9983 = false（撮影で true にしたら戻す）', SHOW_LAB_9983 === false)
+  check('既定: LAB_CRITIQUE_AI = false（/privacy・/terms の公開前に true にしない）', LAB_CRITIQUE_AI === false)
+  check('既定: LAB_SIGN_COLOR = true（2026-10-09 オーナーの2度目の要望。false にすれば無彩色に戻せる口は残す）', LAB_SIGN_COLOR === true)
+  check('S-B のファイル（app/api/lab/9983・lib/lab/critique/anthropic.ts・guard.ts）はまだ無い（app/api/lab/backtest は別物・既存）', !exists('app/api/lab/9983') && !exists('lib/lab/critique/anthropic.ts') && !exists('lib/lab/critique/guard.ts'))
+  check('.claude/skills/investsim-conventions/SKILL.md のページ表に /lab/9983 の行がある', /\|[^\n]*`\/lab\/9983`[^\n]*\|/.test(read('.claude/skills/investsim-conventions/SKILL.md')))
+  check('scripts/check-features.ts が3フラグを見る', /SHOW_LAB_9983/.test(read('scripts/check-features.ts')) && /LAB_CRITIQUE_AI/.test(read('scripts/check-features.ts')) && /LAB_SIGN_COLOR/.test(read('scripts/check-features.ts')))
+  check('fyLabel: FY2026 → 2026年8月期／短い形 26年8月期', fyLabel('FY2026') === '2026年8月期' && fyLabel('FY2026', true) === '26年8月期')
+}
+
+console.log('')
+console.log(`PASS ${passed} 件 / FAIL ${failed} 件`)
+if (failed) process.exit(1)
+console.log('すべてPASS')

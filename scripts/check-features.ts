@@ -18,7 +18,7 @@
 import fs from 'fs'
 import path from 'path'
 import { spawnSync } from 'child_process'
-import { SHOW_INVESTOR_MODELS } from '../lib/features'
+import { SHOW_INVESTOR_MODELS, SHOW_LAB_9983, LAB_CRITIQUE_AI, LAB_SIGN_COLOR } from '../lib/features'
 import { ANALYZE_MODE_TABS } from '../app/learn/page'
 
 let passed = 0
@@ -43,6 +43,26 @@ console.log('■ lib/features.ts')
 const features = stripTsComments(read('lib/features.ts'))
 check('lib/features.ts: SHOW_INVESTOR_MODELS を export している（boolean）', /export const SHOW_INVESTOR_MODELS\b/.test(features) && typeof SHOW_INVESTOR_MODELS === 'boolean')
 console.log(`  情報: SHOW_INVESTOR_MODELS = ${SHOW_INVESTOR_MODELS}（${SHOW_INVESTOR_MODELS ? '名人を出している' : '名人を隠している'}）`)
+
+// 2026-10-09 S-A「添削プロトタイプ」（DECISIONS 同日）: /lab/9983 の3フラグ。SHOW_AI_WATCH のすぐ下に同じ作法で置く。
+//  - SHOW_LAB_9983 … 隠しページの公開スイッチ。値は情報として出す（撮影時に一時的に true にする運用があるため、ここでは既定値を固定しない。
+//    既定 false の期待は scripts/check-lab-9983.ts (g) が見る）
+//  - LAB_CRITIQUE_AI … /privacy・/terms が無い間は false でなければならない（個人情報保護法28条・不変条件）
+//  - LAB_SIGN_COLOR … 色は既定「切」（DESIGN.md §4 P8）。true にする決定は DECISIONS に残してから
+console.log('■ lib/lab の3フラグ（/lab/9983・2026-10-09）')
+check('lib/features.ts: SHOW_LAB_9983・LAB_CRITIQUE_AI・LAB_SIGN_COLOR を export している（boolean・`: boolean = true|false` の形）',
+  typeof SHOW_LAB_9983 === 'boolean' && typeof LAB_CRITIQUE_AI === 'boolean' && typeof LAB_SIGN_COLOR === 'boolean'
+    && /export const SHOW_LAB_9983: boolean = (?:true|false)/.test(features) && /export const LAB_CRITIQUE_AI: boolean = (?:true|false)/.test(features) && /export const LAB_SIGN_COLOR: boolean = (?:true|false)/.test(features))
+{
+  const order = ['SHOW_INVESTOR_MODELS', 'SHOW_AI_WATCH', 'SHOW_LAB_9983', 'LAB_CRITIQUE_AI', 'LAB_SIGN_COLOR'].map(n => features.indexOf(`export const ${n}`))
+  check('lib/features.ts: 並びは SHOW_INVESTOR_MODELS → SHOW_AI_WATCH → SHOW_LAB_9983 → LAB_CRITIQUE_AI → LAB_SIGN_COLOR', order.every((v, i) => v >= 0 && (i === 0 || v > order[i - 1])), order.join(','))
+  check('lib/features.ts: 3フラグの右辺と注釈以外の行に session / user / cookies / headers / auth が無い（ログイン状態で出し分けない）', !/\b(session|cookies|headers|auth|signedIn)\b/.test(features))
+  const legalPagesExist = fs.existsSync(path.join(ROOT, 'app/privacy/page.tsx')) && fs.existsSync(path.join(ROOT, 'app/terms/page.tsx'))
+  check(`LAB_CRITIQUE_AI は /privacy・/terms が${legalPagesExist ? 'ある' : '無い'}ので ${legalPagesExist ? 'true でもよい' : 'false でなければならない'}`, legalPagesExist || LAB_CRITIQUE_AI === false)
+  // 2026-10-09 オーナーの2度目の要望: /lab/9983 でのみ色を使う（既定 true）。他の画面には広げない（DESIGN.md §4 P8 はそのまま）
+  check('LAB_SIGN_COLOR は boolean（true ＝ /lab/9983 だけ色を使う。false にすれば無彩色に戻る）', typeof LAB_SIGN_COLOR === 'boolean')
+  console.log(`  情報: SHOW_LAB_9983 = ${SHOW_LAB_9983}（${SHOW_LAB_9983 ? '/lab/9983 を出している（noindex・sitemap に無い・リンク無し）' : '/lab/9983 は 404'}）／LAB_CRITIQUE_AI = ${LAB_CRITIQUE_AI}／LAB_SIGN_COLOR = ${LAB_SIGN_COLOR}`)
+}
 
 console.log('■ 画面の3か所が同じ定数で出し分けている')
 const watch = stripTsComments(read('app/watch/client.tsx'))
