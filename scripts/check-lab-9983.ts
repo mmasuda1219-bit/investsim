@@ -24,6 +24,9 @@
 //      囲みは <button type="button" aria-expanded> で、押すと説明の箱が段落の直下に出る（aria-controls＝箱の id・同じ段落で1つだけ・Esc で閉じる・title は残す。2026-10-12 スマホ対応）
 //  (q) Timeline に role="img"・aria-label があり「あと◯日」の文字が無い
 //  (r) new Date を読むのは Timeline.tsx と client.tsx の useEffect の中だけ
+//  (s) フェーズA（2026-10-18・添削の AI を手元で測る道具）: 門 lib/lab/critique/guard.ts（引用の実在・禁止語・kind）・返答の解析（anthropic.ts の parseFindings）・
+//      テストデータ evals/critique/memos.ts（実物の原文がそのまま・expect の文が原文にある）・与える数字（evals/critique/figures.ts が 9983.ts 由来）・記録に鍵が無い。
+//      (f)(g) の「S-B のファイルはまだ無い」「lib/lab に process.env が無い」は、anthropic.ts（SDK 直呼び・鍵が無ければ throw・CLI 無し）だけを例外にした
 //
 // 実ネットワーク不要。利用者のメモの見本は検査の中だけ（製品コードに入れない）。
 
@@ -40,9 +43,9 @@ import type { SourceRef, Sourced } from '../lib/lab/types'
 import { MINUS, formatByUnit, formatMillionYen, formatPercent, formatSignedPercent, formatSignedPoint, formatSignedYen, formatTimes, formatYen } from '../lib/lab/money'
 import { MEMO_FIELDS, EMPTY_MEMO, DECISION_OPTIONS, type LabMemo } from '../lib/lab/memo-fields'
 import { GLOSSARY_EXTRA } from '../lib/lab/glossary-extra'
-import { labForbiddenWordsIn, LAB_FORBIDDEN } from '../lib/lab/forbidden-extra'
+import { labForbiddenWordsIn, LAB_FORBIDDEN, LAB_FORBIDDEN_ALL } from '../lib/lab/forbidden-extra'
 import { CRITIQUE_SECTIONS, NOTES_TEXT, CRITIQUE_TITLE } from '../lib/lab/critique/sections'
-import { CATALOGUE, numbersNear, approxEqual, catalogueById, NOTHING_FOUND, CHECK_SCOPE_NOTE } from '../lib/lab/critique/catalogue'
+import { CATALOGUE, numbersNear, approxEqual, catalogueById, NOTHING_FOUND, CHECK_SCOPE_NOTE, detectAll, nearby } from '../lib/lab/critique/catalogue'
 import { LEARN_THEMES, pickTheme, THEME_FOR_MISSING } from '../lib/lab/critique/learn-themes'
 import { composeCritique, CONNECT_TEMPLATES, mentionedMetrics, EXTRA_NAMES, NAMES_HEADING } from '../lib/lab/critique/compose'
 import { SHOW_LAB_9983, LAB_CRITIQUE_AI, LAB_SIGN_COLOR } from '../lib/features'
@@ -59,6 +62,12 @@ import { Timeline, timelineAria, formatIsoDate, PREV_LABEL, TODAY_LABEL, NEXT_LA
 import { MiniTrend, miniTrendAria } from '../components/lab/MiniTrend'
 import { LearnPanel, LEARN_PANEL_NOTE } from '../components/lab/LearnPanel'
 import { MEMO_TITLE, MEMO_LEAD, SUBMIT_LABEL, MODE_FREE_LABEL, MODE_FIELDS_LABEL, FREE_HELP, DECISION_LEGEND, DECISION_HELP } from '../components/lab/MemoForm'
+// フェーズA（2026-10-18）
+import type { CritiqueFinding } from '../lib/lab/critique/prompt'
+import { guardFindings, GUARD_FORBIDDEN } from '../lib/lab/critique/guard'
+import { parseFindings, extractJson, requireApiKey } from '../lib/lab/critique/anthropic'
+import { EVAL_MEMOS, memoById } from '../evals/critique/memos'
+import { buildEvalInput, evalFigures, knownNumbers, classifyNumbers } from '../evals/critique/figures'
 
 let passed = 0
 let failed = 0
@@ -320,6 +329,14 @@ console.log('■ (i) compose を実際に呼ぶ')
   check('空のメモ → §1 は「書かれた文はありません」・§4 は8項目全部・§6 は perGrowth（規則の先頭）', empty.flow.quotes.length === 0 && empty.missing.items.length === METRIC_ITEMS.length && empty.learn.theme.key === 'perGrowth')
   check('営業利益に純利益の数字（5,425億円）を書いたメモ → §3 に op-net-mix', ids(MEMO_OP_NET).includes('op-net-mix'), ids(MEMO_OP_NET).join(','))
   check('「PER は小売業の平均より高い」→ §3 に per-average-kind と per-only', ids(MEMO_PER_AVG).includes('per-average-kind') && ids(MEMO_PER_AVG).includes('per-only'), ids(MEMO_PER_AVG).join(','))
+  // per-average-kind は近さを要求する（2026-10-19・実物のメモでの誤発火の修正）
+  const perAvg = (text: string) => ids(memo({ mode: 'free', decision: null, free: text })).includes('per-average-kind')
+  check('per-average-kind: 実物1の原文（「PERの意味が分からなかった」と「業種別の値上がりランキング」が離れて存在）では発火しない', !perAvg(memoById('collected-undecided').text))
+  check('per-average-kind: 「PERは小売業の加重平均より高い」→ 発火しない（加重と書いてある）', !perAvg('PERは小売業の加重平均より高い。'))
+  check('per-average-kind: 「PERは小売業の平均より高い」→ 発火する', perAvg('PERは小売業の平均より高い。'))
+  check('per-average-kind: 「PERの意味が分からなかった。業種別のランキングを見た。」→ 発火しない（今回の誤発火そのもの）', !perAvg('PERの意味が分からなかった。業種別のランキングを見た。'))
+  check('per-average-kind: 文をまたいでも「平均」が 40 字以内なら発火する（「PERは39.3倍。小売業の平均より高い。」）・40 字より遠ければしない', perAvg('PERは39.3倍。小売業の平均より高い。') && !perAvg(`PERは39.3倍。${'海外の伸びが大きい。'.repeat(5)}小売業の平均より高い。`))
+  check('nearby: 近い・遠い・重なり・g 無しの RegExp でも動く', nearby('PERは39.3倍。平均より高い', /PER/, /平均/, 40) && !nearby(`PER${'あ'.repeat(41)}平均`, /PER/, /平均/, 40) && nearby(`PER${'あ'.repeat(40)}平均`, /PER/, /平均/, 40) && nearby('平均PER', /PER/, /平均/, 0))
   check('自由記述で「買う」と書けば結論が空にならない／書かなければ空になる', !ids(MEMO_FREE).includes('conclusion-empty') && ids(MEMO_FREE_NO_DECISION).includes('conclusion-empty'))
   const free = composeCritique(MEMO_FREE)
   check('自由記述 → §1 は「自由記述」1本の逐語引用・§2 は文字数', free.flow.quotes.length === 1 && free.flow.quotes[0].label === '自由記述' && free.flow.quotes[0].text === MEMO_FREE.free && /自由記述で \d+ 文字/.test(free.written.lines[0]))
@@ -784,7 +801,11 @@ console.log('■ (f) import 禁止・凍結ファイルが HEAD と無変更')
   }
   check('lib/lab/**・app/lab/**・components/lab/** は lib/report/claude.ts・lib/ai-trader/**・lib/investors/**（forbidden.ts を除く・lib/lab だけ）を import しない', offenders.length === 0, offenders.join(' | '))
   check('forbidden.ts を直接 import するのは lib/lab/forbidden-extra.ts だけ（app/・components/ からは読まない）', stripComments(read('lib/lab/forbidden-extra.ts')).includes("from '@/lib/investors/rulebooks/forbidden'") && [...walk('app/lab'), ...walk('components/lab')].every(f => !read(f).includes('rulebooks/forbidden')))
-  check('lib/lab/** に fetch／process.env／Anthropic／server-only が無い（S-A は純関数と定数だけ）', walk('lib/lab').every(f => !/fetch\(|process\.env|anthropic|server-only/i.test(stripComments(read(f)))))
+  check('lib/lab/** に fetch／process.env／Anthropic／server-only が無い（S-A は純関数と定数だけ。例外は lib/lab/critique/anthropic.ts＝フェーズA の SDK 呼び出し1か所）', walk('lib/lab').filter(f => f !== 'lib/lab/critique/anthropic.ts').every(f => !/fetch\(|process\.env|anthropic|server-only/i.test(stripComments(read(f)))))
+  {
+    const src = stripComments(read('lib/lab/critique/anthropic.ts'))
+    check('lib/lab/critique/anthropic.ts: SDK を直接 import・ANTHROPIC_API_KEY が無ければ throw・CLI へのフォールバック（child_process／spawn）と fetch／server-only が無い', src.includes("from '@anthropic-ai/sdk'") && /ANTHROPIC_API_KEY/.test(src) && /throw new Error/.test(src) && !/child_process|spawn|fetch\(|server-only|console\.log/.test(src))
+  }
   const FROZEN = ['lib/trade/reason.ts', 'lib/ai-trader/glossary.ts', 'lib/investors/rulebooks/forbidden.ts', 'lib/statements', 'components/stocks', 'components/review', 'components/ReasonFields.tsx', 'app/sitemap.ts', 'next.config.ts', 'app/watch', 'app/api']
   for (const p of FROZEN) {
     const ls = spawnSync('git', ['ls-files', '--', `:(literal)${p}`], { cwd: ROOT, encoding: 'utf8' })
@@ -807,10 +828,83 @@ console.log('■ (g) 3フラグの既定が false・SHOW_AI_WATCH のすぐ下')
   check('既定: SHOW_LAB_9983 = false（撮影で true にしたら戻す）', SHOW_LAB_9983 === false)
   check('既定: LAB_CRITIQUE_AI = false（/privacy・/terms の公開前に true にしない）', LAB_CRITIQUE_AI === false)
   check('既定: LAB_SIGN_COLOR = true（2026-10-09 オーナーの2度目の要望。false にすれば無彩色に戻せる口は残す）', LAB_SIGN_COLOR === true)
-  check('S-B のファイル（app/api/lab/9983・lib/lab/critique/anthropic.ts・guard.ts）はまだ無い（app/api/lab/backtest は別物・既存）', !exists('app/api/lab/9983') && !exists('lib/lab/critique/anthropic.ts') && !exists('lib/lab/critique/guard.ts'))
+  check('生きた AI 経路 app/api/lab/9983 はまだ無い（app/api/lab/backtest は別物・既存）。フェーズA（2026-10-18）の lib/lab/critique/anthropic.ts・guard.ts は手元で測る道具で、app/**・components/** から import されない', !exists('app/api/lab/9983') && exists('lib/lab/critique/anthropic.ts') && exists('lib/lab/critique/guard.ts') && [...walk('app'), ...walk('components')].every(f => !/critique\/(?:anthropic|guard)/.test(read(f))))
   check('.claude/skills/investsim-conventions/SKILL.md のページ表に /lab/9983 の行がある', /\|[^\n]*`\/lab\/9983`[^\n]*\|/.test(read('.claude/skills/investsim-conventions/SKILL.md')))
   check('scripts/check-features.ts が3フラグを見る', /SHOW_LAB_9983/.test(read('scripts/check-features.ts')) && /LAB_CRITIQUE_AI/.test(read('scripts/check-features.ts')) && /LAB_SIGN_COLOR/.test(read('scripts/check-features.ts')))
   check('fyLabel: FY2026 → 2026年8月期／短い形 26年8月期', fyLabel('FY2026') === '2026年8月期' && fyLabel('FY2026', true) === '26年8月期')
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (s) フェーズA（2026-10-18）: 門 guard.ts・返答の解析・テストデータ・与える数字・記録に鍵が無い')
+{
+  const original = '### 判断メモ（自由記述・原文のまま）\n【判断の流れ】\n- ROAは11.92%、ROEは21%。差が約10%あるので負債が大きいと判断した。\n- 割高だと思う。\n【結論】（未記入）'
+  const ok: CritiqueFinding = { kind: 'calc', title: 'ROE と ROA の差', quote: '差が約10%あるので負債が大きいと判断した', why: 'ROE と ROA は分母が違います。', how: '分母を確かめます。', catalogueId: 'roe-roa-mix' }
+  const g1 = guardFindings([ok], original)
+  check('guard: kind=calc・引用が原文にそのまま・禁止語なし → 残る（落とした件 0・全理由 0）', g1.kept.length === 1 && g1.dropped.length === 0 && Object.values(g1.counts).every(n => n === 0))
+  const g2 = guardFindings([{ ...ok, quote: '差が約10%あるので負債が大きいと判断しました' }], original)
+  check('guard: 言い換えた引用は落ちる（quote-not-in-original・nearMiss ではない）', g2.kept.length === 0 && g2.dropped[0]?.flags.reasons.join() === 'quote-not-in-original' && g2.dropped[0]?.flags.quoteNearMiss === false)
+  const g3 = guardFindings([{ ...ok, quote: '差が約10%あるので 負債が大きい' }], original)
+  check('guard: 空白だけ違う引用も落ちるが quoteNearMiss に印', g3.kept.length === 0 && g3.dropped[0]?.flags.quoteNearMiss === true && g3.dropped[0]?.detail.includes('空白'))
+  check('guard: 引用が空は落ちる', guardFindings([{ ...ok, quote: '  ' }], original).counts['quote-not-in-original'] === 1)
+  for (const [field, text] of [['how', '買うべきではありません'], ['why', 'この銘柄は割高です'], ['title', '勉強不足'], ['how', '計算が間違っています'], ['why', '株価は上がる'], ['how', '狙い目です'], ['why', '要注意です']] as const) {
+    const g = guardFindings([{ ...ok, [field]: text }], original)
+    check(`guard: ${field} に「${text}」→ 落ちる（禁止語 ${g.dropped[0]?.flags.forbidden.join('・') ?? '—'}）`, g.kept.length === 0 && g.counts['forbidden-word'] === 1)
+  }
+  check('guard: quote の中の禁止語は見ない（利用者の文「割高だと思う」を引用しても残る）', guardFindings([{ ...ok, quote: '割高だと思う' }], original).kept.length === 1)
+  check('guard: kind が calc／missing 以外は落ちる（bad-kind）', guardFindings([{ ...ok, kind: 'advice' as CritiqueFinding['kind'] }], original).counts['bad-kind'] === 1 && guardFindings([{ ...ok, kind: 'missing' }], original).kept.length === 1)
+  check('guard: 「将来を予測するものではありません」は例外（「予測」で落とさない）', guardFindings([{ ...ok, how: '将来を予測するものではありません。' }], original).kept.length === 1)
+  check('guard: 1件が2つの理由に当たれば両方に数え、落とすのは1件', (() => { const g = guardFindings([{ ...ok, quote: 'x', how: 'おすすめ' }], original); return g.counts['quote-not-in-original'] === 1 && g.counts['forbidden-word'] === 1 && g.dropped.length === 1 && g.flags.length === 1 })())
+  check('guard: 禁止語の一覧は forbidden-extra の全部を含み、prompt.ts の 「…」 の語も含む（割安・買うべき・勉強不足・狙い目・経験が浅い）。「○点」のような見本は含まない', LAB_FORBIDDEN_ALL.every(w => GUARD_FORBIDDEN.includes(w)) && ['割安', '買うべき', '勉強不足', '狙い目', '経験が浅い', '有望'].every(w => GUARD_FORBIDDEN.includes(w)) && !GUARD_FORBIDDEN.some(w => w.includes('○')))
+  // 返答の解析
+  const p1 = parseFindings('```json\n[{"kind":"calc","title":"t","quote":"q","why":"w","how":"h","catalogueId":null}]\n```')
+  check('parseFindings: ```json の囲い付きの配列を読む・catalogueId null', p1.ok && p1.findings.length === 1 && p1.findings[0].catalogueId === null)
+  const p2 = parseFindings('はい。[{"kind":"calc","title":"t","quote":"q","why":"w","how":"h"},{"kind":"calc","title":1}] 以上')
+  check('parseFindings: 前後の文を無視し、形の違う要素は落として malformed に数える（catalogueId 省略は null）', p2.ok && p2.findings.length === 1 && p2.malformed === 1 && p2.findings[0].catalogueId === null)
+  check('parseFindings: 配列が無ければ ok:false（no-json-array）', (() => { const p = parseFindings('{"kind":"calc"}'); return !p.ok && p.reason === 'no-json-array' })())
+  check('parseFindings: 空の配列 [] は ok・0件', (() => { const p = parseFindings('[]'); return p.ok && p.findings.length === 0 && p.malformed === 0 })())
+  check('parseFindings: 壊れた JSON は json-parse-error', (() => { const p = parseFindings('[{"kind":'); return !p.ok && p.reason === 'json-parse-error' })())
+  check('extractJson: 文字列の中の括弧を数えない・オブジェクトも取れる', extractJson('x [{"a":"]"}] y') === '[{"a":"]"}]' && extractJson('前 {"A":[{"x":"}"}]} 後', '{') === '{"A":[{"x":"}"}]}')
+  check('requireApiKey: 無い・空白なら投げる、あれば返す（値は印字しない）', (() => {
+    let threw = 0
+    try { requireApiKey({}) } catch { threw++ }
+    try { requireApiKey({ ANTHROPIC_API_KEY: '  ' }) } catch { threw++ }
+    return threw === 2 && requireApiKey({ ANTHROPIC_API_KEY: 'k' }) === 'k'
+  })())
+  // テストデータ
+  check('memos: 3件（実物2件＋clean）・id と順が固定', EVAL_MEMOS.map(m => m.id).join() === 'collected-undecided,decided-uncollected,clean')
+  check('memos: 実物2件は source=owner-real・expect 6件・expectNot 2件ずつ。clean は expect 0件・expectNot 1件', EVAL_MEMOS.filter(m => m.source === 'owner-real').length === 2 && EVAL_MEMOS.filter(m => m.source === 'owner-real').every(m => m.expect.length === 6 && m.expectNot.length === 2) && memoById('clean').expect.length === 0 && memoById('clean').expectNot.length === 1)
+  check('memos: 公表値との食い違いの印（factMismatch）は3件（ROA・EPS・売上）', EVAL_MEMOS.flatMap(m => m.expect).filter(e => e.factMismatch).map(e => e.id).join() === 'roa-mismatch,eps-mismatch,sales-mismatch')
+  check('memos: 実物の原文は「ESPが下がっている」「ROAは11.92%」「売上高は前期比で10%増えていた」をそのまま含む（修正しない）', memoById('collected-undecided').text.includes('ESPが下がっている') && memoById('collected-undecided').text.includes('ROAは11.92%') && memoById('decided-uncollected').text.includes('売上高は前期比で10%増えていた'))
+  for (const m of EVAL_MEMOS) {
+    const { input, original } = buildEvalInput(m.text)
+    check(`memos/${m.id}: 原文がそのまま入力に入り、門に渡す原文はメモの節だけ、expect の plantedText は全部原文にそのまま含まれる`, original.includes(m.text) && !original.includes('## 会社が公表した数字') && input.includes('## 会社が公表した数字') && m.expect.every(e => m.text.includes(e.plantedText)), m.expect.filter(e => !m.text.includes(e.plantedText)).map(e => e.id).join(','))
+  }
+  // 与える数字
+  const { figures, peers } = evalFigures()
+  const figText = figures.map(f => `${f.label}: ${f.value}（${f.period}）`).join('\n') + '\n' + peers.map(p => `${p.label}: ${p.value}`).join('\n')
+  check('figures: 売上 +16.6%・EPS 1,768.08円（前の期 1,411.44円）・ROA は 2026年8月期 未開示（25年8月期 11.6%）・配当予想の修正 640円 → 850円・加重 27.7倍／単純 22.5倍・決算発表日 2026-10-08 を含む', ['+16.6%', '1,768.08円', '1,411.44円', '会社が開示していません', '11.6%', '640円 → 850円', '27.7倍', '22.5倍', '2026-10-08'].every(s => figText.includes(s)))
+  check('figures: 事業利益を渡さない（画面2の8項目に揃える）・ハイフンの負号が無い', !figText.includes('事業利益') && !/-\d/.test(figText.replace(/\d{4}-\d{2}-\d{2}/g, '')))
+  const known = knownNumbers()
+  const figNums = classifyNumbers(figText, known, '')
+  check('figures: 渡す数字の数値は全部 9983.ts 由来（unknown が 0）', figNums.every(t => t.cls !== 'unknown'), figNums.filter(t => t.cls === 'unknown').map(t => t.token).join(','))
+  const cleanNums = classifyNumbers(memoById('clean').text, known, '')
+  check('clean: 本文の数値は全部 9983.ts 由来か、そこから出る値（unknown が 0）', cleanNums.every(t => t.cls !== 'unknown'), cleanNums.filter(t => t.cls === 'unknown').map(t => t.token).join(','))
+  const f1 = Object.fromEntries(classifyNumbers('ROE 21.2% と ROA 11.6%。自己資本比率は +3.7ポイント。EPS は 1,768.08円。売上は 3兆9,634億円。', known, '').map(t => [t.token, t.cls]))
+  check('classifyNumbers: 21.2／11.6／1,768.08／9,634 は direct、3.7 は derived（62.6 − 58.9）、3（兆の位）は direct か small', f1['21.2'] === 'direct' && f1['11.6'] === 'direct' && f1['1,768.08'] === 'direct' && f1['9,634'] === 'direct' && f1['3.7'] === 'derived' && (f1['3'] === 'direct' || f1['3'] === 'small'), JSON.stringify(f1))
+  const f2 = Object.fromEntries(classifyNumbers('ROA は 11.92% ではなく 11.6%。差は 9.08ポイント。有利子負債は 1,234億円。2026年8月期。', known, memoById('collected-undecided').text).map(t => [t.token, t.cls]))
+  check('classifyNumbers: 利用者の 11.92 は memo、21 − 11.92 = 9.08 は derived、1,234 は unknown、2026 は year', f2['11.92'] === 'memo' && f2['9.08'] === 'derived' && f2['1,234'] === 'unknown' && f2['2026'] === 'year', JSON.stringify(f2))
+  // 規則版（catalogue）の検出（AI との比較用）
+  const base = (id: string) => detectAll({ text: memoById(id).text, memo: { mode: 'free', decision: null, parts: {}, free: memoById(id).text }, data: LAB_9983 }).map(e => e.id)
+  // 10 件のカタログを実物 2 件と clean に当てた結果を固定する（2026-10-19。per-average-kind の誤発火を直した後の基準値）
+  check('規則版: 実物1（集めたが決められない）は conclusion-empty・roe-roa-mix・roa-unpublished の 3 件だけ（per-average-kind は当たらない）', base('collected-undecided').slice().sort().join() === ['conclusion-empty', 'roe-roa-mix', 'roa-unpublished'].sort().join(), base('collected-undecided').join(','))
+  check('規則版: 実物2（決めたが集めていない）には何も当たらない（売上 10%増・PER 40倍・値動き・知名度は規則では拾えない）', base('decided-uncollected').length === 0, base('decided-uncollected').join(','))
+  check('規則版: clean には何も当たらない', base('clean').length === 0, base('clean').join(','))
+  console.log(`  （規則版の当たり — 実物1: ${base('collected-undecided').join('・') || '無し'}／実物2: ${base('decided-uncollected').join('・') || '無し'}／clean: ${base('clean').join('・') || '無し'}）`)
+  // 記録・スクリプト
+  const leak = walk('evals/critique', /\.(json|md)$/).filter(f => /sk-ant-[A-Za-z0-9_-]{8,}/.test(read(f)))
+  check('evals/critique/** の記録（json・md）に鍵らしき文字列（sk-ant-…）が無い', leak.length === 0, leak.join(','))
+  check('scripts/eval-critique.ts・eval-judge.ts・evals/critique/**・lib/lab/critique/anthropic.ts は lib/report/claude.ts・lib/ai-trader を import しない', ['scripts/eval-critique.ts', 'scripts/eval-judge.ts', 'lib/lab/critique/anthropic.ts', 'lib/lab/critique/guard.ts', ...walk('evals/critique')].every(f => !/report\/claude|ai-trader\//.test(stripComments(read(f)))))
+  check('scripts/eval-judge.ts: C と F を判定 AI に数えさせない（machineParts で数え、system に「機械が数える」とある）', /function machineParts/.test(read('scripts/eval-judge.ts')) && read('scripts/eval-judge.ts').includes('数は機械が数える'))
 }
 
 console.log('')

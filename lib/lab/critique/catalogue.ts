@@ -60,6 +60,19 @@ export function sameSentence(text: string, a: RegExp, b: RegExp): boolean {
   return sentences(text).some(s => a.test(s) && b.test(s))
 }
 
+const global = (re: RegExp) => new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`)
+
+/**
+ * a と b の一致が window 文字以内にある（文をまたいでもよい。一方の終わりからもう一方の始まりまでを数える）。
+ * 同じメモの離れた場所に両方の語があるだけでは当たらない（フェーズA 2026-10-19・実物のメモでの誤発火の修正）
+ */
+export function nearby(text: string, a: RegExp, b: RegExp, window = 40): boolean {
+  const spans = (re: RegExp) => [...text.matchAll(global(re))].map(m => ({ start: m.index ?? 0, end: (m.index ?? 0) + m[0].length }))
+  const as = spans(a)
+  const bs = spans(b)
+  return as.some(x => bs.some(y => (y.start >= x.end ? y.start - x.end : x.start - y.end) <= window))
+}
+
 /** word の直後 window 文字の中にある数字（カンマを除いて数値に）。requirePercent なら % が続くものだけ */
 export function numbersNear(text: string, word: string | RegExp, window = 14, requirePercent = false): number[] {
   const re = typeof word === 'string' ? new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi') : new RegExp(word.source, word.flags.includes('g') ? word.flags : `${word.flags}g`)
@@ -138,7 +151,10 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     kind: 'check',
     title: '平均PER が加重か単純か',
     body: '業種の平均PER には加重平均と単純平均があり、数字が違います。JPX の{jpxAsOf}の値は、プライム市場の小売業で加重 {perRetail}・単純 {perRetailSimple}、市場全体で加重 {perMarket}・単純 {perMarketSimple}。どちらと比べたかを書いておきます。',
-    detect: ({ text }) => PER.test(text) && /平均|業種|業界|小売|市場全体/.test(text) && !/加重|単純/.test(text),
+    // 近さを要求する（2026-10-19）: 「PERの意味が分からなかった」と「業種別の値上がりランキング」が同じメモの離れた場所にあるだけで当たっていた。
+    //  - 比較先の語（平均・業種・業界・小売・市場全体）は PER と**同じ文**にあるとき
+    //  - 文をまたぐときは「平均」の語だけ、PER から 40 字以内にあるとき（「PERは39.3倍。小売業の平均より高い。」）
+    detect: ({ text }) => (sameSentence(text, PER, /平均|業種|業界|小売|市場全体/) || nearby(text, PER, /平均/, 40)) && !/加重|単純/.test(text),
   },
   {
     id: 'op-net-mix',
