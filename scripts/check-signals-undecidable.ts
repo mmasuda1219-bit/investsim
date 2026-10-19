@@ -431,11 +431,11 @@ function clientChecks() {
 
   console.log('■ 色のトークン・DESIGN.md')
   const css = code('app/globals.css')
-  check('globals.css: --axis と --rule-line が :root にある（SV1a 以降は暗い地の値 rgb(255 255 255 / .30) / .13）', css.includes('--axis:          rgb(255 255 255 / .30);') && css.includes('--rule-line:     rgb(255 255 255 / .13);'))
+  check('globals.css: --axis と --rule-line が :root にある（L1・2026-10-12 以降は明るい地の値 rgb(0 0 0 / .38) / .14）', css.includes('--axis:          rgb(0 0 0 / .38);') && css.includes('--rule-line:     rgb(0 0 0 / .14);'))
   check('globals.css: Tailwind に登録（--color-axis / --color-rule-line）', css.includes('--color-axis:         var(--axis);') && css.includes('--color-rule-line:    var(--rule-line);'))
   const design = code('DESIGN.md')
   // SV1a（2026-09-25）で §5-1 の明るい地の表（#8D9FB8 / #C9D3E0）を撤去したので、暗い地の表の行を見る
-  check('DESIGN.md: §5-1 の線の表に --axis と --rule-line（暗い地の値）', design.includes('| `--axis` | `rgb(255 255 255 / .30)` |') && design.includes('| `--rule-line` | `rgb(255 255 255 / .13)` |'))
+  check('DESIGN.md: §5-1 の線の表に --axis と --rule-line（明るい地の値）', design.includes('| `--axis` | `rgb(0 0 0 / .38)` |') && design.includes('| `--rule-line` | `rgb(0 0 0 / .14)` |'))
   check('DESIGN.md: §6-6 C ノート型に名人欄の「あなたが答えること」', design.includes('名人欄の「あなたが答えること」'))
   check('DESIGN.md: 数直線の規則（最大2本・塗り分け禁止・実値ラベル・範囲外は文字）', design.includes('**数直線（名人欄の「目安との位置」）**') && design.includes('1画面に最大2本') && design.includes('緑・赤の塗り分けゾーンを作らない') && design.includes('軸の外（148.8%）'))
   check('DESIGN.md: §6-11 に免責の分け方（part="investor" / part="general"）', design.includes('`part="investor"` / `part="general"`'))

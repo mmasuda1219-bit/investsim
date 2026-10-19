@@ -18,7 +18,7 @@ description: investsimのプロジェクト規約（ディレクトリ構成・�
 （2026-08-23 の4段「見る→まねる→やる→振り返る」から変更。COMPANY.md 原則12）。
 並びは難易度ではなく**1件の記録が育つ順**（書いたその日 → 書いた直後 → 20営業日ほど後）
 なので、順序を入れ替えない。呼び名と説明文の正は `components/SiteNav.tsx`（`NAV` が唯一の出所。
-href・label・順序は `scripts/check-features.ts`・`check-night-theme.ts` が固定）。
+href・label・順序は `scripts/check-features.ts`・`check-theme.ts` が固定）。
 
 | 段階 | パス | 位置づけ |
 |---|---|---|

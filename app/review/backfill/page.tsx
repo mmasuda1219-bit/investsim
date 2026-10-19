@@ -191,7 +191,7 @@ export default function BackfillPage() {
       </header>
 
       {/* ── 取引の中身 ─────────────────────────────────────────── */}
-      <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
+      <section className="p-4 rounded-xl bg-card border border-border space-y-4">
         <h2 className="text-h2 text-ink">何を、いくらで</h2>
 
         <div className="grid grid-cols-2 gap-3">
@@ -245,7 +245,7 @@ export default function BackfillPage() {
       </section>
 
       {/* ── 買ったときの理由 ───────────────────────────────────── */}
-      <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
+      <section className="p-4 rounded-xl bg-card border border-border space-y-4">
         <h2 className="text-h2 text-ink">買ったときのこと</h2>
         <ReasonFields
           fields={entryFields}
@@ -259,7 +259,7 @@ export default function BackfillPage() {
       </section>
 
       {/* ── 売ったか ───────────────────────────────────────────── */}
-      <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
+      <section className="p-4 rounded-xl bg-card border border-border space-y-4">
         <h2 className="text-h2 text-ink">その後</h2>
 
         <div className="flex gap-2">
@@ -358,7 +358,7 @@ export default function BackfillPage() {
       </div>
 
       {/* ── 記録済み ───────────────────────────────────────────── */}
-      <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
+      <section className="p-4 rounded-xl bg-card border border-border space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-h2 text-ink">記録した過去の取引（<span className="tabular-nums">{recorded.length}</span>件）</h2>
           <Link href="/review" className="text-sm text-brand hover:text-brand-strong">読み返す →</Link>

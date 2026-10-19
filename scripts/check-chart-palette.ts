@@ -1,9 +1,9 @@
 // チャートの系列色（components/chartTheme.ts の SERIES）の検査。
 //   $env:PATH = "C:\Program Files\nodejs;$env:PATH"; npx tsx scripts/check-chart-palette.ts
-//   npx tsx scripts/check-chart-palette.ts --mode dark     # 地を #0A0C10（DECISIONS 2026-09-24）に固定
-//   npx tsx scripts/check-chart-palette.ts --mode light    # 地を #F6F8FB（DESIGN.md §5-1 明るい地の表）に固定
+//   npx tsx scripts/check-chart-palette.ts --mode dark     # 地を #0A0C10（2026-09-24〜10-12 の暗い地。参考）に固定
+//   npx tsx scripts/check-chart-palette.ts --mode light    # 地を #F6F8FB（DESIGN.md §5-1・L1 2026-10-12 以降の既定の地）に固定
 //   npx tsx scripts/check-chart-palette.ts --bg "#123456"  # 任意の地で検査
-//   引数が無ければ app/globals.css の :root { --bg } を読む（:root が変わればそのまま追随する）。
+//   引数が無ければ app/globals.css の :root { --bg } を読む（:root が変わればそのまま追随する。いまは #F6F8FB＝--mode light と同じ）。
 //
 // ■ なぜ作ったか
 //   DESIGN.md §5-1 と chartTheme.ts はかつて「dataviz スキルの validate_palette.js（色覚多様性の検査）
@@ -27,7 +27,7 @@
 // ■ 使った式と出典
 //   - sRGB → 線形: IEC 61966-2-1 の伝達関数（c ≤ 0.04045 ? c/12.92 : ((c+0.055)/1.055)^2.4）。
 //     WCAG 2.1 の式は閾値が 0.03928 だが、8bit の値で 0.03928〜0.04045 に落ちるものは無い
-//     （10/255 = 0.0392、11/255 = 0.0431）ので結果は同じ。check-night-theme.ts と同じ数字が出る。
+//     （10/255 = 0.0392、11/255 = 0.0431）ので結果は同じ。check-theme.ts と同じ数字が出る。
 //   - 線形 RGB → XYZ（D65）: sRGB の標準行列（Lindbloom "RGB/XYZ Matrices"、sRGB D65）。
 //   - XYZ → CIE L*a*b*: CIE 1976 の式（Wikipedia "CIELAB color space"）。基準白は D65
 //     (0.95047, 1.00000, 1.08883)。
@@ -38,7 +38,7 @@
 //     Simulation of Color Vision Deficiency", IEEE TVCG 15(6)。補足資料の severity 1.0 の 3×3 行列を
 //     線形 RGB に掛ける（colorspacious / DaltonLens と同じ値・同じ適用先）。
 //   - 半透明の色（rgb(255 255 255 / .16) 等）は地に α合成した実効色に直してから使う
-//     （check-night-theme.ts と同じ手順。sRGB 8bit の単純α、丸めは Math.round）。
+//     （check-theme.ts と同じ手順。sRGB 8bit の単純α、丸めは Math.round）。
 
 import fs from 'fs'
 import path from 'path'
@@ -71,10 +71,10 @@ function argValue(flag: string): string | undefined {
   const i = args.indexOf(flag)
   return i >= 0 ? args[i + 1] : undefined
 }
-/** --mode の固定値。light は DESIGN.md §5-1「明るい地の表」の --bg、dark は DECISIONS.md 2026-09-24 の --bg */
+/** --mode の固定値。light は DESIGN.md §5-1 の --bg（L1 2026-10-12 以降の正）、dark は 2026-09-24〜10-12 の暗い地（参考） */
 const MODE_BG: Record<string, string> = { light: '#F6F8FB', dark: '#0A0C10' }
 
-// ── 色の型と解析（check-night-theme.ts と同じ流儀） ──────────────────────
+// ── 色の型と解析（check-theme.ts と同じ流儀） ──────────────────────
 type RGB = [number, number, number] // 0..255 の sRGB
 type Lin = [number, number, number] // 0..1 の線形 RGB
 type Lab = { L: number; a: number; b: number }

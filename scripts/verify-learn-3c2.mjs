@@ -6,7 +6,7 @@
 //   node scripts/verify-learn-3c2.mjs <写真の保存先ディレクトリ>
 //
 // 確かめること:
-//   - 390×844 / 1280×900 / 1920×1080 で横はみ出し0、ヘッダー下の左右端が地（#0A0C10・SV1a で暗い地に一本化）、
+//   - 390×844 / 1280×900 / 1920×1080 で横はみ出し0、ヘッダー下の左右端が地（#F6F8FB・L1 2026-10-12 で明るい地に復帰）、
 //     主ボタンが1つまで（§6-1）、console error 0
 //   - 押す順番（390 と 1280）:
 //     (1) 銘柄 AAPL ＋ クイック「安定重視」→ 無料プレビュー → 結果が表1つで出て、行と値が読める
@@ -24,8 +24,8 @@
 // SV1a（2026-09-25）で作り替えた点:
 //   - 主ボタンの数え方を「塗りの色の文字列一致」から「class bg-brand か data-primary 属性」に（3c1 と同じ理由・同じ形）
 //   - 囲い検出 enclosures() は「4辺に枠線＋角丸」のうち、4辺とも 1px で色が --border のもの（＝面の輪郭・DESIGN §6-6）を除く
-//   - 札・文字の色の期待値は暗い地のトークン。getComputedStyle は指定どおりの rgba（合成前）を返すので、
-//     半透明のトークンは rgba(…, α) の文字列で比べる（#0A0C10 に合成した実効色になるのは写真の画素を読むときだけ）
+//   - 札・文字の色の期待値は明るい地のトークン（L1・2026-10-12）。getComputedStyle は指定どおりの値（合成前）を返すので、
+//     半透明のトークンは rgba(…, α) の文字列で比べる（#F6F8FB に合成した実効色になるのは写真の画素を読むときだけ）
 
 import { chromium } from 'playwright'
 import fs from 'node:fs'
@@ -36,13 +36,13 @@ const OUT = process.argv[2] ?? path.join(process.cwd(), 'shots', '3c2')
 fs.mkdirSync(OUT, { recursive: true })
 
 /** ページの地（globals.css の --bg）。/learn ににじみは無いので一色 */
-const BG = '#0A0C10'
-/** --warning-tint rgb(192 138 46 / .14) の computed 値 */
-const WARNING_TINT_RGB = 'rgba(192, 138, 46, 0.14)'
-/** --warning-ink #C08A2E */
-const WARNING_INK_RGB = 'rgb(192, 138, 46)'
-/** --ink-2 rgb(238 241 245 / .66) の computed 値 */
-const INK2_RGB = 'rgba(238, 241, 245, 0.66)'
+const BG = '#F6F8FB'
+/** --warning-tint #FDF3E1 の computed 値（L1・2026-10-12 明るい地） */
+const WARNING_TINT_RGB = 'rgb(253, 243, 225)'
+/** --warning-ink #8A5300 */
+const WARNING_INK_RGB = 'rgb(138, 83, 0)'
+/** --ink-2 #4A4D55 の computed 値 */
+const INK2_RGB = 'rgb(74, 77, 85)'
 /** 投資家モデルのタブがあるか。lib/features.ts を文字列で読む（tsx なしで動かすため import しない） */
 const SHOW_INVESTOR_MODELS = /export const SHOW_INVESTOR_MODELS\s*(?::\s*boolean)?\s*=\s*true\b/.test(
   fs.readFileSync(path.join(process.cwd(), 'lib', 'features.ts'), 'utf8'),

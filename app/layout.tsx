@@ -47,17 +47,17 @@ export const metadata: Metadata = {
   },
 }
 
-// colorScheme は 'dark' を明示する（SV1a・2026-09-25。地を #0A0C10 に一本化した。DECISIONS.md 2026-09-24）。
-// 端末の設定に追随させると、端末がライトモードのときに iOS Safari が select / input[type=number] を
-// ライトで描画し、暗い地の上に白い入力欄だけが浮く（2026-09-11 以前の暗色 UI で実際に起きた事故の再来）。
-// Windows のスクロールバー・iOS の引っぱり戻しの地もこの宣言で暗くなる。
-// globals.css の `:root { color-scheme: dark }` と同じ値にそろえること（<meta> と CSS の両方が要る）。
+// colorScheme は 'light' を明示する（L1・2026-10-12。地を #F6F8FB に戻した。DECISIONS.md 2026-10-12）。
+// 端末の設定に追随させると、端末がダークモードのときに iOS Safari が select / input[type=number] を
+// ダークで描画し、白い地の上に暗い入力欄だけが浮く（暗い地のときに起きた事故の裏返し）。
+// Windows のスクロールバー・iOS の引っぱり戻しの地もこの宣言で明るくなる。
+// globals.css の `:root { color-scheme: light }` と同じ値にそろえること（<meta> と CSS の両方が要る）。
 // themeColor はモバイルのアドレスバー色。ページの地（--bg）と揃える。明暗の切り替えは作らない（DESIGN.md §9）。
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0A0C10',
-  colorScheme: 'dark',
+  themeColor: '#F6F8FB',
+  colorScheme: 'light',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -65,8 +65,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja" className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}>
       {/* ハードコードの色（bg-background / text-ink 等）は globals.css のトークンを
           上書きしてしまい、トークンを差し替えても画面に反映されなかった。
-          トークン側のユーティリティに寄せてあるので、明るい地→暗い地の転換（SV1a・2026-09-25）も
-          globals.css の :root を差し替えるだけで追随した。 */}
+          トークン側のユーティリティに寄せてあるので、明るい地→暗い地の転換（SV1a・2026-09-25）も、
+          暗い地→明るい地への復帰（L1・2026-10-12）も globals.css の :root を差し替えるだけで追随した。 */}
       <body className="min-h-full flex flex-col bg-background text-ink">
         <SiteNav />
         {/* max-w が無いと大画面で本文が1行90文字まで伸びて読めない。
@@ -88,7 +88,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             同じ定数を読んで両方の規則を機械で見る。SHOW_AI_WATCH && の1つだけが許された分岐。
             「無料」はサイトでここ1か所だけ・打消し（将来、有料の機能を作る可能性）とセット（legal-compliance 2026-09-28・DESIGN.md §7）。 */}
         <footer className="w-full max-w-6xl mx-auto px-4 sm:px-6 pb-20 md:pb-5">
-          <div className="mt-8 border-t border-border pt-4 space-y-2">
+          {/* 本文との境目は 1px の線ではなく空白で分ける（L2・2026-10-14 決定(2)③。design-taste-frontend「細い線を使わない」）。
+              フッターの中身（無料の1文・運営者行・/watch の常設リンクの規則）は変えていない。 */}
+          <div className="mt-16 space-y-2">
             {SHOW_AI_WATCH && (
               <p className="text-small">
                 <Link href="/watch" className="text-brand hover:underline">AIの判断を読む（ログイン不要）</Link>

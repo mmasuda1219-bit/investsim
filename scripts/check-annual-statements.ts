@@ -319,7 +319,7 @@ console.log('■ 4. 色: --success／--danger／text-red／text-green／# 始ま
 for (const f of [SECTION, BARS]) {
   const src = stripComments(read(f))
   check(`${f}: 色の直値・損益の色が無い`, !COLOR_RE.test(src), (src.match(COLOR_RE) ?? []).join(','))
-  check(`${f}: 回り続ける動き（animate-）が無い（check-night-theme.ts R4 の許可リストに入れない）`, !src.includes('animate-'))
+  check(`${f}: 回り続ける動き（animate-）が無い（check-theme.ts R4 の許可リストに入れない）`, !src.includes('animate-'))
 }
 check(`${BARS}: --warning-ink も使わない（図の中に注意の色を置かない）`, !read(BARS).includes('warning'))
 check(`${SECTION}: --warning-ink は失敗の見出し 1 か所だけ（§6-12）`, count(stripComments(read(SECTION)), 'text-warning-ink') === 1 && /text-warning-ink">\{FAILED_TITLE\}/.test(read(SECTION)))

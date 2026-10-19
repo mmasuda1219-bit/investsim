@@ -3,7 +3,7 @@
 //
 // 見るもの（番号は designer の案のまま）:
 //  1. 規則を当てた画面（APPLIED）の <h2 は class が text-h2 text-ink で始まる。text-small／text-caption／text-muted を含まない
-//  2. <h1 は text-h1 text-ink（トップのヒーローだけ text-display）。1つの画面の状態（return ( … ) のまとまり）に1つまで
+//  2. <h1 は text-h1 text-ink（トップのヒーローだけ L2 の段階 s.h1＝27px/500。h2 も s.h2＝28px/500）。1つの画面の状態（return ( … ) のまとまり）に1つまで
 //  3. font-bold／font-extrabold が 0 件。見出し（<h1〜<h3）の class に素の Tailwind のサイズ（text-2xl／text-xl／text-lg／text-base／text-sm／text-xs）が無い
 //  4. 法務が要求する注記の下限を守る（＝弱めていない）: Disclaimer.tsx は text-small text-ink-2 固定（caption／muted を含まない）。
 //     DISTRIBUTION_NOTE・基準率の各項目の直下の行・PriceSincePanel の figcaption・PrimarySources の「取得 …・リンク先は当社と関係がありません。」は
@@ -70,7 +70,7 @@ function walk(rel: string): string[] {
 const count = (s: string, needle: string | RegExp) =>
   typeof needle === 'string' ? s.split(needle).length - 1 : (s.match(new RegExp(needle.source, needle.flags.includes('g') ? needle.flags : `${needle.flags}g`)) ?? []).length
 
-/** 見出しタグ（<h1 … > … </h1>）を全部拾う。className は "…" か {`…`} のどちらか */
+/** 見出しタグ（<h1 … > … </h1>）を全部拾う。className は "…" か {`…`} か、ホームの CSS モジュール参照 {s.h2}（L2） */
 type Heading = { level: 1 | 2 | 3; tag: string; className: string | null; inner: string; index: number }
 function headings(src: string): Heading[] {
   const out: Heading[] = []
@@ -78,8 +78,8 @@ function headings(src: string): Heading[] {
   let m: RegExpExecArray | null
   while ((m = re.exec(src))) {
     const attrs = m[2] ?? ''
-    const cls = /className=(?:"([^"]*)"|\{`([^`]*)`\})/.exec(attrs)
-    out.push({ level: Number(m[1]) as 1 | 2 | 3, tag: `<h${m[1]}${attrs}>`, className: cls ? (cls[1] ?? cls[2]) : null, inner: m[3], index: m.index })
+    const cls = /className=(?:"([^"]*)"|\{`([^`]*)`\}|\{([^}`"]*)\})/.exec(attrs)
+    out.push({ level: Number(m[1]) as 1 | 2 | 3, tag: `<h${m[1]}${attrs}>`, className: cls ? (cls[1] ?? cls[2] ?? cls[3]) : null, inner: m[3], index: m.index })
   }
   return out
 }
@@ -115,6 +115,14 @@ const APPLIED = [
 const HERO = 'app/(night)/page.tsx'
 const STAGE_LABELS = ['01 書く', '02 くらべる', '03 読み返す', 'AIの判断']
 const RAW_SIZE = /(?:^|\s)text-(?:2xl|xl|lg|base|sm|xs)(?:\s|$)/
+/**
+ * ホーム（HERO）だけ別の期待値（L2・2026-10-14・DECISIONS.md 同日「ホーム（L2）は design-taste-frontend スキルの規則を優先する」）。
+ * ホームの見出しは globals.css の段階（text-display 52/900・text-h2 20/600）ではなく、components/entry/home.module.css の
+ * `.h1`（27px/500/1.25・どの幅でも大きくしない）と `.h2`（28px/500）。className はモジュール参照（{s.h2} / {`${s.h1} …`}）になる。
+ * 他の画面の期待（text-h1 text-ink／text-h2 text-ink）は変えない。
+ */
+const HOME_H1 = /^\$\{s\.h1\}/
+const HOME_H2 = /^(?:s\.h2|\$\{s\.h2\})(?:\s|$|\})/
 
 console.log('■ 0. 対象')
 for (const f of APPLIED) check(`${f} がある`, exists(f))
@@ -124,16 +132,18 @@ console.log('■ 1. <h2 は text-h2 text-ink で始まる（small／caption／mu
 for (const [f, src] of applied) {
   const h2s = headings(src).filter(h => h.level === 2)
   if (h2s.length === 0) continue
-  const bad = h2s.filter(h => !h.className || !h.className.startsWith('text-h2 text-ink') || /text-small|text-caption|text-muted/.test(h.className))
-  check(`${f}: h2 ${h2s.length}件すべて text-h2 text-ink`, bad.length === 0, bad.map(h => h.tag).join(' / '))
+  const okClass = (c: string) => (f === HERO ? HOME_H2.test(c) : c.startsWith('text-h2 text-ink'))
+  const bad = h2s.filter(h => !h.className || !okClass(h.className) || /text-small|text-caption|text-muted/.test(h.className))
+  check(`${f}: h2 ${h2s.length}件すべて ${f === HERO ? 's.h2（ホームの段階 28px/500）' : 'text-h2 text-ink'}`, bad.length === 0, bad.map(h => h.tag).join(' / '))
 }
 
 console.log('■ 2. <h1 は text-h1 text-ink（トップのヒーローだけ text-display）・1つの画面の状態に1つまで')
 for (const [f, src] of applied) {
   const h1s = headings(src).filter(h => h.level === 1)
   if (h1s.length === 0) continue
-  const want = f === HERO ? 'text-display text-ink' : 'text-h1 text-ink'
-  const bad = h1s.filter(h => !h.className || !h.className.startsWith(want) || /font-bold|text-small|text-caption|text-muted/.test(h.className))
+  const want = f === HERO ? 's.h1（ホームの段階 27px/500・2行）' : 'text-h1 text-ink'
+  const okClass = (c: string) => (f === HERO ? HOME_H1.test(c) : c.startsWith('text-h1 text-ink'))
+  const bad = h1s.filter(h => !h.className || !okClass(h.className) || /font-bold|text-small|text-caption|text-muted|text-display/.test(h.className))
   check(`${f}: h1 ${h1s.length}件すべて ${want}`, bad.length === 0, bad.map(h => h.tag).join(' / '))
   // 1つの return ( … ) のまとまり（＝画面の1つの状態）に h1 は1つまで。未ログイン／読み込み中の分岐は同時には出ない
   const chunks = src.split(/\breturn \(/).slice(1)

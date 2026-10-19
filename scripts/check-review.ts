@@ -424,7 +424,7 @@ console.log('■ 9. 画面の構成（app/review/page.tsx）')
   check('空の状態: /trade は副ボタン（border-border-input bg-card・bg-brand でない）・文字リンク /watch は {SHOW_AI_WATCH && ( の内側・架空のカードを描かない（見取り図は文字）',
     /href="\/trade"\s+className="[^"]*border border-border-input bg-card[^"]*"/.test(page) && !/href="\/trade"\s+className="[^"]*bg-brand/.test(page) && page.includes('href="/watch"') && page.includes('{SHOW_AI_WATCH && (') && page.includes('ここに並ぶもの') && page.includes('① あなたが書いた理由'))
   check('1件のとき: 【見立て】の再掲＋「それに気づけたことが、この記録のいちばんの中身です。」＋「ごろ、この記録を実際の株価と並べて読み返せます。」', page.includes("sectionOf(first.entryReason, '見立て')") && page.includes('それに気づけたことが、この記録のいちばんの中身です。') && page.includes('ごろ、この記録を実際の株価と並べて読み返せます。'))
-  check('読み込み中の骨組み（aria-busy・animate-pulse）は残す（check-night-theme の許可リスト）', page.includes('aria-busy="true"') && page.includes('motion-safe:animate-pulse'))
+  check('読み込み中の骨組み（aria-busy・animate-pulse）は残す（check-theme の許可リスト）', page.includes('aria-busy="true"') && page.includes('motion-safe:animate-pulse'))
   const bf = stripComments(read('app/review/backfill/page.tsx'))
   check('backfill: 「『03 読み返す』で、書いたことと株価を並べられます。」・「読み返す →」', bf.includes('「03 読み返す」で、書いたことと株価を並べられます。') && bf.includes('>読み返す →</Link>') && !bf.includes('振り返る →'))
   // S3a「1件のふりかえり」（2026-09-30）: 各カードから /review/[recordId] へ文字リンク1本。中身の検査は scripts/check-review-record.ts

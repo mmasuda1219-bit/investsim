@@ -207,7 +207,7 @@ function TradePageBody() {
       )}
 
       {/* ── 銘柄を選ぶ ─────────────────────────────────────────── */}
-      <section className="p-4 rounded-xl bg-surface border border-border space-y-3">
+      <section className="p-4 rounded-xl bg-card border border-border space-y-3">
         <h2 className="text-h2 text-ink">銘柄</h2>
         <div className="flex flex-wrap gap-1.5">
           {PRESET.map(s => (
@@ -273,7 +273,7 @@ function TradePageBody() {
       </section>
 
       {/* ── 現在値 ───────────────────────────────────────────── */}
-      <section className="p-4 rounded-xl bg-surface border border-border">
+      <section className="p-4 rounded-xl bg-card border border-border">
         {loading && <p className="text-base text-muted">価格を取得中…</p>}
 
         {/* 「その銘柄を知らない」と「データ源が落ちている」は原因も対処も違うので分けて出す。
@@ -327,7 +327,7 @@ function TradePageBody() {
       </section>
 
       {/* ── 判断を記録する ─────────────────────────────────────── */}
-      <section className="p-4 rounded-xl bg-surface border border-border space-y-4">
+      <section className="p-4 rounded-xl bg-card border border-border space-y-4">
         <h2 className="text-h2 text-ink">あなたの判断</h2>
 
         {/* 買いと売りで «問うこと» が違うので、先にどちらかを選ぶ。
@@ -387,7 +387,7 @@ function TradePageBody() {
           type="button"
           disabled={!canTrade}
           onClick={submit}
-          className="w-full h-12 rounded-card text-body font-semibold transition-colors bg-brand text-on-brand enabled:hover:bg-brand-strong disabled:bg-surface disabled:text-muted disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+          className="w-full h-12 rounded-card text-body font-semibold transition-colors bg-brand text-on-brand enabled:hover:bg-brand-strong disabled:border disabled:border-border disabled:bg-surface disabled:text-muted disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
         >
           {action === 'buy' ? '買いを記録する' : '売りを記録する'}
         </button>

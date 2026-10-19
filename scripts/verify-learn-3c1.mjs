@@ -5,7 +5,7 @@
 //   node scripts/verify-learn-3c1.mjs <写真の保存先ディレクトリ>
 //
 // 確かめること:
-//   - 390×844 / 1280×900 / 1920×1080 で横はみ出し0、ヘッダー下の左右端が地（#0A0C10・SV1a で暗い地に一本化）、
+//   - 390×844 / 1280×900 / 1920×1080 で横はみ出し0、ヘッダー下の左右端が地（#F6F8FB・L1 2026-10-12 で明るい地に復帰）、
 //     主ボタンが1つまで（§6-1）、console error 0
 //   - 押す順番（390 と 1280）:
 //     (1) 銘柄 AAPL → クイックの2つ目 → 無料プレビュー
@@ -31,7 +31,7 @@ const OUT = process.argv[2] ?? path.join(process.cwd(), 'shots', '3c1')
 fs.mkdirSync(OUT, { recursive: true })
 
 /** ページの地（globals.css の --bg）。/learn ににじみは無いので一色 */
-const BG = '#0A0C10'
+const BG = '#F6F8FB'
 /** 投資家モデルのタブがあるか。lib/features.ts を文字列で読む（tsx なしで動かすため import しない） */
 const SHOW_INVESTOR_MODELS = /export const SHOW_INVESTOR_MODELS\s*(?::\s*boolean)?\s*=\s*true\b/.test(
   fs.readFileSync(path.join(process.cwd(), 'lib', 'features.ts'), 'utf8'),

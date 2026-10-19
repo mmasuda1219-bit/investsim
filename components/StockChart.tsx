@@ -9,7 +9,7 @@ import {
 } from 'lightweight-charts'
 import type { HistoricalBar } from '@/types'
 import { calcMA, calcBB, calcRSI, calcMACD } from '@/lib/technicals'
-import { readChartTheme, SERIES, lineStyleOf, fade, type SeriesStyle } from '@/components/chartTheme'
+import { readChartTheme, SERIES, lineStyleOf, type SeriesStyle } from '@/components/chartTheme'
 
 export interface Indicators {
   ma20?: boolean; ma50?: boolean; ma200?: boolean
@@ -69,12 +69,13 @@ export function StockChart({ data, height = 420, indicators = {}, earningsDates 
     })
 
     // ローソク足の上げ下げは緑赤で塗り分けない（DECISIONS 2026-09-24「損益から色を外す」・DESIGN §6-4）。
-    // 上げ＝中空（面は --card 相当の薄い面。fade(--ink, .10)）／下げ＝--ink の塗り。向きは塗りの有無で読む。
-    // th.background（--card、α .035）そのままだとグリッドが透けてほぼ見えないので、面はもう少し濃い薄塗りにする。
+    // 上げ＝中空（面は --card＝明るい地では不透明な白。輪郭 --ink）／下げ＝--ink-2 の塗り。向きは塗りの有無で読む。
+    // L1（2026-10-12）: 下げの塗りを --ink から --ink-2 に下げた（--ink だと下げ相場で黒い壁になる・qa 目視）。
+    // 面が不透明な白になったので、暗い地で起きていた「グリッドが透ける」問題も解消（fade(--ink, .10) の薄塗りは不要）。
     // priceLineColor は明示指定が必須（SV1c W1）: lightweight-charts 5.2 は既定で「priceLineColor が無ければ
     // 最終足の barColor」を使うため、最終足が上げ足だと横線と価格軸ラベルがほぼ消えていた。--muted で固定する。
     const candles = chart.addSeries(CandlestickSeries, {
-      upColor: fade(th.ink, 0.10), downColor: th.ink,
+      upColor: th.background, downColor: th.ink2,
       borderUpColor: th.ink, borderDownColor: th.ink,
       wickUpColor: th.ink, wickDownColor: th.ink,
       priceLineColor: th.muted,

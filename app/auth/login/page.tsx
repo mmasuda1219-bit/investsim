@@ -27,11 +27,11 @@ function LoginForm() {
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="bg-panel border border-border rounded-2xl p-8 w-full max-w-sm text-center">
         {/* 絵文字＋文字の代わりにロゴ。サイト名は alt として h1 に残す。
-            SV1a（2026-09-25）で地が暗くなったので、ヘッダーと同じ暗い地用の public/logo-night.svg
-            （元の logo.svg は文字 #0D1725 が地に沈む。元ファイルは上書きせず残す） */}
+            L1（2026-10-12）で地を明るい #F6F8FB に戻したので、ヘッダーと同じ元の public/logo.svg
+            （暗い地用の logo-night.svg は削除せず残す） */}
         <h1 className="flex justify-center mb-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-night.svg" alt="InvestSim" width={184} height={36} className="h-9 w-auto" />
+          <img src="/logo.svg" alt="InvestSim" width={184} height={36} className="h-9 w-auto" />
         </h1>
         <p className="text-muted text-sm mb-6">
           ログインすると、売買と判断の記録が

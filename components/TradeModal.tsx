@@ -137,8 +137,10 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
       className="fixed inset-0 bg-scrim flex items-center justify-center z-50"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
     >
-      {/* 面・線はトークン（card / surface / border）に揃える。以前の暗色UI時代の紺色の生値は撤去済み。 */}
-      <div className="bg-card border border-border rounded-2xl w-full max-w-sm mx-4 shadow-2xl">
+      {/* 面・線はトークン（card / surface / border）に揃える。以前の暗色UI時代の紺色の生値は撤去済み。
+          浮いているものの形は §6-13（--card＋--border＋shadow-float）。影は Tailwind 既定の shadow-2xl ではなく
+          トークンの shadow-float（L1 レビュー S4・2026-10-13）。 */}
+      <div className="bg-card border border-border rounded-2xl w-full max-w-sm mx-4 shadow-float">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
@@ -279,7 +281,7 @@ export function TradeModal({ symbol, name, price, defaultAction = 'buy', onClose
               type="button"
               onClick={handleExecute}
               disabled={submitting}
-              className="w-full h-12 rounded-card font-bold text-base transition-colors bg-brand text-on-brand enabled:hover:bg-brand-strong disabled:bg-surface disabled:text-muted focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+              className="w-full h-12 rounded-card font-bold text-base transition-colors bg-brand text-on-brand enabled:hover:bg-brand-strong disabled:border disabled:border-border disabled:bg-surface disabled:text-muted focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
             >
               {action === 'buy' ? '買いを記録する' : '売りを記録する'}
             </button>

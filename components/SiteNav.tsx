@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { StockSearch } from './StockSearch'
 import { AuthMenu } from './AuthMenu'
 
@@ -12,7 +13,7 @@ import { AuthMenu } from './AuthMenu'
  * `/watch`（AIの判断）は段に置かず、02 の中と全ページ共通フッターの常設リンク（app/layout.tsx）から到達させる
  * （未ログイン閲覧を維持する法務の不変条件・DECISIONS.md 2026-09-29。検査は scripts/check-watch-reachable.ts）。
  * hint（説明文）に「名人」の語を出さない（DECISIONS 2026-09-24 決定(2)。名人を隠している間、無いものを約束しない）。
- * label・href・順序は scripts/check-features.ts・check-night-theme.ts が固定している。
+ * label・href・順序は scripts/check-features.ts・check-theme.ts が固定している。
  */
 export const NAV = [
   { href: '/trade',  label: '書く',     hint: 'なぜ買うのか・どうなったらやめるのかを書く' },
@@ -29,26 +30,40 @@ function isActive(path: string, href: string) {
 
 export function SiteNav() {
   const path = usePathname()
-  // 暗い見た目（案B「夜」・DECISIONS 2026-09-24）は SV1a（2026-09-25）で :root に一本化した。
-  // S1a のあいだ `/` にいるときだけ data-theme="night" を付けてロゴを出し分けていた分岐は撤去し、
-  // 全ページで暗い枠・暗い地用のロゴ（public/logo-night.svg / logo-mark-night.svg）を使う。
+  // 見た目の土台は :root 一本（DESIGN.md §9）。S1a のあいだ `/` にいるときだけ data-theme="night" を付けて
+  // ロゴを出し分けていた分岐は SV1a（2026-09-25）で撤去済み。L1（2026-10-12）で地を明るい #F6F8FB に戻したので、
+  // 全ページで元のロゴ（public/logo.svg / logo-mark.svg）に戻した。暗い地用の *-night.svg は削除せず残す。
+
+  // 先頭（scrollY 0）にいるかどうか。帯の境目は線ではなく影で作り、先頭では影を消す（L2・2026-10-14）
+  const [scrolled, setScrolled] = useState(false)
+  // スティッキーバーは「本当に浮いているもの」なので影を持ってよい（design-taste-frontend の規則。inspect.mjs も overlay として数える）
+  const HEADER_SHADOW = 'shadow-[0_1px_3px_-1px_rgb(0_0_0_/_.12)]' // taste-skill-ignore: sticky bar
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 0)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
     <>
-      {/* bg-panel（= --card）は白 3.5% の半透明なので backdrop-blur が効く（下を通る内容がにじんで
-          透けるガラスの帯）。地は <body> の bg-background（globals.css の --bg）。 */}
-      <header className="sticky top-0 z-40 border-b border-border bg-panel backdrop-blur">
+      {/* bg-panel（= --card・白）の帯。地は <body> の bg-background（globals.css の --bg）。
+          L2（2026-10-14・DECISIONS.md 同日 決定(2)③⑤）: 1px の下線とすりガラス（背景のぼかし）を落とした。
+          帯はスティッキーバー＝本当に浮いているものなので、境目は影で作る（design-taste-frontend の規則内。
+          「影は本当に浮いているもの＝メニュー・ダイアログ・スティッキーバーだけ」）。先頭にいるときは影なし、
+          スクロールされているときだけ控えめな1枚（0 1px 3px -1px 黒 12%）。背景のぼかしは --card が不透明な白なので
+          もともと効いておらず、外しても見た目は変わらない。 */}
+      <header className={`sticky top-0 z-40 bg-panel transition-shadow duration-150 ${scrolled ? HEADER_SHADOW : ''}`}>
         <div className="max-w-screen-2xl mx-auto px-4 py-2.5 flex items-center gap-4">
           {/* ロゴ（2026-09-11 オーナー提供のデザインをベクター化した public/logo.svg が元）。
               スマホ幅はマークだけにする。ヘッダには検索とログインも並ぶので、文字まで入れると
               390px で横にはみ出す（2bd216a と同種の事故）。
-              暗い地では元ファイルの文字（#0D1725）と濃紺の始点が沈むので、色だけ差し替えた *-night.svg を使う。
-              元ファイル（logo.svg / logo-mark.svg）は上書きしない（幾何の正として残す。撤去は別スライス）。 */}
+              明るい地では元ファイルの文字（#0D1725・地の上 16.92）がそのまま読める。 */}
           <Link href="/" className="shrink-0 flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-night.svg" alt="InvestSim" width={143} height={28} className="hidden sm:block h-7 w-auto" />
+            <img src="/logo.svg" alt="InvestSim" width={143} height={28} className="hidden sm:block h-7 w-auto" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-mark-night.svg" alt="InvestSim" width={25} height={28} className="sm:hidden h-7 w-auto" />
+            <img src="/logo-mark.svg" alt="InvestSim" width={25} height={28} className="sm:hidden h-7 w-auto" />
           </Link>
 
           {/* スマホでは下部ナビに任せるので隠す */}
@@ -97,10 +112,12 @@ export function SiteNav() {
  * スクロールで隠さない（監視中にナビが消えるのは不安を生む）。
  */
 function BottomNav({ path }: { path: string }) {
+  // 下部ナビは常に内容の上に浮いている（fixed）ので、境目は線ではなく上向きの控えめな影で作る（L2・2026-10-14。ヘッダーと同じ規則）
+  const BOTTOM_SHADOW = 'shadow-[0_-1px_3px_-1px_rgb(0_0_0_/_.12)]' // taste-skill-ignore: fixed bar
   return (
     <nav
       aria-label="メインナビゲーション"
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-3 border-t border-border bg-panel backdrop-blur pb-[env(safe-area-inset-bottom)]"
+      className={`md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-3 bg-panel ${BOTTOM_SHADOW} pb-[env(safe-area-inset-bottom)]`}
     >
       {NAV.map(({ href, label, hint }, i) => {
         const active = isActive(path, href)

@@ -126,7 +126,8 @@ export function MiniLine({
           strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"
         />
       </svg>
-      <figcaption className="flex shrink-0 flex-col justify-between text-caption text-muted tabular-nums">
+      {/* 14px（L2・2026-10-14）: 12px の caption から上げた。出所・実値は読めることが目的（R7・R8）。この部品を使うのはホームだけ */}
+      <figcaption className="flex shrink-0 flex-col justify-between text-small text-muted tabular-nums">
         <span>{fmtAxis(symbol, max)}</span>
         <span>{fmtAxis(symbol, min)}</span>
       </figcaption>
@@ -157,7 +158,7 @@ export function AnswerCheckCard({ example, kind }: { example: AnswerExample | nu
       {/* ③ 並置の1文。数字はここが初出（見出しにしない） */}
       <p className="text-small text-ink-2 tabular-nums">{sentence}</p>
       {/* 出所と時点（R8）。判断日の縦線の説明も文字で添える（凡例は出さない） */}
-      <p className="text-caption text-muted tabular-nums">{asOf}{elapsed}。縦の破線は判断日。</p>
+      <p className="text-small text-muted tabular-nums">{asOf}{elapsed}。縦の破線は判断日。</p>
     </article>
   )
 }
