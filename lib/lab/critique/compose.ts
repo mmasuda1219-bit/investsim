@@ -9,7 +9,7 @@ import { pickTheme, type LearnTheme } from './learn-themes'
 import { CRITIQUE_SECTIONS, NOTES_TEXT } from './sections'
 
 /**
- * 添削（画面5）を組む純関数（/lab/9983・2026-10-09・S-A）。**AI の自由記述はゼロ。**
+ * 添削（画面5）を組む純関数（/study・2026-10-09・S-A）。**AI の自由記述はゼロ。**
  *
  *  §1 原文の逐語引用（順に）／§2 事実の列挙／§3 固定カタログから規則で選ぶ／§4 画面2の項目のうち言及の無いもの／
  *  §5 固定の併置文／§6 固定テーマを規則で1つ／§7 固定文。見出しと順番は sections.ts。

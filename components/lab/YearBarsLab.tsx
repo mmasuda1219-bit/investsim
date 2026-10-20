@@ -7,7 +7,7 @@ import { formatByUnit } from '@/lib/lab/money'
 import type { FyKey, Unit } from '@/lib/lab/types'
 
 /**
- * 5期の棒グラフ（/lab/9983 画面2・2026-10-09 オーナー指示「棒グラフなども」）。**金額（百万円・円）はこれ、比率は MiniTrend（折れ線）**。
+ * 5期の棒グラフ（/study 画面2・2026-10-09 オーナー指示「棒グラフなども」）。**金額（百万円・円）はこれ、比率は MiniTrend（折れ線）**。
  * components/stocks/YearBars.tsx の考え方（ゼロ線・正負で同じ倍率・最新の期だけ値ラベル・role="img"＋aria-label）を踏襲し、
  * コードは流用しない（YearBars は `$` 固定で円に使えない。components/stocks/** は変更禁止）。
  *

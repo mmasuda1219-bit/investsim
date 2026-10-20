@@ -1,7 +1,7 @@
 import { FORBIDDEN_IN_OUTPUT, NOT_ON_SCREEN } from '@/lib/investors/rulebooks/forbidden'
 
 /**
- * /lab/9983 の画面で使わない語（2026-10-09・S-A）。`lib/investors/rulebooks/forbidden.ts` の2つの一覧に**足す**もの。
+ * /study の画面で使わない語（2026-10-09・S-A）。`lib/investors/rulebooks/forbidden.ts` の2つの一覧に**足す**もの。
  * forbidden.ts 自体には語を足さない（check-rulebook.ts の 471 件が動く。DECISIONS 2026-10-09 却下案）。
  *
  * forbidden.ts を直接 import してよいのは lib/ だけ（check-rulebook.ts は app/・components/ からの直接 import を禁じている）。

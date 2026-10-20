@@ -2,7 +2,7 @@ import { LAB_9983, type LabData } from '@/lib/lab/9983'
 import { citationList } from '@/lib/lab/citations'
 
 /**
- * 「出典」の節（/lab/9983・2026-10-12・オーナーの読みやすさの指示 (a)・DECISIONS 2026-10-09 の追記）。ページ下部に常時開いた状態で置く。
+ * 「出典」の節（/study・2026-10-12・オーナーの読みやすさの指示 (a)・DECISIONS 2026-10-09 の追記）。ページ下部に常時開いた状態で置く。
  *
  *  - 本文の数字の右肩の [N]（CitationMark）がここの li#cite-N へ飛ぶ。番号は lib/lab/citations.ts の初出順
  *  - **<details> にしない・text-small text-ink-2（--muted より薄くしない）・aria-hidden を付けない**。R8「出所の明示が詐欺サイトとの最大の見分け」を

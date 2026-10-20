@@ -9,7 +9,7 @@ import { segmentShare, signStyle } from '@/lib/lab/display'
 import { formatMillionYen, formatSignedPercent } from '@/lib/lab/money'
 
 /**
- * セグメント別売上の横棒（/lab/9983 画面2・2026-10-09 オーナー指示「色や棒グラフなども」）。
+ * セグメント別売上の横棒（/study 画面2・2026-10-09 オーナー指示「色や棒グラフなども」）。
  * 棒の長さ＝売上収益の合計に対する構成比（会社の概数から計算した目安）。
  *
  *  - 色は components/chartTheme.ts の SERIES の4色（you 青／ai 紫／master 橙／baseline 灰）。色覚の検査（scripts/check-chart-palette.ts）を

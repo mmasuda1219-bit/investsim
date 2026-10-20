@@ -18,20 +18,30 @@ export const SHOW_INVESTOR_MODELS: boolean = false
  *  型を boolean と明示する理由は SHOW_INVESTOR_MODELS と同じ。復活は右辺を true にするだけ。 */
 export const SHOW_AI_WATCH: boolean = false
 
-/** /lab/9983（「添削プロトタイプ」・ファーストリテイリング1社・手入力の実データ）を出すか。2026-10-09 S-A（DECISIONS 同日）。
- *  false の間は app/lab/9983/page.tsx が notFound() で 404。true にしても noindex・sitemap に載せない・どこからもリンクしない
- *  （URL を知っている人だけが開ける隠しページ）。SHOW_AI_WATCH と同じく、この定数の右辺や組み合わせる条件に
- *  session / user / cookies / headers / auth を入れない（「ログインした人にだけ見せる」形を作らない）。
- *  検査: scripts/check-lab-9983.ts・check-features.ts。復活は右辺を true にするだけ。 */
-export const SHOW_LAB_9983: boolean = false
+/** /study「学ぶ」（ファーストリテイリング1社・手入力の実データ・添削）を出すか。2026-10-09 S-A で隠しページ /lab/9983 として作り、
+ *  2026-10-19 オーナー決定（S-L1a・DECISIONS 同日）で住所を /study に移して**公開**した。定数名は当時のまま（改名は別スライス・NEXT-STEPS.md）。
+ *
+ *  公開に変えたので、隠していた3つの仕掛けを外した:
+ *   - app/study/page.tsx の `metadata.robots` を書かない（＝既定の index, follow。noindex を外した）
+ *   - app/sitemap.ts の PUBLIC_PATHS にこの定数と連動で /study を載せた
+ *   - 入口はナビ（components/SiteNav.tsx の NAV・4段の1段目。S-L1b）。それ以外から /study へリンクしない
+ *  false にすれば app/study/page.tsx が notFound() で 404 になり、sitemap からも消える（**全面非表示に戻す口**）。
+ *
+ *  **継承する不変条件**（SHOW_AI_WATCH と同じ。監督指針 VII-3-1(2)②「会員登録等を行わないと投資情報等を購入・利用できない
+ *  （単発での購入・利用を受け付けない）ような場合には登録が必要となる」）: この定数は**公開（誰でも読める）か、全面非表示かの二択**で、
+ *  その中間＝「ログインした人にだけ見せる」形を作らない。**この定数の右辺や、この定数と組み合わせる条件に
+ *  session / user / cookies / headers / auth を入れない**。
+ *  型を boolean と明示する理由は SHOW_INVESTOR_MODELS と同じ。検査: scripts/check-lab-9983.ts (e)(g)・check-features.ts。 */
+export const SHOW_LAB_9983: boolean = true
 
-/** /lab/9983 の添削 §3「誤り・要確認」に AI（Anthropic API）を使うか。S-B で使う。S-A では経路そのものが無い。
+/** /study の添削 §3「計算の確かめと、確認したいこと」に AI（Anthropic API）を使うか。S-B で使う。いまは経路そのものが無い。
  *  /privacy と /terms を公開する前に true にしない（個人情報保護法28条・DECISIONS 2026-10-09 の不変条件。これは絶対）。
- *  true でも ANTHROPIC_API_KEY と /privacy・/terms の実在が揃わなければ 503 にする（S-B の guard）。 */
+ *  画面を公開した（SHOW_LAB_9983 = true・2026-10-19）ことはこの線を動かさない。true でも ANTHROPIC_API_KEY と
+ *  /privacy・/terms の実在が揃わなければ 503 にする（S-B の guard）。 */
 export const LAB_CRITIQUE_AI: boolean = false
 
-/** /lab/9983 の符号（前期比のプラス・マイナス、棒・点の塗り）に色を付けるか。
- *  2026-10-09 オーナーの2度目の要望により /lab/9983 でのみ色を使う（プラス --success／マイナス --danger）。false にすれば無彩色に戻る。
+/** /study の符号（前期比のプラス・マイナス、棒・点の塗り）に色を付けるか。
+ *  2026-10-09 オーナーの2度目の要望により /study（旧 /lab/9983）でのみ色を使う（プラス --success／マイナス --danger）。false にすれば無彩色に戻る。
  *  色は足すだけで、位置（ゼロ線の上下）・形（中空と塗り）・符号（U+2212）・語（マイナス）の手がかりは外さない（色が見分けにくい方のため）。
  *  --danger を「取り消せない操作」以外に使うのはこのページだけの例外（DESIGN.md §4 P8 の例外。他の画面には広げない）。
  *  色を出す口は lib/lab/display.ts の signStyle（class）と signColor（SVG の塗り）の2か所だけ。components/lab/** には --success／--danger を書かない。 */

@@ -4,7 +4,7 @@ import { createContext, useContext, useMemo, useState, type KeyboardEvent, type 
 import type { LabTerm } from '@/lib/lab/glossary-extra'
 
 /**
- * 用語の囲み（/lab/9983・2026-10-12・オーナーの読みやすさの指示 (d)・DECISIONS 2026-10-09 の追記）。
+ * 用語の囲み（/study・2026-10-12・オーナーの読みやすさの指示 (d)・DECISIONS 2026-10-09 の追記）。
  * components/ui に同じ部品が無いので、この画面用にここへ置く。
  *
  * 2026-10-12（同日のオーナー指示）: <abbr title>＋tabIndex=0 をやめ、**スマホで指で触っても説明が出る** <button> にした。

@@ -10,9 +10,11 @@ import { CRITIQUE_TITLE } from '@/lib/lab/critique/sections'
 import { splitTerms, termTokens } from '@/lib/lab/rich'
 
 /**
- * 画面5「添削」（/lab/9983・2026-10-09・S-A）。lib/lab/critique/compose.ts が組んだ Critique を、7節の見出し・順番そのままに描く。
+ * 「添削」（/study・2026-10-09 S-A に /lab/9983 として作成）。lib/lab/critique/compose.ts が組んだ Critique を、7節の見出し・順番そのままに描く。
  *
  *  - 見出し7つと順番は lib/lab/critique/sections.ts が正。ここで足さない・並べ替えない
+ *  - §3 の範囲を断る文（CHECK_SCOPE_NOTE）とバッジ（BADGE）は**無条件**で描く。§3 の当たりが0件のときも消さない・畳まない
+ *    （「見つからなかったこと」を「問題なし」と読まれないため。2026-10-19 公開に合わせて不変条件として明記。検査 (h)）
  *  - §1 は原文の逐語引用（whitespace-pre-wrap・書き換えない）／§2 事実の列挙／§3 固定カタログ／§4 抜けている項目／
  *    §5 固定の併置文／§6 固定テーマ（タップで画面6を開く）／§7 固定文＋Disclaimer part="general"
  *  - 「役に立った／立たなかった」のボタンは出さない（S-A では保存先が無い）
@@ -78,7 +80,7 @@ export function CritiqueView({ critique }: { critique: Critique }) {
           <p className="text-body text-ink-2 pt-1">{critique.written.decisionLine}</p>
         </section>
 
-        {/* §3 誤り・要確認 */}
+        {/* §3 計算の確かめと、確認したいこと（見出し文は sections.ts。ここに書かない） */}
         <section className="mx-4 border-t border-border py-4 space-y-3" data-critique="check">
           <h3 className="text-h3 text-ink">{title(3)}</h3>
           {critique.check.hits.length === 0 ? (
@@ -95,6 +97,7 @@ export function CritiqueView({ critique }: { critique: Critique }) {
               ))}
             </ul>
           )}
+          {/* 範囲を断る文。当たりが0件でも描く＝上の三項の**外**に置く（検査 (h)）。畳まない・条件で包まない */}
           <p className="text-caption text-muted max-w-[42rem]">{critique.check.scopeNote}</p>
         </section>
 

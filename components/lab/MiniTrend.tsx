@@ -7,7 +7,7 @@ import { formatByUnit } from '@/lib/lab/money'
 import type { FyKey, Unit } from '@/lib/lab/types'
 
 /**
- * 5期の小さな折れ線（/lab/9983 画面2・2026-10-09・S-A）。components/stocks/YearBars.tsx の作法を折れ線に移植。コードは流用しない。
+ * 5期の小さな折れ線（/study 画面2・2026-10-09・S-A）。components/stocks/YearBars.tsx の作法を折れ線に移植。コードは流用しない。
  * **比率（%・倍）用**。金額は components/lab/YearBarsLab.tsx（棒）。
  * 色が無くても正負が分かる形で描く（4重の手がかり・DECISIONS 2026-10-09 (3)）。LAB_SIGN_COLOR が true のときは点の色を signColor で足す（手がかりは外さない）:
  *   位置 … ゼロの基準線（--axis）を引き、マイナスの期は線より下へ。正負で同じ倍率（lib/lab/display.ts の lineGeometry）

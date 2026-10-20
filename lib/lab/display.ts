@@ -4,7 +4,7 @@ import { fyLabel, type LabData } from './9983'
 import type { FyKey, Series, SeriesPoint, SourceRef, Sourced } from './types'
 
 /**
- * 表示用の純関数（/lab/9983・2026-10-09）。I/O を持たない。
+ * 表示用の純関数（/study・2026-10-09）。I/O を持たない。
  *
  *  - 折れ線の座標（lineGeometry）: 正負で同じ倍率 k = plotH / (maxPos + maxNeg)。ゼロ線より上がプラス・下がマイナス
  *  - 前期比の1文（yoySentence）: ％バッジにしない。前の期がマイナス・ゼロのときは % を出さない

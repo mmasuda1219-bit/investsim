@@ -1,5 +1,5 @@
 /**
- * /lab/9983 に出てくる用語の説明（2026-10-09・S-A）。
+ * /study に出てくる用語の説明（2026-10-09・S-A）。
  *
  * `lib/ai-trader/glossary.ts` には足さない（/watch の既存の文に新しい札が出る。DECISIONS 2026-10-09 却下案）し、
  * `lib/lab/**` は `lib/ai-trader/**` を import しない（同・不変条件）。ここは独立した一覧。

@@ -4,7 +4,7 @@ import { ReasonFields } from '@/components/ReasonFields'
 import { DECISION_OPTIONS, MEMO_FIELDS, type Decision, type LabMemo } from '@/lib/lab/memo-fields'
 
 /**
- * 画面4「書く」（/lab/9983・2026-10-09・S-A）。
+ * 画面4「書く」（/study・2026-10-09・S-A）。
  *
  *  - 6つの問いは lib/lab/memo-fields.ts。入力部品は components/ReasonFields.tsx を**無変更で再利用**（lib/trade/reason.ts も変えない）
  *  - 全欄 required: false。errors は常に空（判定しない）。touched も使わない

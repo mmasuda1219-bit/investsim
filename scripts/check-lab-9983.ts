@@ -1,16 +1,29 @@
-// 「添削プロトタイプ」（/lab/9983・2026-10-09・S-A）の検査。
+// 「学ぶ」（/study）の検査。2026-10-09 に隠しページ /lab/9983 として作り（S-A）、2026-10-19 に /study で**公開**した（S-L1a）。
 //   $env:PATH = "C:\Program Files\nodejs;$env:PATH"; npx tsx scripts/check-lab-9983.ts
 //
-// 正は DECISIONS.md 2026-10-09「「添削プロトタイプ」を隠しページ /lab/9983 …」の不変条件。
+// 正は DECISIONS.md 2026-10-09（添削プロトタイプの不変条件）＋ 2026-10-19（/study で公開・4段の1段目）。
+// ファイル名と定数名 SHOW_LAB_9983 は当時のまま（改名は別スライス・NEXT-STEPS.md）。lib/lab/**・components/lab/** も改名しない。
+//
+// **2026-10-19 に (e)(f)(g) の前提が「隠す」から「公開」へ反転した**:
+//   隠していたとき                          → いま
+//   sitemap に /lab が無い                  → sitemap を実際に呼ぶと /study が**ある**（SHOW_LAB_9983 連動）
+//   page.tsx に index: false が2つ          → noindex が**1つも無い**
+//   どこからもリンクしない                   → /study へのリンクは「許した入口」だけ（S-L1a では0本・S-L1b で SiteNav の NAV）
+//   既定 SHOW_LAB_9983 = false              → true
+//   app/sitemap.ts は凍結                    → 凍結から外した（next.config.ts は凍結のまま＝308 を足さない）
+// 反転しても**残す**のが次の2本（公開しても崩してはいけない線）: 到達条件に session/user/cookies/headers/auth を入れない／
+// client.tsx に fetch(・localStorage・sessionStorage・document.cookie が無い。
+//
 // 見るもの（記号は builder への指示書のまま）:
 //  (a) 画面の文字列に禁止語が無い（forbidden.ts の2一覧＋lib/lab/forbidden-extra.ts。Disclaimer の定型文と「将来を予測するものではありません」だけ例外）
 //  (b) lib/lab/9983.ts の全数値に SourceRef があり、URL が www.fastretailing.com / www.jpx.co.jp / www.nikkei.com
 //  (c) 解説文・固定文の本文に2桁以上の数字の直書きが無い（{var} で埋める。「30秒」だけ許可）
 //  (d) components/lab/** に色の直値（--success／--danger／生の色）が無い
-//  (e) app/sitemap.ts に /lab が無い・page.tsx に index: false と notFound()・どこからもリンクしない・到達条件に session 等が無い
+//  (e) 【公開】sitemap に /study がある・noindex が無い・notFound() の口は残る・/study へのリンクは許した入口だけ・到達条件に session 等が無い
 //  (f) import 禁止（lib/report/claude.ts・lib/ai-trader/**・lib/investors/**（forbidden.ts を除く））・凍結ファイルが HEAD と無変更
-//  (g) 3フラグ（SHOW_LAB_9983・LAB_CRITIQUE_AI・LAB_SIGN_COLOR）の既定が false
-//  (h) 添削の見出しが7つ・固定順（データと描画の両方）
+//  (g) 3フラグ（SHOW_LAB_9983 = true・LAB_CRITIQUE_AI = false・LAB_SIGN_COLOR = true）
+//  (h) 添削の見出しが7つ・固定順（データと描画の両方）・§3 の範囲を断る文が当たり0件でも描かれる
+//  (t) 【公開】1社固定の断りが h1 の直下に無条件・数字の時点が data から出る・/trade へ銘柄を引き継がない・/stocks/ へ繋がない
 //  (i) compose を実際に呼ぶ（結論が空／ROE と ROA／全欄埋め／営業利益と純利益の混同／PER の平均 ほか）
 //  (j) MiniTrend の座標計算（lineGeometry）が正負で同じ倍率
 //  (k) money.ts の整形（実データの値で）＋前期比の計算値が会社公表の % と一致
@@ -49,8 +62,10 @@ import { CATALOGUE, numbersNear, approxEqual, catalogueById, NOTHING_FOUND, CHEC
 import { LEARN_THEMES, pickTheme, THEME_FOR_MISSING } from '../lib/lab/critique/learn-themes'
 import { composeCritique, CONNECT_TEMPLATES, mentionedMetrics, EXTRA_NAMES, NAMES_HEADING } from '../lib/lab/critique/compose'
 import { SHOW_LAB_9983, LAB_CRITIQUE_AI, LAB_SIGN_COLOR } from '../lib/features'
+import sitemapRoutes from '../app/sitemap'
+import { metadata as studyMetadata } from '../app/study/page'
 import { DISCLAIMER_TEXT } from '../components/ui/Disclaimer'
-import { Lab9983Client, PAGE_KICKER, PAGE_LEAD, WHEN_TITLE, GLOSSARY_TITLE, NEXT_NOTE } from '../app/lab/9983/client'
+import { Lab9983Client, PAGE_KICKER, PAGE_LEAD, FIXED_COMPANY_NOTE, NO_AI_NOTE, WHEN_TITLE, GLOSSARY_TITLE, NEXT_NOTE } from '../app/study/client'
 import { CritiqueView, CRITIQUE_LEAD, BADGE, NO_QUOTES, OPEN_LEARN, CLOSE_LEARN, KIND_LABEL } from '../components/lab/CritiqueView'
 import { MetricRows, METRICS_TITLE, METRICS_LEAD, SOURCE_NOTE, EXPLAIN_BUTTON, EXPLAIN_CLOSE } from '../components/lab/MetricRows'
 import { CausalMap, chainNodes, CHAIN_TITLE, CHAIN_LEAD, PRICE_NOTE, CHAIN_NOTE } from '../components/lab/CausalMap'
@@ -304,7 +319,9 @@ console.log('■ (j) lineGeometry（折れ線の座標）が正負で同じ倍�
 console.log('■ (h) 添削の見出しが7つ・固定順（データと描画）')
 {
   const titles = CRITIQUE_SECTIONS.map(s => s.title)
-  check('sections.ts: 7節・順番固定', j(titles) === j(['あなたの判断の流れ', '書けていたこと', '誤り・要確認', '確認が抜けている項目', '情報のつなげ方の例', '次に学ぶとよいテーマ', '注意事項']), titles.join(' / '))
+  // §3 は 2026-10-19（S-L1a・公開に合わせたオーナー決定）に「誤り・要確認」→「計算の確かめと、確認したいこと」（断定から問いの形へ）
+  check('sections.ts: 7節・順番固定（§3 は「計算の確かめと、確認したいこと」）', j(titles) === j(['あなたの判断の流れ', '書けていたこと', '計算の確かめと、確認したいこと', '確認が抜けている項目', '情報のつなげ方の例', '次に学ぶとよいテーマ', '注意事項']), titles.join(' / '))
+  check('sections.ts: §3 に断定の語「誤り」が残っていない・key と no は 3 のまま', !titles[2].includes('誤り') && CRITIQUE_SECTIONS[2].key === 'check' && CRITIQUE_SECTIONS[2].no === 3)
   check('sections.ts: 番号が 1..7', j(CRITIQUE_SECTIONS.map(s => s.no)) === j([1, 2, 3, 4, 5, 6, 7]))
   const html = render(h(CritiqueView, { critique: composeCritique(MEMO_FULL) }))
   const order = [...html.matchAll(/<h3 class="text-h3 text-ink">§(\d) ([^<]+)<\/h3>/g)].map(m => [Number(m[1]), m[2]])
@@ -312,6 +329,29 @@ console.log('■ (h) 添削の見出しが7つ・固定順（データと描画�
   check('CritiqueView: h2 は「添削」・バッジ「このサイトは良し悪しを判定しません」', html.includes(`<h2 id="lab-critique-heading" class="text-h2 text-ink">${CRITIQUE_TITLE}</h2>`) && html.includes(BADGE))
   check('CritiqueView: 「役に立った」のボタンが無い（S-A では保存先が無い）', !html.includes('役に立'))
   check('CritiqueView: §7 に Disclaimer（part="general"）の定型文と固定文3本', html.includes(DISCLAIMER_TEXT) && NOTES_TEXT.every(t => html.includes(t)))
+  // 新規（2026-10-19 S-L1a）: §3 の範囲を断る文は当たりが0件でも描く。
+  // 「見つからなかったこと」を「問題なし」と読まれないため。公開したので、ここが条件に包まれたら法務の線が崩れる
+  {
+    const zero = composeCritique(MEMO_FULL) // 誤りの無い手本メモ → §3 の当たりは0件
+    const many = composeCritique(MEMO_ROE_ROA) // 当たりがある
+    const htmlZero = render(h(CritiqueView, { critique: zero }))
+    const htmlMany = render(h(CritiqueView, { critique: many }))
+    check('CritiqueView: §3 の範囲を断る文（CHECK_SCOPE_NOTE）が当たり0件のときも描かれる（当たりありのときも同じ1本）',
+      zero.check.hits.length === 0 && many.check.hits.length > 0
+      && textOf(htmlZero).includes(CHECK_SCOPE_NOTE) && textOf(htmlMany).includes(CHECK_SCOPE_NOTE),
+      `hits0=${zero.check.hits.length} hitsN=${many.check.hits.length}`)
+    check('CritiqueView.tsx: 範囲を断る文の <p> が §3 の三項演算子の外にある（条件で包まない・<details> で畳まない）', (() => {
+      const src = stripComments(read('components/lab/CritiqueView.tsx'))
+      const sec = src.slice(src.indexOf('data-critique="check"'), src.indexOf('data-critique="missing"'))
+      const at = sec.indexOf('{critique.check.scopeNote}')
+      if (at < 0) return false
+      // 三項の閉じ（`)}`）より後ろにあり、その <p> まで && や ? の分岐が無い
+      const closeAt = sec.lastIndexOf(')}', at)
+      const tail = sec.slice(closeAt, at)
+      return closeAt > 0 && !/&&|\?\s*\(|<details/.test(tail)
+    })())
+    check('CritiqueView: バッジ（良し悪しを判定しません）も当たり0件のときに出る', textOf(htmlZero).includes(BADGE))
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -391,7 +431,7 @@ console.log('■ (a) 画面の文字列に禁止語が無い')
   collect(LEARN_THEMES)
   collect(CATALOGUE.map(e => ({ title: e.title, body: fill(e.body, vars) })))
   collect(CONNECT_TEMPLATES.map(t => fill(t, vars)))
-  collect([PAGE_KICKER, PAGE_LEAD, WHEN_TITLE, GLOSSARY_TITLE, CRITIQUE_LEAD, BADGE, NO_QUOTES, OPEN_LEARN, CLOSE_LEARN, ...Object.values(KIND_LABEL),
+  collect([PAGE_KICKER, PAGE_LEAD, FIXED_COMPANY_NOTE, NO_AI_NOTE, WHEN_TITLE, GLOSSARY_TITLE, CRITIQUE_LEAD, BADGE, NO_QUOTES, OPEN_LEARN, CLOSE_LEARN, ...Object.values(KIND_LABEL),
     METRICS_TITLE, METRICS_LEAD, SOURCE_NOTE, LINK_NOTE, EXPLAIN_BUTTON, EXPLAIN_CLOSE, READINGS_LABEL, CHAIN_TITLE, CHAIN_LEAD, PRICE_NOTE, CHAIN_NOTE,
     CITATIONS_TITLE, CITATIONS_LEAD, NEXT_NOTE, PREV_LABEL, TODAY_LABEL, NEXT_LABEL, TIMELINE_TITLE,
     LEARN_PANEL_NOTE, MEMO_TITLE, MEMO_LEAD, SUBMIT_LABEL, MODE_FREE_LABEL, MODE_FIELDS_LABEL, FREE_HELP, DECISION_LEGEND, DECISION_HELP, NOTHING_FOUND, CHECK_SCOPE_NOTE])
@@ -409,11 +449,11 @@ console.log('■ (a) 画面の文字列に禁止語が無い')
   check(`データ・固定文・描画結果（${strings.length} 本＋${pages.length} 画面）に禁止語が無い（forbidden.ts＋LAB_FORBIDDEN ${LAB_FORBIDDEN.length} 語。免責の定型文と「将来を予測するものではありません」は除く）`, hits.length === 0, [...new Set(hits)].slice(0, 8).join(' | '))
   // 部品・画面のソース（注釈を除く）にも無い
   const srcHits: string[] = []
-  for (const f of [...walk('components/lab'), ...walk('app/lab')]) {
+  for (const f of [...walk('components/lab'), ...walk('app/study')]) {
     const src = stripComments(read(f))
     for (const w of labForbiddenWordsIn(src)) srcHits.push(`${f}: ${w}`)
   }
-  check('components/lab/**・app/lab/** のソース（注釈を除く）に禁止語が無い', srcHits.length === 0, srcHits.join(' | '))
+  check('components/lab/**・app/study/** のソース（注釈を除く）に禁止語が無い', srcHits.length === 0, srcHits.join(' | '))
   check('EPS × PER の積を株価として描かない（描画結果に「÷ EPS ＝ PER」の注記があり、株価の箱は終値 71,780円）', pages[2].includes('PER は株価から計算した数字') && pages[2].includes('71,780円') && pages[2].includes(PRICE_NOTE))
   check('描画結果にハイフンの負号（-4.04 / -3,020 / -2.3）が無く U+2212 で出る', pages.every(p => !/-\d/.test(p.replace(/\d{4}-\d{2}-\d{2}/g, ''))) && pages[2].includes(`${MINUS}4.04%`) && pages[2].includes(`${MINUS}3,020円`))
 }
@@ -448,8 +488,8 @@ console.log('■ (c) 解説文・固定文の本文に2桁以上の数字の直�
 // ═════════════════════════════════════════════════════════════════════════════
 console.log('■ (d) components/lab/** に色の直値が無い・見出しの階層・role="img"・出所が無条件')
 {
-  const files = [...walk('components/lab'), ...walk('app/lab')]
-  check('components/lab/** は14ファイル（2026-10-12 に CitationMark・CitationList・Readings・RichText・Term・Timeline を追加）・app/lab/9983 は page.tsx と client.tsx', walk('components/lab').length === 14 && exists('app/lab/9983/page.tsx') && exists('app/lab/9983/client.tsx'), files.join(','))
+  const files = [...walk('components/lab'), ...walk('app/study')]
+  check('components/lab/** は14ファイル（2026-10-12 に CitationMark・CitationList・Readings・RichText・Term・Timeline を追加）・app/study は page.tsx と client.tsx', walk('components/lab').length === 14 && exists('app/study/page.tsx') && exists('app/study/client.tsx'), files.join(','))
   const COLOR = /--success|--danger|--warning-ink|text-success|text-danger|text-warning-ink|bg-success|bg-danger|bg-warning|border-success|border-danger|text-red|text-green|bg-red|bg-green|#[0-9A-Fa-f]{3,8}\b|rgba?\(/
   for (const f of files) {
     const src = stripComments(read(f))
@@ -478,7 +518,7 @@ console.log('■ (d) components/lab/** に色の直値が無い・見出しの�
   // レビュー S1: 期は値のラベル側（periodText）に置く。2026-10-12 からは出所が右肩の番号なので、出所の行そのものが無い
   check('S1: CausalMap の各箱は periodText を持つ（期は値のラベル側）', nodes.every(n => n.periodText.length > 0), nodes.map(n => n.periodText).join(' | '))
   check('S1→(a): MetricRows・SegmentBars・CausalMap・YearBarsLab・MiniTrend・client.tsx のソースに「出所:」の行・「出所（」の見出し・sourceLine が無い（出所は右肩の [N]）',
-    ['components/lab/MetricRows.tsx', 'components/lab/SegmentBars.tsx', 'components/lab/CausalMap.tsx', 'components/lab/YearBarsLab.tsx', 'components/lab/MiniTrend.tsx', 'app/lab/9983/client.tsx'].every(f => { const s = stripComments(read(f)); return !s.includes('出所:') && !s.includes('出所（') && !s.includes('sourceLine') }))
+    ['components/lab/MetricRows.tsx', 'components/lab/SegmentBars.tsx', 'components/lab/CausalMap.tsx', 'components/lab/YearBarsLab.tsx', 'components/lab/MiniTrend.tsx', 'app/study/client.tsx'].every(f => { const s = stripComments(read(f)); return !s.includes('出所:') && !s.includes('出所（') && !s.includes('sourceLine') }))
   check('S1: 画面1は「2026-10-08 [N] 発表・2026年8月期（通期）」の形（日付の直後に出典の番号）', /2026-10-08 \[\d+\] 発表・2026年8月期（通期）/.test(page))
   // レビュー S6: 「連結・IFRS・円」は会社開示の出典だけに付け、JPX・日経には付けない（2026-10-12 からは「出典」の一覧の発行元の欄）
   const cites = citationList()
@@ -631,7 +671,7 @@ console.log('■ (n) 免責の文が消えていない（出所ではなく法�
     page.includes(DISCLAIMER_TEXT) && (page.match(/当社の分析や評価は含まれていません/g) ?? []).length >= 2 && (page.match(/将来を予測するものではありません/g) ?? []).length >= 2 && page.includes(SOURCE_NOTE) && page.includes(CHAIN_NOTE))
   check('添削: 「このサイトは良し悪しを判定しません」・「送信も保存もしていません」・Disclaimer が残る', critique.includes(BADGE) && critique.includes('送信も保存もしていません') && critique.includes(DISCLAIMER_TEXT))
   check('CitationList.tsx に免責の文を移していない（出典の節は出典だけ）', !stripComments(read('components/lab/CitationList.tsx')).includes('Disclaimer') && !textOf(render(h(CitationList))).includes('将来を予測'))
-  check('client.tsx: Disclaimer part="general" が画面3（CausalMap）の直下に残る', /<CausalMap data=\{data\} \/>\s*<Disclaimer part="general" \/>/.test(read('app/lab/9983/client.tsx')))
+  check('client.tsx: Disclaimer part="general" が画面3（CausalMap）の直下に残る', /<CausalMap data=\{data\} \/>\s*<Disclaimer part="general" \/>/.test(read('app/study/client.tsx')))
   check('MetricRows.tsx: figcaption は無条件・SOURCE_NOTE を描く／CausalMap.tsx: figcaption は CHAIN_NOTE', stripComments(read('components/lab/MetricRows.tsx')).includes('<p>{SOURCE_NOTE}</p>') && stripComments(read('components/lab/CausalMap.tsx')).includes('{CHAIN_NOTE}</figcaption>'))
 }
 
@@ -739,14 +779,14 @@ console.log('■ (q) 画面1 の時系列（Timeline）')
 // ═════════════════════════════════════════════════════════════════════════════
 console.log('■ (r) new Date を読むのは Timeline.tsx と client.tsx の useEffect の中だけ')
 {
-  const files = [...walk('lib/lab'), ...walk('components/lab'), ...walk('app/lab')]
+  const files = [...walk('lib/lab'), ...walk('components/lab'), ...walk('app/study')]
   const offenders: string[] = []
   for (const f of files) {
     const src = stripComments(read(f))
     const hits = [...src.matchAll(/new Date\b|Date\.now\(/g)]
     if (hits.length === 0) continue
     if (f === 'components/lab/Timeline.tsx') continue
-    if (f !== 'app/lab/9983/client.tsx') { offenders.push(f); continue }
+    if (f !== 'app/study/client.tsx') { offenders.push(f); continue }
     for (const m of hits) {
       const at = m.index ?? 0
       const start = src.lastIndexOf('useEffect(', at)
@@ -760,29 +800,148 @@ console.log('■ (r) new Date を読むのは Timeline.tsx と client.tsx の us
       if (!inside) offenders.push(`${f}@${at}`)
     }
   }
-  check('new Date／Date.now は Timeline.tsx と client.tsx の useEffect の中以外に無い（lib/lab・components/lab・app/lab）', offenders.length === 0, offenders.join(', '))
-  const client = read('app/lab/9983/client.tsx')
+  check('new Date／Date.now は Timeline.tsx と client.tsx の useEffect の中以外に無い（lib/lab・components/lab・app/study）', offenders.length === 0, offenders.join(', '))
+  const client = read('app/study/client.tsx')
   check('client.tsx: useState<string | null>(null) → useEffect の中で setToday(formatIsoDate(new Date())) → Timeline に today を渡す', /useState<string \| null>\(null\)/.test(client) && /useEffect\(\(\) => \{\s*(?:\/\/[^\n]*\n\s*)*setToday\(formatIsoDate\(new Date\(\)\)\)\s*\}, \[\]\)/.test(client) && client.includes('today={today}'))
   check('Timeline.tsx: new Date を読まない（呼び手から today を受け取る）', !/new Date\b|Date\.now/.test(stripComments(read('components/lab/Timeline.tsx'))))
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-console.log('■ (e) sitemap に無い・noindex・notFound・リンクしない・到達条件に session 等が無い')
+console.log('■ (e) 【公開】sitemap に /study がある・noindex が無い・notFound の口は残る・入口は許した所だけ・到達条件に session 等が無い')
 {
-  const sitemap = stripComments(read('app/sitemap.ts'))
-  check('app/sitemap.ts に /lab が無い', !sitemap.includes('/lab'))
-  const page = stripComments(read('app/lab/9983/page.tsx'))
-  check('page.tsx: robots index: false・follow: false（両方の枝）', (page.match(/index: false/g) ?? []).length === 2 && (page.match(/follow: false/g) ?? []).length === 2)
-  check('page.tsx: if (!SHOW_LAB_9983) notFound()・@/lib/features と next/navigation を import', /if \(!SHOW_LAB_9983\) notFound\(\)/.test(page) && page.includes("from 'next/navigation'") && page.includes("from '@/lib/features'"))
-  check('page.tsx・client.tsx: 到達・表示の条件に session / user / cookies / headers / auth / signedIn が無い', !/\b(session|cookies|headers|auth|signedIn|user)\b/.test(page) && !/\b(session|cookies|headers|auth|signedIn)\b/.test(stripComments(read('app/lab/9983/client.tsx'))))
+  // 2026-10-19 S-L1a で「隠す」から「公開」へ反転した枝。隠していたときの期待値（sitemap に無い・index: false が2つ・リンク0本）は捨てた
+  const urls = sitemapRoutes().map(e => e.url)
+  check(`app/sitemap.ts を実際に呼ぶと /study がある（SHOW_LAB_9983 = ${SHOW_LAB_9983} に連動。定数を false に戻すと消える）`,
+    SHOW_LAB_9983 === urls.some(u => u.endsWith('/study')), urls.join(', '))
+  const sitemapSrc = stripComments(read('app/sitemap.ts'))
+  check('app/sitemap.ts: /study は SHOW_LAB_9983 と連動している（期待値をベタ書きせず定数から導く＝/watch と同じ作法）',
+    sitemapSrc.includes("'/study'") && sitemapSrc.includes('SHOW_LAB_9983') && sitemapSrc.includes("from '@/lib/features'"))
+  check('app/sitemap.ts に古い住所 /lab が残っていない・app/lab ごと消えている', !sitemapSrc.includes('/lab') && !exists('app/lab'))
+
+  const page = stripComments(read('app/study/page.tsx'))
+  check('page.tsx: noindex・index: false・follow: false が1つも無い（公開したので検索に載せる。metadata.robots を書かない＝Next の既定 index, follow）',
+    !/noindex/.test(page) && !/index:\s*false/.test(page) && !/follow:\s*false/.test(page))
+  // 題と説明文は data（lib/lab/9983.ts）から組む。手書きすると画面の本文（検査 (t) が data 由来を強制）と二重管理になる
+  {
+    const co = LAB_9983.company
+    const title = String(studyMetadata.title ?? '')
+    const desc = String(studyMetadata.description ?? '')
+    const og = studyMetadata.openGraph as { title?: unknown; description?: unknown; url?: unknown; type?: unknown; locale?: unknown; siteName?: unknown; images?: unknown } | undefined
+    check('page.tsx: metadata の題に社名を主役にしない（「決算の読み方を練習する」が先・社名は例題の括弧の中）・説明文に「売買を勧めるものではありません」',
+      title.startsWith('決算の読み方を練習する（例題: ') && desc.includes('売買を勧めるものではありません'), `${title} / ${desc.slice(0, 30)}`)
+    // 証券コードは import パス（@/lib/lab/9983）と定数名 LAB_9983 にも出る文字なので、社名の直書きの有無と
+    // ${c.name} / ${c.code} で埋めているかの両方で見る（出来上がった文字列は runtime の metadata で確かめる）
+    check('page.tsx: 題と説明文の社名・証券コードは data から組む（社名の直書きが無く、${c.name}・${c.code} で埋める）',
+      title.includes(co.name) && title.includes(co.code) && desc.includes(co.name) && desc.includes(co.code)
+      && !page.includes(co.name) && page.includes('${c.name}') && page.includes('${c.code}') && page.includes('LAB_9983.company'),
+      `社名の直書き: ${page.includes(co.name) ? 'あり' : '無し'}／テンプレート: ${page.includes('${c.name}')}/${page.includes('${c.code}')}`)
+    // openGraph は入れ子なので後の段が前の段を丸ごと上書きする（generate-metadata.md「Ordering」）。
+    // 書かないと app/layout.tsx のホームの og:title / og:url('/') が継承される＝SNS にホームの顔で出る
+    check('page.tsx: openGraph を自前で持つ（url は /study・題と説明文は metadata と同じ・親から継承される type・locale・siteName も書き直している）',
+      og?.url === '/study' && og?.title === title && og?.description === desc
+      && og?.type === 'website' && og?.locale === 'ja_JP' && og?.siteName === 'InvestSim', j(og))
+    // openGraph を書くと app/opengraph-image.png のファイル規約由来の og:image も一緒に落ちるので images を明示する
+    // （実測で確認。親の値が継承されると思い込むと SNS に画像なしで出る）
+    const ogImages = (og?.images ?? []) as { url?: unknown; width?: unknown; height?: unknown }[]
+    check('page.tsx: og:image を明示している（openGraph を書くとファイル規約の画像が落ちるため）。1枚・/opengraph-image.png・1200x630',
+      ogImages.length === 1 && ogImages[0]?.url === '/opengraph-image.png' && ogImages[0]?.width === 1200 && ogImages[0]?.height === 630, j(ogImages))
+    const tw = studyMetadata.twitter as { card?: unknown; title?: unknown; description?: unknown; images?: unknown } | undefined
+    check('page.tsx: twitter も自前で持つ（親の twitter はホームの題のままなので、og と食い違わせない）',
+      tw?.card === 'summary_large_image' && tw?.title === title && tw?.description === desc
+      && Array.isArray(tw?.images) && (tw?.images as unknown[])[0] === '/opengraph-image.png', j(tw))
+  }
+  check('page.tsx: if (!SHOW_LAB_9983) notFound() の口は残る（公開か全面非表示かの二択。@/lib/features と next/navigation を import）',
+    /if \(!SHOW_LAB_9983\) notFound\(\)/.test(page) && page.includes("from 'next/navigation'") && page.includes("from '@/lib/features'"))
+  // ── 反転しても残す線（公開しても崩してはいけない） ──
+  check('page.tsx・client.tsx: 到達・表示の条件に session / user / cookies / headers / auth / signedIn が無い（ログイン必須にしない）', !/\b(session|cookies|headers|auth|signedIn|user)\b/.test(page) && !/\b(session|cookies|headers|auth|signedIn)\b/.test(stripComments(read('app/study/client.tsx'))))
+  check('client.tsx: fetch／localStorage／sessionStorage／document.cookie を使わない（ブラウザの中の state だけ・保存も送信も無い）', !/fetch\(|localStorage|sessionStorage|document\.cookie/.test(stripComments(read('app/study/client.tsx'))))
+
+  /** /study へのリンクを置いてよいファイル（入口）。S-L1a では0本（ナビに載せるのは S-L1b で components/SiteNav.tsx の NAV だけ）。
+   *  app/sitemap.ts は「リンク」ではなく公開の一覧なので、上で別に見ている（ここでは数えない） */
+  const ALLOWED_LINKERS: readonly string[] = []
   const linkers: string[] = []
   for (const f of [...walk('app'), ...walk('components')]) {
-    if (f.startsWith('app/lab/')) continue
+    if (f.startsWith('app/study/') || f === 'app/sitemap.ts') continue
     const src = stripComments(read(f))
-    if (/["'`]\/lab(?:\/|["'`])/.test(src)) linkers.push(f)
+    if (/["'`]\/study(?:\/|["'`])/.test(src)) linkers.push(f)
   }
-  check('app/・components/ のどこにも /lab へのリンク・参照が無い', linkers.length === 0, linkers.join(', '))
-  check('client.tsx: fetch／localStorage／sessionStorage／document.cookie を使わない（ブラウザの中の state だけ・保存も送信も無い）', !/fetch\(|localStorage|sessionStorage|document\.cookie/.test(stripComments(read('app/lab/9983/client.tsx'))))
+  const stray = linkers.filter(f => !ALLOWED_LINKERS.includes(f))
+  check(`/study へのリンクは許した入口だけ（いまは ${ALLOWED_LINKERS.length === 0 ? '0本＝S-L1b でナビに載せる' : ALLOWED_LINKERS.join('・')}）`, stray.length === 0, stray.join(', '))
+  const oldLinkers = [...walk('app'), ...walk('components')].filter(f => /["'`]\/lab(?:\/|["'`])/.test(stripComments(read(f))))
+  check('app/・components/ のどこにも古い住所 /lab へのリンク・参照が無い（308 は足さない決定なので、残っていると 404 に送る）', oldLinkers.length === 0, oldLinkers.join(', '))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (t) 【公開】1社固定の断り・数字の時点・銘柄を引き継がない（2026-10-19 S-L1a のオーナー決定）')
+{
+  const src = stripComments(read('app/study/client.tsx'))
+  const html = render(h(Lab9983Client))
+  const text = textOf(html)
+
+  // 1社固定の断り: h1 の直下・無条件・リードと同じ大きさ（畳まない・薄くしない）
+  check('client.tsx: 1社固定の断り（FIXED_COMPANY_NOTE）の社名と証券コードは data から引く（手で書かない）',
+    src.includes('${LAB_9983.company.name}') && src.includes('${LAB_9983.company.code}')
+    && FIXED_COMPANY_NOTE.includes(LAB_9983.company.name) && FIXED_COMPANY_NOTE.includes(LAB_9983.company.code))
+  check('描画結果に1社固定の断りがある（「この会社を勧めるものではありません」「他の銘柄を選ぶ機能はまだありません」を含む）',
+    text.includes(FIXED_COMPANY_NOTE) && FIXED_COMPANY_NOTE.includes('この会社を勧めるものではありません') && FIXED_COMPANY_NOTE.includes('他の銘柄を選ぶ機能はまだありません'))
+  // 判定は目印の属性 data-fixed-company / data-as-of で引く（文字位置で数えない＝並びを変えても文が嘘にならない）。
+  // 属性はこの2本の検査のためだけに付いている。消すならこの検査も一緒に消すこと
+  const attrTag = (hay: string, attr: string) => {
+    const i = hay.indexOf(attr)
+    if (i < 0) return null
+    const open = hay.lastIndexOf('<', i)
+    const close = hay.indexOf('>', i)
+    if (open < 0 || close < 0) return null
+    const name = (hay.slice(open + 1).match(/^[a-zA-Z0-9]+/) ?? [''])[0]
+    const end = hay.indexOf(`</${name}>`, close)
+    return { tag: hay.slice(open, close + 1), inner: end < 0 ? '' : hay.slice(close + 1, end), at: open }
+  }
+  check('client.tsx: 目印の属性 data-fixed-company・data-as-of がそれぞれ1つだけ付いている（検査がこれで引く）',
+    (src.match(/data-fixed-company/g) ?? []).length === 1 && (src.match(/data-as-of/g) ?? []).length === 1)
+
+  const noteEl = attrTag(html, 'data-fixed-company')
+  const leadAt = html.indexOf(PAGE_LEAD)
+  const leadTag = leadAt < 0 ? '' : html.slice(html.lastIndexOf('<', leadAt), leadAt)
+  const sizeOf = (t: string) => (t.match(/text-h\d|text-body|text-small|text-caption/) ?? [''])[0]
+  check('断りは h1 の直下（描画結果で </h1> の次の要素が data-fixed-company を持つ）', (() => {
+    const h1Close = html.indexOf('</h1>')
+    if (h1Close < 0 || !noteEl) return false
+    const next = html.slice(h1Close + '</h1>'.length).match(/^\s*<[^>]+>/)
+    return next != null && next[0].includes('data-fixed-company')
+  })(), noteEl?.tag ?? '目印が無い')
+  check('断りは無条件（ソースの </h1> から data-fixed-company までに分岐 &&・? ( も <details> も無い）', (() => {
+    const at = src.indexOf('data-fixed-company')
+    const h1Close = src.indexOf('</h1>')
+    if (at < 0 || h1Close < 0 || at < h1Close) return false
+    return !/&&|\?\s*\(|<details|<summary/.test(src.slice(h1Close, at))
+  })())
+  check('断りはリードと同じ大きさ・薄くしない（data-fixed-company の class が PAGE_LEAD の段落と同じ字幅トークン・text-ink で --muted ではない）',
+    noteEl != null && leadTag.length > 0 && sizeOf(noteEl.tag) !== '' && sizeOf(noteEl.tag) === sizeOf(leadTag)
+    && /text-ink\b/.test(noteEl.tag) && !/text-muted|text-ink-2/.test(noteEl.tag),
+    `断り=${sizeOf(noteEl?.tag ?? '')} リード=${sizeOf(leadTag)}`)
+  check('断りの本文が目印の要素の中にある（別の要素に付け替わっていない）', noteEl != null && noteEl.inner.includes(FIXED_COMPANY_NOTE))
+
+  // 数字の時点（期と発表日）を見出しの近くに。手で日付を書かず data から引く。
+  // 期は latestFyLabel（「…期（通期）」）を使う。fyLabel だけだと通期の実績を四半期と取り違えて読まれうる
+  const asOfEl = attrTag(html, 'data-as-of')
+  const co = LAB_9983.company
+  const asOfText = textOf(asOfEl?.inner ?? '').replace(/\s/g, '')
+  check('数字の時点の行が data 由来（期は latestFyLabel・発表日は latestAnnouncement。client.tsx に日付の直書きが無く fyLabel(c.latestFy) で代用していない）',
+    asOfEl != null && asOfText.includes(co.latestFyLabel) && asOfText.includes(co.latestAnnouncement.value)
+    && asOfText.includes('の実績です（') && asOfText.includes('発表）。')
+    && src.includes('{c.latestFyLabel}') && src.includes('{c.latestAnnouncement.value}')
+    && !/\d{4}-\d{2}-\d{2}/.test(src),
+    `${asOfText.slice(0, 70)}／src の日付の直書き: ${(src.match(/\d{4}-\d{2}-\d{2}/g) ?? []).join(',') || '無し'}`)
+  check('数字の時点の行は「通期」を落とさない（latestFyLabel には括弧の中の期間が入っている）', co.latestFyLabel.includes('通期') && asOfText.includes('通期'))
+  check('数字の時点の行は h1 の近く（最初の節 data-section より前＝ヘッダーの中）',
+    asOfEl != null && asOfEl.at < html.indexOf('data-section='), `as-of@${asOfEl?.at} 最初の節@${html.indexOf('data-section=')}`)
+  check('AI を使っていないことの表示（NO_AI_NOTE）が本文に残る（公開後も消さない正直な表示）', text.includes(NO_AI_NOTE) && /AI/.test(NO_AI_NOTE))
+
+  // 「書く」への導線に銘柄を引き継がない・銘柄詳細へ繋がない
+  const all = [...walk('app/study')].map(f => stripComments(read(f))).join('\n')
+  check('/trade への導線に ?symbol= が付かない（素の /trade だけ。「学ぶ」から「書く」へ銘柄を引き継がない）',
+    !/\/trade\?/.test(all) && !/symbol=/.test(all) && !/\/trade\?/.test(html))
+  check('/stocks/ へのリンクが無い（銘柄詳細に繋がない）', !/["'`]\/stocks/.test(all) && !/href="\/stocks/.test(html))
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -790,7 +949,7 @@ console.log('■ (f) import 禁止・凍結ファイルが HEAD と無変更')
 {
   const BANNED = /from\s+['"](?:@\/|\.{1,2}\/(?:\.\.\/)*)(?:lib\/)?(?:report\/claude|ai-trader\/|investors\/)/
   const offenders: string[] = []
-  for (const f of [...walk('lib/lab'), ...walk('app/lab'), ...walk('components/lab')]) {
+  for (const f of [...walk('lib/lab'), ...walk('app/study'), ...walk('components/lab')]) {
     const src = stripComments(read(f))
     for (const m of src.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
       const spec = m[1]
@@ -799,14 +958,16 @@ console.log('■ (f) import 禁止・凍結ファイルが HEAD と無変更')
       if (BANNED.test(`from '${spec}'`) || /report\/claude|ai-trader\/|investors\//.test(spec)) offenders.push(`${f}: ${spec}`)
     }
   }
-  check('lib/lab/**・app/lab/**・components/lab/** は lib/report/claude.ts・lib/ai-trader/**・lib/investors/**（forbidden.ts を除く・lib/lab だけ）を import しない', offenders.length === 0, offenders.join(' | '))
-  check('forbidden.ts を直接 import するのは lib/lab/forbidden-extra.ts だけ（app/・components/ からは読まない）', stripComments(read('lib/lab/forbidden-extra.ts')).includes("from '@/lib/investors/rulebooks/forbidden'") && [...walk('app/lab'), ...walk('components/lab')].every(f => !read(f).includes('rulebooks/forbidden')))
+  check('lib/lab/**・app/study/**・components/lab/** は lib/report/claude.ts・lib/ai-trader/**・lib/investors/**（forbidden.ts を除く・lib/lab だけ）を import しない', offenders.length === 0, offenders.join(' | '))
+  check('forbidden.ts を直接 import するのは lib/lab/forbidden-extra.ts だけ（app/・components/ からは読まない）', stripComments(read('lib/lab/forbidden-extra.ts')).includes("from '@/lib/investors/rulebooks/forbidden'") && [...walk('app/study'), ...walk('components/lab')].every(f => !read(f).includes('rulebooks/forbidden')))
   check('lib/lab/** に fetch／process.env／Anthropic／server-only が無い（S-A は純関数と定数だけ。例外は lib/lab/critique/anthropic.ts＝フェーズA の SDK 呼び出し1か所）', walk('lib/lab').filter(f => f !== 'lib/lab/critique/anthropic.ts').every(f => !/fetch\(|process\.env|anthropic|server-only/i.test(stripComments(read(f)))))
   {
     const src = stripComments(read('lib/lab/critique/anthropic.ts'))
     check('lib/lab/critique/anthropic.ts: SDK を直接 import・ANTHROPIC_API_KEY が無ければ throw・CLI へのフォールバック（child_process／spawn）と fetch／server-only が無い', src.includes("from '@anthropic-ai/sdk'") && /ANTHROPIC_API_KEY/.test(src) && /throw new Error/.test(src) && !/child_process|spawn|fetch\(|server-only|console\.log/.test(src))
   }
-  const FROZEN = ['lib/trade/reason.ts', 'lib/ai-trader/glossary.ts', 'lib/investors/rulebooks/forbidden.ts', 'lib/statements', 'components/stocks', 'components/review', 'components/ReasonFields.tsx', 'app/sitemap.ts', 'next.config.ts', 'app/watch', 'app/api']
+  // 2026-10-19 S-L1a: app/sitemap.ts を凍結一覧から外した（/study を載せるため）。next.config.ts は凍結のまま
+  // ＝ /lab/9983 → /study の 308（恒久転送）を**足さない**というオーナー決定を、ここで機械的に守る
+  const FROZEN = ['lib/trade/reason.ts', 'lib/ai-trader/glossary.ts', 'lib/investors/rulebooks/forbidden.ts', 'lib/statements', 'components/stocks', 'components/review', 'components/ReasonFields.tsx', 'next.config.ts', 'app/watch', 'app/api']
   for (const p of FROZEN) {
     const ls = spawnSync('git', ['ls-files', '--', `:(literal)${p}`], { cwd: ROOT, encoding: 'utf8' })
     const tracked = ls.status === 0 && (ls.stdout ?? '').trim() !== ''
@@ -818,18 +979,39 @@ console.log('■ (f) import 禁止・凍結ファイルが HEAD と無変更')
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-console.log('■ (g) 3フラグの既定が false・SHOW_AI_WATCH のすぐ下')
+console.log('■ (g) 3フラグ（SHOW_LAB_9983 は公開なので true）・SHOW_AI_WATCH のすぐ下')
 {
   const features = stripComments(read('lib/features.ts'))
   check('SHOW_LAB_9983・LAB_CRITIQUE_AI・LAB_SIGN_COLOR が boolean で export されている', typeof SHOW_LAB_9983 === 'boolean' && typeof LAB_CRITIQUE_AI === 'boolean' && typeof LAB_SIGN_COLOR === 'boolean'
     && /export const SHOW_LAB_9983: boolean = (?:true|false)/.test(features) && /export const LAB_CRITIQUE_AI: boolean = (?:true|false)/.test(features) && /export const LAB_SIGN_COLOR: boolean = (?:true|false)/.test(features))
   const order = ['SHOW_AI_WATCH', 'SHOW_LAB_9983', 'LAB_CRITIQUE_AI', 'LAB_SIGN_COLOR'].map(n => features.indexOf(`export const ${n}`))
   check('並び: SHOW_AI_WATCH → SHOW_LAB_9983 → LAB_CRITIQUE_AI → LAB_SIGN_COLOR', order.every((v, i) => v >= 0 && (i === 0 || v > order[i - 1])), order.join(','))
-  check('既定: SHOW_LAB_9983 = false（撮影で true にしたら戻す）', SHOW_LAB_9983 === false)
-  check('既定: LAB_CRITIQUE_AI = false（/privacy・/terms の公開前に true にしない）', LAB_CRITIQUE_AI === false)
+  check('SHOW_LAB_9983 = true（2026-10-19 S-L1a で /study を公開した。false に戻すと画面が 404・sitemap からも消える＝全面非表示に戻す口）', SHOW_LAB_9983 === true)
+  {
+    // SHOW_LAB_9983 の直前の注釈（/** … */）に、継承する不変条件が言葉で書かれているか。
+    // 形だけ書くと「隠す」指示と衝突して止まるので、守りたい目的（二択・ログイン必須にしない）まで残す
+    const raw = read('lib/features.ts')
+    const declAt = raw.indexOf('export const SHOW_LAB_9983')
+    const docStart = raw.lastIndexOf('/**', declAt)
+    const doc = docStart < 0 || declAt < 0 ? '' : raw.slice(docStart, declAt)
+    const needed = ['二択', '全面非表示', 'session', 'cookies', 'headers', 'auth']
+    const missing = needed.filter(w => !doc.includes(w))
+    check('lib/features.ts: SHOW_LAB_9983 の注釈に継承する不変条件が書いてある（公開か全面非表示かの二択／右辺や組み合わせる条件に session・cookies・headers・auth を入れない）',
+      doc.length > 0 && missing.length === 0, missing.length > 0 ? `足りない語: ${missing.join('・')}` : '注釈が見つからない')
+    check('lib/features.ts: SHOW_LAB_9983 の注釈が公開前提に書き換わっている（noindex を外した・sitemap に載せた・入口はナビ）',
+      ['noindex', 'sitemap', 'ナビ', '/study'].every(w => doc.includes(w)))
+  }
+  check('LAB_CRITIQUE_AI = false（/privacy・/terms の公開前に true にしない。画面を公開してもこの線は動かない）', LAB_CRITIQUE_AI === false)
   check('既定: LAB_SIGN_COLOR = true（2026-10-09 オーナーの2度目の要望。false にすれば無彩色に戻せる口は残す）', LAB_SIGN_COLOR === true)
   check('生きた AI 経路 app/api/lab/9983 はまだ無い（app/api/lab/backtest は別物・既存）。フェーズA（2026-10-18）の lib/lab/critique/anthropic.ts・guard.ts は手元で測る道具で、app/**・components/** から import されない', !exists('app/api/lab/9983') && exists('lib/lab/critique/anthropic.ts') && exists('lib/lab/critique/guard.ts') && [...walk('app'), ...walk('components')].every(f => !/critique\/(?:anthropic|guard)/.test(read(f))))
-  check('.claude/skills/investsim-conventions/SKILL.md のページ表に /lab/9983 の行がある', /\|[^\n]*`\/lab\/9983`[^\n]*\|/.test(read('.claude/skills/investsim-conventions/SKILL.md')))
+  {
+    // ページ表の「パス」の欄（2列目）だけを見る。本文に「旧 /lab/9983」と書くのは履歴なので許す
+    const paths = read('.claude/skills/investsim-conventions/SKILL.md')
+      .split('\n').filter(l => l.trim().startsWith('|'))
+      .map(l => (l.split('|')[2] ?? '').trim())
+    check('.claude/skills/investsim-conventions/SKILL.md のページ表に `/study` の行がある・パスの欄に古い `/lab/9983` の行が残っていない',
+      paths.includes('`/study`') && !paths.includes('`/lab/9983`'), paths.filter(Boolean).join(' '))
+  }
   check('scripts/check-features.ts が3フラグを見る', /SHOW_LAB_9983/.test(read('scripts/check-features.ts')) && /LAB_CRITIQUE_AI/.test(read('scripts/check-features.ts')) && /LAB_SIGN_COLOR/.test(read('scripts/check-features.ts')))
   check('fyLabel: FY2026 → 2026年8月期／短い形 26年8月期', fyLabel('FY2026') === '2026年8月期' && fyLabel('FY2026', true) === '26年8月期')
 }

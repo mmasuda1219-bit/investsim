@@ -16,7 +16,7 @@ import { richParagraphs, splitTerms, termTokens } from '@/lib/lab/rich'
 import type { Series, SourceRef, Sourced, Unit } from '@/lib/lab/types'
 
 /**
- * 画面2「見る」（/lab/9983・2026-10-09・S-A）。項目ごとに (a) 今の数値 (b) 5期のグラフ (c) 平均との比較 (d) 「？」で30秒解説。
+ * 画面2「見る」（/study・2026-10-09・S-A）。項目ごとに (a) 今の数値 (b) 5期のグラフ (c) 平均との比較 (d) 「？」で30秒解説。
  *
  *  - カードを8枚並べない（DESIGN.md §2 の禁止形）。components/stocks/AnnualStatements.tsx と同じく bg-card の帯1本＋mx-4 border-t の区切り
  *  - 項目はデータ（lib/lab/9983.ts の METRIC_ITEMS）だけから描く。固定の項目を画面側に書かない（データに無い項目は行ごと出ない）

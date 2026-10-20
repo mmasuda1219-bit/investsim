@@ -1,7 +1,7 @@
 import type { ReasonFieldSpec, ReasonParts } from '@/lib/trade/reason'
 
 /**
- * 画面4「書く」の6つの問い（/lab/9983・2026-10-09・S-A）。
+ * 画面4「書く」の6つの問い（/study・2026-10-09・S-A）。
  *
  * `lib/trade/reason.ts` の `ReasonFieldSpec` をそのまま使い、入力部品も `components/ReasonFields.tsx` を無変更で再利用する。
  * `reason.ts` に欄は足さない（KNOWN_LABELS が増えると parseReason が過去の記録を別の形に読み、/review が変わる。DECISIONS 2026-10-09 却下案）。

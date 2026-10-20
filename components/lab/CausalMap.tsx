@@ -13,7 +13,7 @@ import { richParagraphs, splitTerms, termTokens } from '@/lib/lab/rich'
 import type { SourceRef, Sourced } from '@/lib/lab/types'
 
 /**
- * 画面3「つなげる」（/lab/9983・2026-10-09・S-A → 同日オーナー指示で矢印）: 売上収益 → 営業利益 → 純利益 → EPS → 株価。
+ * 画面3「つなげる」（/study・2026-10-09・S-A → 同日オーナー指示で矢印）: 売上収益 → 営業利益 → 純利益 → EPS → 株価。
  *
  *  - **流れの矢印**（SVG の線＋三角の先端）で箱をつなぐ。広い画面（lg 以上＝1024px〜）は横一列、狭い画面は縦に積んで下向き。
  *    矢印の上（縦のときは横）に「何を引いたか」のラベル。文字の矢印（→・↑・↓・▲・▼）は使わない

@@ -6,7 +6,7 @@ import { LAB_9983, type LabData } from '@/lib/lab/9983'
 import type { LearnTheme } from '@/lib/lab/critique/learn-themes'
 
 /**
- * 画面6「学ぶ」（/lab/9983・2026-10-09・S-A）。添削の §6 をタップで開く。
+ * 画面6「学ぶ」（/study・2026-10-09・S-A）。添削の §6 をタップで開く。
  * 文章で教えるのではなく、画面2・3の部品（MetricRows・CausalMap）を実データのまま再掲する（DECISIONS 2026-10-09 却下案: 画面6を独立ページに／架空の数字でシナリオを作る）。
  * 再掲の MetricRows は解説を最初から開く（defaultOpen）。見出し（h2）は付けない（親の節の中に入るため）。
  */

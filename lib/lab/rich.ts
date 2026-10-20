@@ -3,7 +3,7 @@ import { GLOSSARY_EXTRA, type LabTerm } from './glossary-extra'
 import type { SourceRef } from './types'
 
 /**
- * 解説文の切り分け（/lab/9983・2026-10-12・オーナーの読みやすさの指示 (a)(d)）。純関数。I/O を持たない。
+ * 解説文の切り分け（/study・2026-10-12・オーナーの読みやすさの指示 (a)(d)）。純関数。I/O を持たない。
  *
  * 本文のテンプレート（`{var}` 入り）を、画面の部品（components/lab/RichText.tsx）が描ける「かけら」に切る:
  *   text  … 地の文

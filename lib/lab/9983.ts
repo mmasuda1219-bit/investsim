@@ -1,7 +1,7 @@
 import type { Comparison, Explanation, Forecast, FyKey, Headline, MetricItem, Segment, Series, SeriesPoint, SourceRef, Sourced } from './types'
 
 /**
- * ファーストリテイリング（9983）— 画面に出す数値の**唯一の置き場**（/lab/9983・2026-10-09・S-A）。
+ * ファーストリテイリング（9983）— 画面に出す数値の**唯一の置き場**（/study・2026-10-09・S-A）。
  *
  * すべて手入力の実データ。researcher が会社 IR（決算短信・IR 財務情報・決算発表のお知らせ）と JPX・日経から集め、
  * MC が会社ページで要の数字を再確認したもの（scratchpad の fr-9983-verified.md）。**ここに無い数字は画面に出さない。**
