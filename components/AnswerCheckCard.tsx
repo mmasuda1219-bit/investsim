@@ -5,7 +5,7 @@ import { firstSentence } from '@/lib/entry/samples'
 
 /**
  * このサイトのAIの判断1件を「AIはこう書いた／株価はこう動いた」の並置で見せるカード（S2「プレゼン型ホーム」・2026-09-29）。
- * ホーム（app/(night)/page.tsx）の「03 読み返す」で、値上がりした例と値下がりした例を1件ずつ置く。
+ * ホーム（app/(night)/page.tsx）の「振り返り」で、値上がりした例と値下がりした例を1件ずつ置く。
  *
  * 縦3段: ①理由の冒頭1文（firstSentence）→ ②小さな折れ線（inline SVG・1系列 SERIES.ai＝紫の破線 2px・凡例なし・
  *        判断日の縦破線 --muted 1本・軸の文字は実値2つ＝高値と安値だけ）→

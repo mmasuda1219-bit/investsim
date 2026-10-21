@@ -106,6 +106,18 @@ const card = stripComments(read('components/AnswerCheckCard.tsx'))
 const route = exists('app/api/entry/examples/route.ts') ? stripComments(read('app/api/entry/examples/route.ts')) : ''
 
 const NOTE_AI = 'これは、このサイトのAIが仮想資金で出した判断の記録です。▲▼はAIの判断の分類で、特定の銘柄の売買を推奨するものではありません。'
+
+/** 段の呼び名を components/SiteNav.tsx の NAV から**読む**（import しない＝SiteNav は 'use client' で
+ *  StockSearch・AuthMenu を引き込むため、検査から素で呼ばない）。並びと呼び名の正は NAV で、
+ *  ここは「ホームの文が路から引けているか」を確かめるためだけに使う（2026-10-19 S-L1b） */
+function navLabel(href: string): string {
+  // 注釈を落としてから切り出す（注釈の中に NAV の例を書くと拾ってしまう＝2026-10-20 レビュー S9）
+  const src = stripComments(read('components/SiteNav.tsx'))
+  const body = src.slice(src.indexOf('export const NAV = ['), src.indexOf('] as const'))
+  const m = new RegExp(`\\{ href: '${href}',\\s+label: '([^']+)'`).exec(body)
+  if (!m) throw new Error(`navLabel: ${href} が NAV に無い`)
+  return m[1]
+}
 const PICK_NOTE = '判断日が古い順に、値上がりした例と値下がりした例を1件ずつ。成績のよい判断を選んでいるのではありません。'
 const LINE_NOTE = '画面の例です。線は実際の株価から引き、無いときは出しません。'
 
@@ -201,8 +213,11 @@ check('WriteForm: <label htmlFor>＋<textarea value={values[f.key]…} placehold
 check('WriteForm: 必須／任意の印（（必須）は --brand・（任意）は --muted）', fragments.includes('<span className={s.required}>（必須）</span>') && fragments.includes('<span className={s.optional}>（任意）</span>') && /\.ui\[data-ui\] \.required \{ color: var\(--brand\); \}/.test(homeCss))
 check('WriteForm: 「この内容で記録する」は <button type="button" aria-disabled="true">・disabled にしない・aria-hidden を付けない（読み上げで読めてよい）',
   /<button type="button" aria-disabled="true" tabIndex=\{-1\} className=\{s\.submit\}>この内容で記録する<\/button>/.test(fragments) && !/\sdisabled(?:\s|=|>)/.test(fragments) && !fragments.includes('aria-hidden="true" className'))
-check('WriteForm: 記入例であることの注記（SAMPLE_NOTE）は「記入例が入った状態です。この画面では押せません。実際に書くのは「＜NAV[0].label＞」（上のボタン）。」',
-  fragments.includes('export const SAMPLE_NOTE = `記入例が入った状態です。この画面では押せません。実際に書くのは「${NAV[0].label}」（上のボタン）。`') && fragments.includes('{note && <p className={s.uiNote}>{SAMPLE_NOTE}</p>}'))
+// 2026-10-19 S-L1b: 添字 NAV[0] から**路で引く** labelOf('/trade') に替えた（4段にすると NAV[0] は「学ぶ」になり、この文が嘘になる）
+check('WriteForm: 記入例であることの注記（SAMPLE_NOTE）は「記入例が入った状態です。この画面では押せません。実際に書くのは「＜labelOf(/trade)＞」（上のボタン）。」',
+  fragments.includes("export const SAMPLE_NOTE = `記入例が入った状態です。この画面では押せません。実際に書くのは「${labelOf('/trade')}」（上のボタン）。`") && fragments.includes('{note && <p className={s.uiNote}>{SAMPLE_NOTE}</p>}'))
+check('WriteForm: SAMPLE_NOTE の路から引く先は /trade で、その呼び名は「書く」（NAV と一致）',
+  navLabel('/trade') === '書く', navLabel('/trade'))
 check('DemoPanel: 3つの層（空欄／記入例／記録）が s.layer・data-on・inert で切り替わる', count(demo, 'className={s.layer}') === 3 && count(demo, 'data-on={active ===') === 3 && count(demo, 'inert={active !==') >= 3)
 check('DemoPanel: 5.5秒ずつ留まり（HOLD_MS = 5500）、1.6秒かけて入れ替わる（.layer の transition: opacity 1600ms）',
   demo.includes('const HOLD_MS = 5500') && /\.layer \{[^}]*transition: opacity 1600ms ease, visibility 0s linear 1600ms/.test(homeCss))
@@ -247,7 +262,7 @@ check('CompareView: 「左は記入例、右はこのサイトのAIが実際に�
 check('CompareView: 右は older（2件のうち判断日が古い方）の理由の全文＋銘柄コード・方向の札・判断日', fragments.includes('{older.reasoning}') && fragments.includes('{older.symbol}・{ACTION_LABEL[older.action]}・判断日 {fmtSlashDate(older.decidedAt)}'))
 check('つぎに: 「ちがい」の1文は静的な説明文（差を自動判定して採点しない。「判定しません」）', exCompare.includes('どちらが良いかを、このサイトは判定しません。') && !/changePct|score|点/.test(exCompare))
 check('つぎに: 注記（C）が断片の直下・本文の大きさ（s.note。畳まない・薄めない）', exCompare.includes('<p className={s.note}>{NOTE_AI}</p>') && fragments.includes(`export const NOTE_AI =\n  '${NOTE_AI}'`))
-check('つぎに: 並べて読む画面は準備中と明示（いまの機能は NAV[1].hint から。無いものを約束しない）', exCompare.includes('{NAV[1].hint}ことができます。左右に並べて読む画面は準備中です。') && exCompare.includes('「{NAV[1].label}」の画面では'))
+check('つぎに: 並べて読む画面は準備中と明示（いまの機能は hintOf(/learn) から。無いものを約束しない）', exCompare.includes("{hintOf('/learn')}ことができます。左右に並べて読む画面は準備中です。") && exCompare.includes("「{labelOf('/learn')}」の画面では"))
 check('つぎに: /watch へ「AIの判断を全部読む →」は {SHOW_AI_WATCH && ( の内側（出し分けの規則は scripts/check-watch-reachable.ts）', /\{SHOW_AI_WATCH && \(\s*<Link href="\/watch" className=\{s\.textLink\}>AIの判断を全部読む →<\/Link>\s*\)\}/.test(exCompare))
 check('そして: 与えるもの＝待つこと（N営業日ほど経つと…同じことを5回書くと、共通するところを1つだけ出します。）・/review に実物がある',
   exWait.includes('{`${MIN_ELAPSED_BUSINESS_DAYS}営業日ほど経つと、書いたメモを、その後の株価と並べて読み返します。書いたときに何を考えていたかが、そのまま残っています。同じことを5回書くと、共通するところを1つだけ出します。`}')
@@ -259,7 +274,8 @@ check('そして: 返ってくるもの＝AnswerCheckCard を up / down で1件�
   && exWait.includes('className={`${s.response} ${s.wide}`}') && homeCss.includes('.wide { width: min(760px, calc(100% - var(--indent))); }'))
 check('そして: 読み込み中は薄い面2つ・失敗は role="status" の文・無いときは「まだ無い」の文（架空で埋めない）',
   count(exWait, '<Skeleton') === 2 && exWait.includes('<p role="status" className="text-small text-ink-2">{ERROR_LINE}</p>') && exWait.includes("{state === 'empty' && <p className=\"text-small text-ink-2\">{EMPTY_LINE}</p>}"))
-check('そして: 注記（C）＋「あなたが書いた理由も、「＜NAV[2].label＞」に残ります。」', exWait.includes('<p className={s.note}>{NOTE_AI} あなたが書いた理由も、「{NAV[2].label}」に残ります。</p>'))
+check('そして: 注記（C）＋「あなたが書いた理由も、「＜labelOf(/review)＞」に残ります。」', exWait.includes("<p className={s.note}>{NOTE_AI} あなたが書いた理由も、「{labelOf('/review')}」に残ります。</p>"))
+check('そして: 路から引く先は /review で、その呼び名は「振り返り」（NAV と一致）', navLabel('/review') === '振り返り', navLabel('/review'))
 check('「まだ無い」の文は N営業日の条件を書く（MIN_ELAPSED_BUSINESS_DAYS から）・「20営業日」の直書きが無い',
   page.includes('const EMPTY_LINE = `並べて見せられるAIの記録は、まだありません（判断日から${MIN_ELAPSED_BUSINESS_DAYS}営業日以上たったものが要ります）。`') && !/20営業日/.test(page + entry) && MIN_ELAPSED_BUSINESS_DAYS === 20)
 check('カード: 面は地の上・出所の行がある（R8・R11）・断片の面の上では白い紙（.twoUp > article）', card.includes('rounded-card border border-border p-4') && card.includes('{example.source}') && homeCss.includes('.ui[data-ui] .twoUp > article { background: var(--card); }'))

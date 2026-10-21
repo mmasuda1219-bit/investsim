@@ -10,7 +10,7 @@ import { composeReason, validateParts, fieldsFor, type ReasonParts, type TradeAc
 import { ReasonFields } from '@/components/ReasonFields'
 
 /**
- * 「01 書く」— 買う理由を書いて残す練習場（S1「3段の道」・2026-09-29。旧「03 やる」）。
+ * 「書く」— 買う理由を書いて残す練習場（S1「3段の道」・2026-09-29。旧「03 やる」。段ラベルの番号は 2026-10-19 に全廃）。
  *
  * COMPANY.md 原則11（ゴールは人間の投資スキル向上）に対応する中核の面（原則12 の心臓）。
  * 「AIの判断」（/watch）「くらべる」（/learn）で得た材料をもとに、**自分が**判断する。
@@ -189,7 +189,7 @@ function TradePageBody() {
 
       <header className="space-y-2">
         {/* 段ラベルは /watch・/review・/learn と同じ small/muted の日本語（字間を広げた大文字風は DESIGN.md §2 の禁止形） */}
-        <p className="text-caption text-muted">01 書く</p>
+        <p className="text-caption text-muted">書く</p>
         <h1 className="text-h1 text-ink">買う理由を書いて、残す</h1>
         <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           仮想の資金で売買します。<strong className="text-ink">なぜそう判断したかを必ず書いてください。</strong>

@@ -7,7 +7,7 @@ import type { HistoricalBar } from '@/types'
 import { pickAnswerExamples, isEligible, MIN_ELAPSED_BUSINESS_DAYS, type AnswerCandidate } from '@/lib/entry/answer-examples'
 import { hasServiceRole } from '@/lib/supabase/env'
 
-// GET /api/entry/examples — ホーム（app/(night)/page.tsx）の「03 読み返す」と「残るもの（例）」に出す、このサイトのAIの判断の実例2件。
+// GET /api/entry/examples — ホーム（app/(night)/page.tsx）の「振り返り」と「残るもの（例）」に出す、このサイトのAIの判断の実例2件。
 // ログイン不要。AI推論は走らせない（保存済みの判断を読むだけ。最も人が来る面を最も安い面にする）。
 //
 // データ源（DECISIONS.md 2026-09-29 決定(1)）: `ai_sessions` の blob の `learning.allDecisions`（上限1500・本番実測で最古 2026-07-14）。

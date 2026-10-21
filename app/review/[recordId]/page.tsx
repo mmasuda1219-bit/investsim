@@ -105,7 +105,7 @@ function Ground({ children }: { children: React.ReactNode }) {
 function Crumb() {
   return (
     <p className="text-caption text-muted">
-      <Link href="/review" className="text-brand hover:underline">03 読み返す</Link>
+      <Link href="/review" className="text-brand hover:underline">振り返り</Link>
       <span aria-hidden> ／ </span>1件のふりかえり
     </p>
   )

@@ -22,7 +22,7 @@ import {
 } from '@/lib/portfolio'
 
 /**
- * 03 読み返す（S2b「振り返りの作り直し」・2026-09-30。S1「3段の道」の旧 5節 → 3節）。
+ * 振り返り（S2b「振り返りの作り直し」・2026-09-30。S1「3段の道」の旧 5節 → 3節）。
  *
  * この画面はサイト全体の見返り（払い戻し）。オーナー原文（2026-09-29）「実際の振り返りでももっとわかりやすい文章それから
  * 視覚的にわかりやすいように工夫してほしい」。designer 2026-09-29 の設計 A〜F をそのまま実装する:
@@ -38,7 +38,7 @@ import {
  *    上の主ボタンに移した（2026-10-05）
  *
  * 見出しの階層（DECISIONS 2026-10-05「見出しは --text-h2 に統一し、注記は1か所も弱めない」・DESIGN.md §5-2）:
- *  段ラベル「03 読み返す」＝ caption/--muted の <p>（見出し要素にしない）／h1＝text-h1 text-ink／最初の1行＝h3 の大きさを 400・行間 1.9 で
+ *  段ラベル「振り返り」＝ caption/--muted の <p>（見出し要素にしない）／h1＝text-h1 text-ink／最初の1行＝h3 の大きさを 400・行間 1.9 で
  *  （文なので太らせない）／節の見出し h2＝text-h2 text-ink（20/600）。注記（説明の但し書き）は small〜caption の --muted に下げてよいが、
  *  法務が要求する注記（図の出所・免責）は触らない。<details> で畳まない・opacity を重ねない。
  *
@@ -136,7 +136,7 @@ function Ground({ children }: { children: React.ReactNode }) {
 function PageTitle({ children }: { children?: React.ReactNode }) {
   return (
     <header className="space-y-2">
-      <p className="text-caption text-muted">03 読み返す</p>
+      <p className="text-caption text-muted">振り返り</p>
       <h1 className="text-h1 text-ink">書いたことを、株価と並べて読み返す</h1>
       {children}
     </header>
@@ -579,7 +579,7 @@ export default function ReviewPage() {
                 href="/trade"
                 className="inline-flex h-12 items-center justify-center rounded-card border border-border-input bg-card px-5 text-body font-semibold text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
               >
-                01 書く で最初の記録を書く
+                「書く」で最初の記録を書く
               </Link>
             </div>
             {SHOW_AI_WATCH && (

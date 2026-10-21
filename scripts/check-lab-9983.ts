@@ -856,9 +856,11 @@ console.log('■ (e) 【公開】sitemap に /study がある・noindex が無�
   check('page.tsx・client.tsx: 到達・表示の条件に session / user / cookies / headers / auth / signedIn が無い（ログイン必須にしない）', !/\b(session|cookies|headers|auth|signedIn|user)\b/.test(page) && !/\b(session|cookies|headers|auth|signedIn)\b/.test(stripComments(read('app/study/client.tsx'))))
   check('client.tsx: fetch／localStorage／sessionStorage／document.cookie を使わない（ブラウザの中の state だけ・保存も送信も無い）', !/fetch\(|localStorage|sessionStorage|document\.cookie/.test(stripComments(read('app/study/client.tsx'))))
 
-  /** /study へのリンクを置いてよいファイル（入口）。S-L1a では0本（ナビに載せるのは S-L1b で components/SiteNav.tsx の NAV だけ）。
-   *  app/sitemap.ts は「リンク」ではなく公開の一覧なので、上で別に見ている（ここでは数えない） */
-  const ALLOWED_LINKERS: readonly string[] = []
+  /** /study へのリンクを置いてよいファイル（入口）。2026-10-19 S-L1b で**ナビの1段目**になった。
+   *  app/sitemap.ts は「リンク」ではなく公開の一覧なので、上で別に見ている（ここでは数えない）。
+   *  **両向きに見る**: 許していない所からリンクしていないこと（stray）と、許した入口が**実際に**リンクしていること
+   *  （missing）。後者が無いと「入口を消したのに検査が気づかない」＝公開したのに誰も到達できない状態を通してしまう */
+  const ALLOWED_LINKERS: readonly string[] = ['components/SiteNav.tsx']
   const linkers: string[] = []
   for (const f of [...walk('app'), ...walk('components')]) {
     if (f.startsWith('app/study/') || f === 'app/sitemap.ts') continue
@@ -866,7 +868,16 @@ console.log('■ (e) 【公開】sitemap に /study がある・noindex が無�
     if (/["'`]\/study(?:\/|["'`])/.test(src)) linkers.push(f)
   }
   const stray = linkers.filter(f => !ALLOWED_LINKERS.includes(f))
-  check(`/study へのリンクは許した入口だけ（いまは ${ALLOWED_LINKERS.length === 0 ? '0本＝S-L1b でナビに載せる' : ALLOWED_LINKERS.join('・')}）`, stray.length === 0, stray.join(', '))
+  const missing = ALLOWED_LINKERS.filter(f => !linkers.includes(f))
+  check(`/study へのリンクは許した入口だけ（${ALLOWED_LINKERS.join('・')}）`, stray.length === 0, `許していない所から: ${stray.join(', ')}`)
+  check(`/study への入口が実際にある（${ALLOWED_LINKERS.join('・')} の ${linkers.length} 本）`,
+    missing.length === 0 && linkers.length === ALLOWED_LINKERS.length, `リンクが無い: ${missing.join(', ')}／実際: ${linkers.join(', ')}`)
+  check('/study はナビの NAV の1段目（4段「学ぶ → くらべる → 書く → 振り返り」の先頭。呼び名は「学ぶ」）', (() => {
+    const nav = stripComments(read('components/SiteNav.tsx'))
+    const body = nav.slice(nav.indexOf('export const NAV = ['), nav.indexOf('] as const'))
+    const entries = [...body.matchAll(/\{ href: '([^']+)',\s+label: '([^']+)'/g)].map(m => [m[1], m[2]])
+    return entries.length === 4 && entries[0][0] === '/study' && entries[0][1] === '学ぶ'
+  })())
   const oldLinkers = [...walk('app'), ...walk('components')].filter(f => /["'`]\/lab(?:\/|["'`])/.test(stripComments(read(f))))
   check('app/・components/ のどこにも古い住所 /lab へのリンク・参照が無い（308 は足さない決定なので、残っていると 404 に送る）', oldLinkers.length === 0, oldLinkers.join(', '))
 }
@@ -942,6 +953,22 @@ console.log('■ (t) 【公開】1社固定の断り・数字の時点・銘柄�
   check('/trade への導線に ?symbol= が付かない（素の /trade だけ。「学ぶ」から「書く」へ銘柄を引き継がない）',
     !/\/trade\?/.test(all) && !/symbol=/.test(all) && !/\/trade\?/.test(html))
   check('/stocks/ へのリンクが無い（銘柄詳細に繋がない）', !/["'`]\/stocks/.test(all) && !/href="\/stocks/.test(html))
+  // 2026-10-20 レビュー W3: 「書く」への導線の文言。`?symbol=` を付けない決定（1社を勧めた形に見せない）が
+  // 文言の側から戻ってこないよう、**この会社を持ち出す誘導にしない**ことを機械で固定する
+  {
+    const nextEl = attrTag(html, 'data-next-step')
+    const nextText = textOf(nextEl?.inner ?? '').replace(/\s+/g, ' ').trim()
+    check('「書く」への導線の節が無条件に描かれる（分岐も <details> も無い）', (() => {
+      const at = src.indexOf('data-next-step')
+      if (at < 0 || nextEl == null) return false
+      const formAt = src.indexOf('<MemoForm')
+      return formAt >= 0 && at > formAt && !/&&|\?\s*\(|<details|<summary/.test(src.slice(formAt, at))
+    })(), nextText.slice(0, 60))
+    check('導線の文は「自分で選んだ銘柄で」を含む（この1社を持っていく読みにしない）', nextText.includes('自分で選んだ銘柄で'))
+    check('導線の文は「書いたものは消える（保存も送信もしていない）」を先に言う', nextText.includes('このページを閉じると消えます') && nextText.includes('保存も送信もしていません'))
+    check('導線に「この銘柄」「この会社を」で始まる誘導が無い', !/この銘柄|この会社を(?:買|持|記録|試)/.test(nextText), nextText)
+    check('導線のリンクの呼び名は NAV から引いた「書く」（『』で囲む）', nextText.includes('「書く」へ進む') && src.includes("labelOf('/trade')"))
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -966,15 +993,56 @@ console.log('■ (f) import 禁止・凍結ファイルが HEAD と無変更')
     check('lib/lab/critique/anthropic.ts: SDK を直接 import・ANTHROPIC_API_KEY が無ければ throw・CLI へのフォールバック（child_process／spawn）と fetch／server-only が無い', src.includes("from '@anthropic-ai/sdk'") && /ANTHROPIC_API_KEY/.test(src) && /throw new Error/.test(src) && !/child_process|spawn|fetch\(|server-only|console\.log/.test(src))
   }
   // 2026-10-19 S-L1a: app/sitemap.ts を凍結一覧から外した（/study を載せるため）。next.config.ts は凍結のまま
-  // ＝ /lab/9983 → /study の 308（恒久転送）を**足さない**というオーナー決定を、ここで機械的に守る
+  // ＝ /lab/9983 → /study の 308（恒久転送）を**足さない**というオーナー決定を、ここで機械的に守る。
+  //
+  // 2026-10-19 S-L1b → 2026-10-20 レビュー W1 で**絞った**。
+  // 既定は今までどおり「1バイトでも違えば FAIL」（git diff --quiet）。注釈だけの差を許すのは
+  // **COMMENT_ONLY_OK に明示した1ファイルだけ**。
+  // なぜ例外が要るか: 段の呼び名を「03 読み返す」→「振り返り」に変えたとき、凍結対象の
+  // app/api/entry/examples/route.ts の注釈がホームの旧ラベルを指していた。直せないと嘘が残り続ける。
+  // なぜ全体には広げないか（W1）:
+  //  (a) **注釈には、ふるまいを変えるものがある**（eslint-disable・@ts-expect-error・taste-skill-ignore・
+  //      webpack のマジックコメント・prettier-ignore）。実際 app/watch/client.tsx には eslint-disable がある。
+  //      許可したファイルでも、注釈の差分にこれらの語が出たら FAIL にする。
+  //  (b) 空白のならしは**行頭・行末と空行だけ**にする。`\s+` を全文に当てると文字列リテラルの中の
+  //      空白（画面に出る文）の違いまで消えてしまう。
   const FROZEN = ['lib/trade/reason.ts', 'lib/ai-trader/glossary.ts', 'lib/investors/rulebooks/forbidden.ts', 'lib/statements', 'components/stocks', 'components/review', 'components/ReasonFields.tsx', 'next.config.ts', 'app/watch', 'app/api']
+  /** 注釈だけの差を許すファイル（明示。増やすときは理由を DECISIONS に残す） */
+  const COMMENT_ONLY_OK: readonly string[] = ['app/api/entry/examples/route.ts']
+  /** 注釈の形でふるまいを変える指示。許可したファイルでも、これが注釈の差に出たら FAIL */
+  const DIRECTIVE = /eslint-|@ts-|taste-skill-ignore|webpack|prettier-/
+  /** 行頭・行末の空白と空行だけをならす（文字列リテラルの中は触らない） */
+  const normalize = (s: string) => s.split('\n').map(l => l.replace(/^[ \t]+|[ \t]+$/g, '')).filter(l => l !== '').join('\n')
+  /** 注釈だけを取り出す（ふるまいを変える指示が増減していないかを見るため） */
+  const commentsOf = (s: string) => s.split('\n').filter(l => /^\s*(?:\/\/|\/\*|\*)/.test(l) || l.includes('//') || l.includes('/*')).join('\n')
   for (const p of FROZEN) {
     const ls = spawnSync('git', ['ls-files', '--', `:(literal)${p}`], { cwd: ROOT, encoding: 'utf8' })
     const tracked = ls.status === 0 && (ls.stdout ?? '').trim() !== ''
-    const diff = spawnSync('git', ['diff', '--quiet', 'HEAD', '--', `:(literal)${p}`], { cwd: ROOT })
     const status = spawnSync('git', ['status', '--porcelain', '--untracked-files=all', '--', `:(literal)${p}`], { cwd: ROOT, encoding: 'utf8' })
     const dirty = (status.stdout ?? '').trim()
-    check(`${p}: git に追跡されていて HEAD と無変更・未追跡ファイルも無い`, tracked && diff.status === 0 && dirty === '', !tracked ? '追跡なし' : dirty.replace(/\n/g, ' | '))
+    // porcelain は「XY␣パス」の形。dirty は .trim() 済みで先頭の空白が落ちているので、**生の出力**から読む
+    const codeChanged: string[] = []
+    for (const line of (status.stdout ?? '').split('\n')) {
+      const m = /^(..) (.+)$/.exec(line)
+      if (!m) continue
+      const [, xy, f] = m
+      if (!COMMENT_ONLY_OK.includes(f)) { codeChanged.push(`${f}（${xy.trim() || '空'}・凍結）`); continue }
+      // 変更（M）だけが注釈の差を許される。staged と unstaged が混ざる MM も含める（レビュー S7）。
+      // 追加（A/??）・削除（D）・改名（R）は中身を比べる相手がいないので常に FAIL
+      if (!/^.?M$|^M.?$/.test(xy.replace(/ /g, ''))) { codeChanged.push(`${f}（${xy.trim() || '空'}）`); continue }
+      const headSrc = spawnSync('git', ['show', `HEAD:${f}`], { cwd: ROOT, encoding: 'utf8' })
+      if (headSrc.status !== 0) { codeChanged.push(`${f}（HEAD に無い）`); continue }
+      const now = read(f)
+      const codeOf = (s: string) => normalize(stripComments(s))
+      if (codeOf(headSrc.stdout) !== codeOf(now)) { codeChanged.push(`${f}（注釈以外が変わった）`); continue }
+      // 注釈そのものに、ふるまいを変える指示が増減していないか
+      const before = commentsOf(headSrc.stdout)
+      const after = commentsOf(now)
+      const count = (s: string) => (s.match(new RegExp(DIRECTIVE, 'g')) ?? []).length
+      if (count(before) !== count(after)) codeChanged.push(`${f}（注釈の指示（eslint-／@ts-／taste-skill-ignore／webpack／prettier-）が ${count(before)} → ${count(after)} に変わった）`)
+    }
+    check(`${p}: git に追跡されていて HEAD と無変更（注釈だけの差を許すのは ${COMMENT_ONLY_OK.join('・')} だけ）・未追跡ファイルも無い`,
+      tracked && codeChanged.length === 0, !tracked ? '追跡なし' : codeChanged.join(' | ') || dirty.replace(/\n/g, ' | '))
   }
 }
 

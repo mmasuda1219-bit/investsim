@@ -1,4 +1,4 @@
-// 03 読み返す（/review）の検査（S2b「振り返りの作り直し」・2026-09-30・designer 2026-09-29 の設計 F）。
+// 振り返り（/review。4段の4段目。段の呼び名は 2026-10-19 に「03 読み返す」から変えたが、画面の中の動詞「読み返す」は残す）の検査（S2b「振り返りの作り直し」・2026-09-30・designer 2026-09-29 の設計 F）。
 //   $env:PATH = "C:\Program Files\nodejs;$env:PATH"; npx tsx scripts/check-review.ts
 //
 // 見るもの（番号は指示書のまま）:
@@ -363,7 +363,9 @@ for (const [f, src] of codeOf([...APP_REVIEW, ...COMP_REVIEW])) {
 console.log('■ 9. 画面の構成（app/review/page.tsx）')
 {
   const page = stripComments(read('app/review/page.tsx'))
-  check('h1「書いたことを、株価と並べて読み返す」・小見出し「03 読み返す」', page.includes('<h1 className="text-h1 text-ink">書いたことを、株価と並べて読み返す</h1>') && page.includes('03 読み返す'))
+  // h1 の動詞「読み返す」は**残す**（変えたのは段の呼び名だけ。オーナー決定 2026-10-19）
+  // 段ラベルは**その形まで**見る（レビュー S2。`振り返り` の部分一致だと、本文の「振り返り」でも通ってしまう）
+  check('h1「書いたことを、株価と並べて読み返す」（動詞は残す）・段ラベル「振り返り」は caption/--muted の <p>', page.includes('<h1 className="text-h1 text-ink">書いたことを、株価と並べて読み返す</h1>') && page.includes('<p className="text-caption text-muted">振り返り</p>'))
   // 2026-10-05: 最初の1行はページのリード（h3 の大きさを 400・行間 1.9）。節の見出し h2（20/600）と並べない（DECISIONS 2026-10-05）
   const LEAD = '<p className="text-h3 font-normal leading-[1.9] text-ink max-w-[42rem]">'
   check('最初の1行（0件）「読み返す材料は、まだありません。」（リード＝text-h3 font-normal leading-[1.9]・h2 にしない）', page.includes(`${LEAD}読み返す材料は、まだありません。</p>`) && !page.includes('<p className="text-h2 text-ink">'))
@@ -379,7 +381,7 @@ console.log('■ 9. 画面の構成（app/review/page.tsx）')
   // 2026-10-05: 位置は文字長ではなく「最後の <h2 の直後に見出し文が来る」で見る（class を変えても壊れない）
   check('h2「記録をやり直す」が最後の節（「記録を足す・やり直す」は無い）', page.slice(page.lastIndexOf('<h2')).startsWith('<h2 className="text-h2 text-ink">記録をやり直す</h2>') && !page.includes('記録を足す・やり直す'))
   check('h2 は3つだけ・すべて text-h2 text-ink（small/--muted の見出しが無い）', count(page, '<h2') === 3 && count(page, '<h2 className="text-h2 text-ink') === 3)
-  check('段ラベル「03 読み返す」は caption/--muted の <p>（見出し要素にしない）・h1 の直前', page.includes('<p className="text-caption text-muted">03 読み返す</p>') && page.indexOf('<p className="text-caption text-muted">03 読み返す</p>') < page.indexOf('<h1 '))
+  check('段ラベル「振り返り」（番号なし）は caption/--muted の <p>（見出し要素にしない）・h1 の直前', page.includes('<p className="text-caption text-muted">振り返り</p>') && page.indexOf('<p className="text-caption text-muted">振り返り</p>') < page.indexOf('<h1 '))
   check('段ラベル・h1・最初の1行は1つの <header className="space-y-2">（PageTitle が Opening を children で受ける）', page.includes('<header className="space-y-2">') && page.includes('<PageTitle>') && /<PageTitle>\s*<Opening /.test(page))
   check('節の間は Ground の space-y-8・節の中は space-y-3（space-y-2 の節が無い）', page.includes('mx-auto space-y-8') && !page.includes('<section className="space-y-2">') && count(page, '<section className="space-y-3">') === 3)
   check('節末の但し書き「1つの銘柄を何回かに分けて…」は caption/--muted（法務の注記ではない）', /<p className="text-caption text-muted max-w-\[42rem\]">\s*1つの銘柄を何回かに分けて売ったときは/.test(page))
@@ -426,7 +428,7 @@ console.log('■ 9. 画面の構成（app/review/page.tsx）')
   check('1件のとき: 【見立て】の再掲＋「それに気づけたことが、この記録のいちばんの中身です。」＋「ごろ、この記録を実際の株価と並べて読み返せます。」', page.includes("sectionOf(first.entryReason, '見立て')") && page.includes('それに気づけたことが、この記録のいちばんの中身です。') && page.includes('ごろ、この記録を実際の株価と並べて読み返せます。'))
   check('読み込み中の骨組み（aria-busy・animate-pulse）は残す（check-theme の許可リスト）', page.includes('aria-busy="true"') && page.includes('motion-safe:animate-pulse'))
   const bf = stripComments(read('app/review/backfill/page.tsx'))
-  check('backfill: 「『03 読み返す』で、書いたことと株価を並べられます。」・「読み返す →」', bf.includes('「03 読み返す」で、書いたことと株価を並べられます。') && bf.includes('>読み返す →</Link>') && !bf.includes('振り返る →'))
+  check('backfill: 「『振り返り』で、書いたことと株価を並べられます。」・リンク「振り返り →」（段の呼び名。動詞の「振り返る」は使わない）', bf.includes('「振り返り」で、書いたことと株価を並べられます。') && bf.includes('>振り返り →</Link>') && !bf.includes('振り返る →'))
   // S3a「1件のふりかえり」（2026-09-30）: 各カードから /review/[recordId] へ文字リンク1本。中身の検査は scripts/check-review-record.ts
   check('各カードに「この1件をくわしく読み返す →」（/review/[recordId] への文字リンク1本・S3a。詳細は check-review-record.ts）',
     page.includes('この1件をくわしく読み返す →') && page.includes('href={`/review/${recordId}`}') && page.includes("from '@/lib/review/record'") && exists('scripts/check-review-record.ts') && exists('app/review/[recordId]/page.tsx'))

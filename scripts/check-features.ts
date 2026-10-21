@@ -37,6 +37,18 @@ const ROOT = process.cwd()
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 /** 注釈を落とす（注釈に書いた名前を「参照している」と誤検知しないため）。文字列の中の // は残す */
 const stripTsComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1')
+/** 配下の .ts / .tsx を集める（node_modules・.next は見ない）。NAV の添字参照を探すのに使う */
+function walkTs(rel: string): string[] {
+  const abs = path.join(ROOT, rel)
+  if (!fs.existsSync(abs)) return []
+  const out: string[] = []
+  for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
+    const r = `${rel}/${e.name}`
+    if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== '.next') out.push(...walkTs(r)) }
+    else if (/\.tsx?$/.test(e.name)) out.push(r)
+  }
+  return out
+}
 const FEATURES_IMPORT = /import \{ SHOW_INVESTOR_MODELS \} from '@\/lib\/features'/
 
 console.log('■ lib/features.ts')
@@ -44,12 +56,13 @@ const features = stripTsComments(read('lib/features.ts'))
 check('lib/features.ts: SHOW_INVESTOR_MODELS を export している（boolean）', /export const SHOW_INVESTOR_MODELS\b/.test(features) && typeof SHOW_INVESTOR_MODELS === 'boolean')
 console.log(`  情報: SHOW_INVESTOR_MODELS = ${SHOW_INVESTOR_MODELS}（${SHOW_INVESTOR_MODELS ? '名人を出している' : '名人を隠している'}）`)
 
-// 2026-10-09 S-A「添削プロトタイプ」（DECISIONS 同日）: /lab/9983 の3フラグ。SHOW_AI_WATCH のすぐ下に同じ作法で置く。
-//  - SHOW_LAB_9983 … 隠しページの公開スイッチ。値は情報として出す（撮影時に一時的に true にする運用があるため、ここでは既定値を固定しない。
-//    既定 false の期待は scripts/check-lab-9983.ts (g) が見る）
+// 2026-10-09 S-A「添削プロトタイプ」（DECISIONS 同日）→ 2026-10-19 S-L1a で `/study`「学ぶ」として公開（DECISIONS 同日）。
+// 3フラグは SHOW_AI_WATCH のすぐ下に同じ作法で置く。
+//  - SHOW_LAB_9983 … 「学ぶ」の公開スイッチ。**公開か全面非表示かの二択**で、値は情報として出す
+//    （ここでは真偽を固定しない。true の期待は scripts/check-lab-9983.ts (g) が見る）
 //  - LAB_CRITIQUE_AI … /privacy・/terms が無い間は false でなければならない（個人情報保護法28条・不変条件）
 //  - LAB_SIGN_COLOR … 色は既定「切」（DESIGN.md §4 P8）。true にする決定は DECISIONS に残してから
-console.log('■ lib/lab の3フラグ（/lab/9983・2026-10-09）')
+console.log('■ lib/lab の3フラグ（/study・2026-10-09 → 2026-10-19 公開）')
 check('lib/features.ts: SHOW_LAB_9983・LAB_CRITIQUE_AI・LAB_SIGN_COLOR を export している（boolean・`: boolean = true|false` の形）',
   typeof SHOW_LAB_9983 === 'boolean' && typeof LAB_CRITIQUE_AI === 'boolean' && typeof LAB_SIGN_COLOR === 'boolean'
     && /export const SHOW_LAB_9983: boolean = (?:true|false)/.test(features) && /export const LAB_CRITIQUE_AI: boolean = (?:true|false)/.test(features) && /export const LAB_SIGN_COLOR: boolean = (?:true|false)/.test(features))
@@ -59,9 +72,9 @@ check('lib/features.ts: SHOW_LAB_9983・LAB_CRITIQUE_AI・LAB_SIGN_COLOR を exp
   check('lib/features.ts: 3フラグの右辺と注釈以外の行に session / user / cookies / headers / auth が無い（ログイン状態で出し分けない）', !/\b(session|cookies|headers|auth|signedIn)\b/.test(features))
   const legalPagesExist = fs.existsSync(path.join(ROOT, 'app/privacy/page.tsx')) && fs.existsSync(path.join(ROOT, 'app/terms/page.tsx'))
   check(`LAB_CRITIQUE_AI は /privacy・/terms が${legalPagesExist ? 'ある' : '無い'}ので ${legalPagesExist ? 'true でもよい' : 'false でなければならない'}`, legalPagesExist || LAB_CRITIQUE_AI === false)
-  // 2026-10-09 オーナーの2度目の要望: /lab/9983 でのみ色を使う（既定 true）。他の画面には広げない（DESIGN.md §4 P8 はそのまま）
-  check('LAB_SIGN_COLOR は boolean（true ＝ /lab/9983 だけ色を使う。false にすれば無彩色に戻る）', typeof LAB_SIGN_COLOR === 'boolean')
-  console.log(`  情報: SHOW_LAB_9983 = ${SHOW_LAB_9983}（${SHOW_LAB_9983 ? '/lab/9983 を出している（noindex・sitemap に無い・リンク無し）' : '/lab/9983 は 404'}）／LAB_CRITIQUE_AI = ${LAB_CRITIQUE_AI}／LAB_SIGN_COLOR = ${LAB_SIGN_COLOR}`)
+  // 2026-10-09 オーナーの2度目の要望: /study でのみ色を使う（既定 true）。他の画面には広げない（DESIGN.md §4 P8 はそのまま）
+  check('LAB_SIGN_COLOR は boolean（true ＝ /study だけ色を使う。false にすれば無彩色に戻る）', typeof LAB_SIGN_COLOR === 'boolean')
+  console.log(`  情報: SHOW_LAB_9983 = ${SHOW_LAB_9983}（${SHOW_LAB_9983 ? '/study を公開している（検索に載せる・sitemap にある・ナビの1段目から入る）' : '/study は 404（全面非表示）'}）／LAB_CRITIQUE_AI = ${LAB_CRITIQUE_AI}／LAB_SIGN_COLOR = ${LAB_SIGN_COLOR}`)
 }
 
 console.log('■ 画面の3か所が同じ定数で出し分けている')
@@ -134,13 +147,42 @@ console.log('■ NAV（components/SiteNav.tsx）')
 const nav = stripTsComments(read('components/SiteNav.tsx'))
 const navBody = nav.slice(nav.indexOf('export const NAV = ['), nav.indexOf('] as const'))
 const entries = [...navBody.matchAll(/\{ href: '([^']+)',\s+label: '([^']+)',\s+hint: '([^']*)' \}/g)].map(m => ({ href: m[1], label: m[2], hint: m[3] }))
-// S1「3段の道」（2026-09-29・DECISIONS.md 同日）: 4段「見る→まねる→やる→振り返る」から3段へ。/watch は段に置かない
-// （フッターの常設リンクから到達。そちらは scripts/check-watch-reachable.ts が見る）
-const NAV_FIXED = [['/trade', '書く'], ['/learn', 'くらべる'], ['/review', '読み返す']]
-check('NAV: href・label・順序が不変（原則12・3段: 書く→くらべる→読み返す）', JSON.stringify(entries.map(e => [e.href, e.label])) === JSON.stringify(NAV_FIXED), JSON.stringify(entries.map(e => [e.href, e.label])))
-check(SHOW_INVESTOR_MODELS ? 'NAV: hint は3本とも空でない' : 'NAV: 隠している間は hint に「名人」「投資家」を出さない（無いものを約束しない）',
-  entries.length === 3 && entries.every(e => e.hint.length > 0) && (SHOW_INVESTOR_MODELS || entries.every(e => !/名人|投資家/.test(e.hint))),
+// 2026-10-19 オーナー決定（S-L1b・DECISIONS 同日）: 3段「書く→くらべる→読み返す」から**4段**へ。
+// 1段目に「学ぶ」（/study）が入り、「読み返す」の段の呼び名を「振り返り」に変えた（画面の中の動詞「読み返す」は残す）。
+// /watch は段に置かない（フッターの常設リンクから到達。そちらは scripts/check-watch-reachable.ts が見る）
+const NAV_FIXED = [['/study', '学ぶ'], ['/learn', 'くらべる'], ['/trade', '書く'], ['/review', '振り返り']]
+check('NAV: href・label・順序が不変（原則12・4段: 学ぶ→くらべる→書く→振り返り）', JSON.stringify(entries.map(e => [e.href, e.label])) === JSON.stringify(NAV_FIXED), JSON.stringify(entries.map(e => [e.href, e.label])))
+check(SHOW_INVESTOR_MODELS ? 'NAV: hint は4本とも空でない' : 'NAV: 隠している間は hint に「名人」「投資家」を出さない（無いものを約束しない）',
+  entries.length === 4 && entries.every(e => e.hint.length > 0) && (SHOW_INVESTOR_MODELS || entries.every(e => !/名人|投資家/.test(e.hint))),
   entries.map(e => e.hint).join(' / '))
+// 2026-10-19: 呼び名・説明文は**路で引く**（labelOf / hintOf）。添字（NAV[0] など）で読むと並びを変えた日に文が黙って嘘になる
+check('SiteNav: labelOf(href)・hintOf(href) を export していて、見つからない路では投げる（綴り間違いを空文字にしない）',
+  /export function labelOf\(/.test(nav) && /export function hintOf\(/.test(nav) && (nav.match(/throw new Error\(/g) ?? []).length >= 2)
+{
+  // 2026-10-20 レビュー S1: 添字だけでなく `NAV.at(0)`・`const x = NAV` のような持ち出しも拾う。lib/ も見る
+  const INDEXED = /NAV\s*\[|NAV\.at\(|=\s*NAV\b/
+  const indexUsers: string[] = []
+  for (const f of [...walkTs('app'), ...walkTs('components'), ...walkTs('lib')]) {
+    if (f === 'components/SiteNav.tsx') continue
+    if (INDEXED.test(stripTsComments(read(f)))) indexUsers.push(f)
+  }
+  check('app/・components/・lib/ に NAV の添字参照・持ち出し（NAV[0]／NAV.at()／= NAV）が無い（路で引く＝labelOf / hintOf）', indexUsers.length === 0, indexUsers.join(', '))
+  // 2026-10-20 レビュー W2: この定数と NAV の1段目は**必ず一緒に倒す**（片方だけだと 404 を指す段が残る）
+  check('SHOW_LAB_9983 と NAV の /study が一致（フラグを倒すときはナビの1段目も外す。3点セットは lib/features.ts の注釈）',
+    SHOW_LAB_9983 === entries.some(e => e.href === '/study'), `SHOW_LAB_9983=${SHOW_LAB_9983} / NAV に /study=${entries.some(e => e.href === '/study')}`)
+  // 2026-10-20 レビュー W5 の暫定措置: labelOf / hintOf は 'use client' の SiteNav から export されている。
+  // サーバ側（'use client' の無いファイル）から呼ぶとクライアント境界を跨ぐので、当面は禁じて気づけるようにする。
+  // 恒久解は lib/nav.ts への切り出し（NEXT-STEPS.md）
+  const serverImporters: string[] = []
+  for (const f of [...walkTs('app'), ...walkTs('components'), ...walkTs('lib')]) {
+    const raw = read(f)
+    if (!/\b(?:labelOf|hintOf)\b/.test(stripTsComments(raw))) continue
+    if (!/from ['"](?:@\/components\/SiteNav|\.\.?\/[^'"]*SiteNav)['"]/.test(raw)) continue
+    if (!/^\s*['"]use client['"]/m.test(raw)) serverImporters.push(f)
+  }
+  check("labelOf / hintOf を import しているのは 'use client' のファイルだけ（SiteNav が 'use client' のため。恒久解は lib/nav.ts への切り出し＝NEXT-STEPS.md）",
+    serverImporters.length === 0, serverImporters.join(', '))
+}
 
 console.log('')
 console.log(`PASS ${passed} 件 / FAIL ${failed} 件`)

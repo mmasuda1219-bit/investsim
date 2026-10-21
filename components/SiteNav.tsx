@@ -7,21 +7,45 @@ import { StockSearch } from './StockSearch'
 import { AuthMenu } from './AuthMenu'
 
 /**
- * 3つの画面（書く→くらべる→読み返す＝**1件の記録が育つ順**: 書いたその日 → 書いた直後 → 20営業日ほど後）。
- * 並びは難易度ではなく記録が育つ順なので、順序を入れ替えないこと。心臓は `/trade`（COMPANY.md 原則12・
- * 2026-09-29 オーナー決定。4段「見る→まねる→やる→振り返る」から変更）。
- * `/watch`（AIの判断）は段に置かず、02 の中と全ページ共通フッターの常設リンク（app/layout.tsx）から到達させる
- * （未ログイン閲覧を維持する法務の不変条件・DECISIONS.md 2026-09-29。検査は scripts/check-watch-reachable.ts）。
+ * 4段（学ぶ→くらべる→書く→振り返り＝**1つの判断を作る順**: 題材を読む → 見くらべる → 自分で書く →
+ * 20営業日ほど後に読み返す）。並びは難易度ではなく判断を作る順なので、順序を入れ替えないこと。
+ * 心臓は `/trade`（COMPANY.md 原則12・2026-10-19 オーナー決定。2026-09-29 の3段「書く→くらべる→読み返す」から変更。
+ * 「心臓は `/trade`」は 2026-09-11 から維持）。
+ * **段のラベルに番号を付けない**（2026-10-19 に全廃。順番は並び順と呼び名の語そのもので示す。DESIGN.md §6-7）。
+ * `/watch`（AIの判断）は段に置かず、「くらべる」の中と全ページ共通フッターの常設リンク（app/layout.tsx）から到達させる
+ * （公開か全面非表示かの二択・ログイン必須にしない法務の不変条件・DECISIONS.md 2026-09-29／2026-10-09。
+ * 検査は scripts/check-watch-reachable.ts）。
  * hint（説明文）に「名人」の語を出さない（DECISIONS 2026-09-24 決定(2)。名人を隠している間、無いものを約束しない）。
- * label・href・順序は scripts/check-features.ts・check-theme.ts が固定している。
+ *
+ * **この `NAV` が呼び名（label）・行き先（href）・順序の唯一の出所**。label・href・順序は
+ * scripts/check-features.ts・check-theme.ts が固定している。
+ * 他の画面から呼び名や説明文を参照するときは、**添字（NAV[0] など）ではなく下の labelOf()・hintOf() で路から引く**
+ * （添字で読むと並びを変えた日に文が黙って嘘になる。2026-10-19 に3段→4段で実際に起きかけた）。
  */
 export const NAV = [
-  { href: '/trade',  label: '書く',     hint: 'なぜ買うのか・どうなったらやめるのかを書く' },
-  // hint は「いまある機能」を書く（S1 レビュー W2）。この文はホームの3つの一覧に本文として出るので、
+  { href: '/study',  label: '学ぶ',     hint: '1社の決算を題材に、見る・つなげる・書く・添削の練習をする' },
+  // hint は「いまある機能」を書く（S1 レビュー W2）。この文はホームの一覧に本文として出るので、
   // S3 で作る「自分のメモとAIのメモを並べる」を先に約束しない（DECISIONS.md 2026-09-29 決定(3)）。
   { href: '/learn',  label: 'くらべる', hint: '条件を決めて過去のデータに当て、AIの分析を読む' },
-  { href: '/review', label: '読み返す', hint: '書いた理由と、その後の株価を並べる' },
+  { href: '/trade',  label: '書く',     hint: 'なぜ買うのか・どうなったらやめるのかを書く' },
+  { href: '/review', label: '振り返り', hint: '書いた理由と、その後の株価を並べる' },
 ] as const
+
+type NavHref = (typeof NAV)[number]['href']
+
+/** 路から段の呼び名を引く。見つからなければ投げる（綴り間違いを黙って空文字にしない） */
+export function labelOf(href: NavHref): string {
+  const e = NAV.find(n => n.href === href)
+  if (!e) throw new Error(`labelOf: ${href} は NAV にありません`)
+  return e.label
+}
+
+/** 路から段の説明文を引く。見つからなければ投げる */
+export function hintOf(href: NavHref): string {
+  const e = NAV.find(n => n.href === href)
+  if (!e) throw new Error(`hintOf: ${href} は NAV にありません`)
+  return e.hint
+}
 
 /** 現在地の判定。'/' は全パスの接頭辞になってしまうので startsWith を使わない。 */
 function isActive(path: string, href: string) {
@@ -117,21 +141,25 @@ function BottomNav({ path }: { path: string }) {
   return (
     <nav
       aria-label="メインナビゲーション"
-      className={`md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-3 bg-panel ${BOTTOM_SHADOW} pb-[env(safe-area-inset-bottom)]`}
+      className={`md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-4 bg-panel ${BOTTOM_SHADOW} pb-[env(safe-area-inset-bottom)]`}
     >
-      {NAV.map(({ href, label, hint }, i) => {
+      {NAV.map(({ href, label, hint }) => {
         const active = isActive(path, href)
         return (
           <Link
             key={href}
             href={href}
             aria-current={active ? 'page' : undefined}
-            className={`flex flex-col items-center justify-center gap-0.5 h-14 text-xs leading-tight transition-colors ${
+            // gap は置かない（段の番号を全廃して並ぶのは呼び名1つだけ。sr-only の説明文は position:absolute で
+            // flex の流れから外れるので、gap-0.5 は何にも効いていなかった＝2026-10-20 レビュー S6）
+            className={`flex flex-col items-center justify-center h-14 text-xs leading-tight transition-colors ${
               // 現在地は --brand（旧 emerald は 2026-09-11 以前のブランド色の残り。DESIGN.md §10 P1）
               active ? 'text-brand font-semibold' : 'text-muted'
             }`}
           >
-            <span aria-hidden className="text-xs tabular-nums opacity-70">{i + 1}</span>
+            {/* 段の番号（{i + 1}）は 2026-10-19 に全廃した（DESIGN.md §6-7・§10-00。ホームが L2 で番号を
+                落としていて規則が割れていたのを、4段にするこの機会に全画面でそろえた）。
+                4列なので呼び名だけを置く（最長「くらべる」4文字。390px で折り返さないことを実測） */}
             <span>{label}</span>
             <span className="sr-only">{hint}</span>
           </Link>

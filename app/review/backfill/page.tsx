@@ -143,7 +143,7 @@ export default function BackfillPage() {
         return
       }
       setPortfolio(sell.portfolio)
-      setResult({ ok: true, msg: `${sym} の往復を記録しました。「03 読み返す」で、書いたことと株価を並べられます。` })
+      setResult({ ok: true, msg: `${sym} の往復を記録しました。「振り返り」で、書いたことと株価を並べられます。` })
       reset()
     } finally {
       setSubmitting(false)
@@ -162,7 +162,7 @@ export default function BackfillPage() {
     return (
       <div className="max-w-xl mx-auto space-y-4">
         <div>
-          <p className="text-caption text-muted">03 読み返す</p>
+          <p className="text-caption text-muted">振り返り</p>
           <h1 className="text-h1 text-ink mt-1">過去の取引を記録する</h1>
         </div>
         <div className="bg-panel border border-border rounded-xl p-8 text-center space-y-4">
@@ -178,7 +178,7 @@ export default function BackfillPage() {
 
       <header className="space-y-2">
         {/* 段ラベルは /review と同じ small/muted の日本語（字間を広げた大文字風は DESIGN.md §2 の禁止形） */}
-        <p className="text-caption text-muted">03 読み返す</p>
+        <p className="text-caption text-muted">振り返り</p>
         <h1 className="text-h1 text-ink">過去の取引を記録する</h1>
         <p className="text-base text-ink-2 leading-relaxed max-w-[42rem]">
           すでに実際にやった売買を入れると、<strong className="text-ink">今日から振り返りを始められます。</strong>
@@ -361,7 +361,7 @@ export default function BackfillPage() {
       <section className="p-4 rounded-xl bg-card border border-border space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-h2 text-ink">記録した過去の取引（<span className="tabular-nums">{recorded.length}</span>件）</h2>
-          <Link href="/review" className="text-sm text-brand hover:text-brand-strong">読み返す →</Link>
+          <Link href="/review" className="text-sm text-brand hover:text-brand-strong">振り返り →</Link>
         </div>
 
         {recorded.length === 0 ? (

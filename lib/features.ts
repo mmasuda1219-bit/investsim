@@ -25,7 +25,13 @@ export const SHOW_AI_WATCH: boolean = false
  *   - app/study/page.tsx の `metadata.robots` を書かない（＝既定の index, follow。noindex を外した）
  *   - app/sitemap.ts の PUBLIC_PATHS にこの定数と連動で /study を載せた
  *   - 入口はナビ（components/SiteNav.tsx の NAV・4段の1段目。S-L1b）。それ以外から /study へリンクしない
- *  false にすれば app/study/page.tsx が notFound() で 404 になり、sitemap からも消える（**全面非表示に戻す口**）。
+ *  **全面非表示に戻すときは3点セット**（2026-10-20 レビュー W2。この定数だけ倒すと、ナビの1段目が 404 を指したまま
+ *  全ページに残る＝利用者が必ず踏む壊れた入口になる。`NAV` は /study を無条件に載せているため）:
+ *   ① この定数を false にする（app/study/page.tsx が notFound() で 404・app/sitemap.ts からも消える）
+ *   ② components/SiteNav.tsx の `NAV` から1段目（学ぶ・/study）を外す（3段に戻す）
+ *   ③ 検査の期待値を3段に戻す: scripts/check-features.ts と check-theme.ts の `NAV_FIXED`、
+ *      check-lab-9983.ts (e) の `ALLOWED_LINKERS`・「NAV の1段目」・(g) の `SHOW_LAB_9983 === true`
+ *  ①だけやると check-features.ts の「SHOW_LAB_9983 と NAV の /study が一致」が落ちて気づける。
  *
  *  **継承する不変条件**（SHOW_AI_WATCH と同じ。監督指針 VII-3-1(2)②「会員登録等を行わないと投資情報等を購入・利用できない
  *  （単発での購入・利用を受け付けない）ような場合には登録が必要となる」）: この定数は**公開（誰でも読める）か、全面非表示かの二択**で、

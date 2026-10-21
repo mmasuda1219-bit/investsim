@@ -20,7 +20,9 @@ description: investsimのプロジェクト規約（ディレクトリ構成・�
 なので、順序を入れ替えない。**段のラベルに番号は付けない**（旧「01 書く」のような添字は全廃）。
 呼び名と説明文の正は `components/SiteNav.tsx`（`NAV` が唯一の出所。
 href・label・順序は `scripts/check-features.ts`・`check-theme.ts` が固定）。
-ナビ本体を4段にするのは S-L1b（`/study` の公開＝S-L1a の次のスライス）。
+**他の画面から呼び名を参照するときは、添字（`NAV[0]` など）でなく `labelOf(href)`・`hintOf(href)` で路から引く**
+（添字で読むと並びを変えた日に文が黙って嘘になる。2026-10-19 の4段化で実際に起きかけた。
+`scripts/check-features.ts` が `app/**`・`components/**` に添字参照が無いことを見ている）。
 
 | 段階 | パス | 位置づけ |
 |---|---|---|

@@ -19,7 +19,7 @@ export default function NotFound() {
       <p className="text-body text-ink-2">URL が変わったか、いまは公開していないページです。</p>
       <p className="flex flex-wrap gap-x-6 gap-y-1 text-small">
         <Link href="/" className="text-brand hover:underline">トップへ戻る</Link>
-        <Link href="/trade" className="text-brand hover:underline">01 書く へ進む</Link>
+        <Link href="/trade" className="text-brand hover:underline">「書く」へ進む</Link>
       </p>
     </div>
   )

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
-import { NAV } from '@/components/SiteNav'
+import { hintOf, labelOf } from '@/components/SiteNav'
 import { Disclaimer } from '@/components/ui/Disclaimer'
 import { AnswerCheckCard } from '@/components/AnswerCheckCard'
 import { MIN_ELAPSED_BUSINESS_DAYS } from '@/lib/entry/answer-examples'
@@ -222,7 +222,8 @@ export default function Home() {
                 ちがい: 左には「何が起きたらやめるか」の欄があります。右のAIの記録には、その欄がありません。どちらが良いかを、このサイトは判定しません。
               </p>
               <p className={s.note}>{NOTE_AI}</p>
-              <p className={`${s.note} ${s.small}`}>いまの「{NAV[1].label}」の画面では、{NAV[1].hint}ことができます。左右に並べて読む画面は準備中です。</p>
+              {/* 段の呼び名と説明文は路で引く（添字 NAV[1] は並びを変えた日に黙って別の段を指す。2026-10-19 の4段化で実際に起きかけた） */}
+              <p className={`${s.note} ${s.small}`}>いまの「{labelOf('/learn')}」の画面では、{hintOf('/learn')}ことができます。左右に並べて読む画面は準備中です。</p>
               {SHOW_AI_WATCH && (
                 <Link href="/watch" className={s.textLink}>AIの判断を全部読む →</Link>
               )}
@@ -261,7 +262,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <p className={s.note}>{NOTE_AI} あなたが書いた理由も、「{NAV[2].label}」に残ります。</p>
+              <p className={s.note}>{NOTE_AI} あなたが書いた理由も、「{labelOf('/review')}」に残ります。</p>
             </div>
           </li>
         </ol>

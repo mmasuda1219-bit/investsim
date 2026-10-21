@@ -1,6 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { labelOf } from '@/components/SiteNav'
 import { CausalMap } from '@/components/lab/CausalMap'
 import { CitationList } from '@/components/lab/CitationList'
 import { CitationMark } from '@/components/lab/CitationMark'
@@ -151,6 +153,18 @@ export function Lab9983Client() {
       {/* 書く（見出し h2 は MemoForm が持つ） */}
       <div className="space-y-3">
         <MemoForm memo={memo} onChange={setMemo} onSubmit={() => setCritique(composeCritique(memo, data))} />
+        {/* 「書く」（/trade）へ進む導線。**素の /trade だけ**で `?symbol=` を付けない＝1社固定の題材を
+            引き継がない（引き継ぐとこの1社を勧めた形に見える。オーナー決定 2026-10-19・検査 (t)）。
+            `/stocks/` へも繋がない。呼び名は NAV から路で引く（添字で読むと並びを変えた日に嘘になる）。
+            文言は2文に分ける（2026-10-20 レビュー W3）: 1文目は**ここで書いたものの行き先**（消える）、
+            2文目は**次に何をするか**。つなげて「残しておきたいときは →」にすると「この1社のメモを
+            持っていく」と読め、`?symbol=` を付けない決定が文言の側から崩れる。だから
+            **「自分で選んだ銘柄で」**と明示し、この会社を持ち出す誘導にしない。 */}
+        <p className="text-body text-ink-2 max-w-[42rem]" data-next-step="">
+          ここで書いたものは、このページを閉じると消えます（保存も送信もしていません）。
+          自分で選んだ銘柄で記録を残したいときは{' '}
+          <Link href="/trade" className="text-brand hover:underline">「{labelOf('/trade')}」へ進む →</Link>
+        </p>
       </div>
 
       {/* 添削（→ 学ぶ）。見出し h2 は CritiqueView が持つ */}

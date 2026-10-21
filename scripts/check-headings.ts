@@ -10,7 +10,7 @@
 //     text-caption text-muted のまま（12px・--muted が下限）。バッジ・フッター・/watch の免責・WrittenCard の hint と記入日時も据え置き
 //  5. 畳まない・薄めない: app/review/**・components/review/**・Disclaimer.tsx に <details が無い。注記の開きタグに opacity-／aria-hidden が無い。
 //     12px 未満の文字（text-[10px] 等）を作らない
-//  6. 段ラベル（01 書く／02 くらべる／03 読み返す／AIの判断）が <h1／<h2 の中身そのものにならない（caption/--muted の <p> で置く）
+//  6. 段ラベル（学ぶ／くらべる／書く／振り返り／AIの判断。番号は 2026-10-19 に全廃）が <h1／<h2 の中身そのものにならない（caption/--muted の <p> で置く）
 //  7. 記録の整合: DESIGN.md §5-2 に「見出しの階層」の表・§6-6 に上書きの注記。check-review.ts が文字長で位置を決めていない
 //
 // まだ規則を当てていない画面（app/learn・app/simulate・app/stocks・components/analyze の中 等）は「情報:」として件数を出すだけで FAIL にしない
@@ -96,6 +96,12 @@ function openingTagBefore(src: string, needle: string): string | null {
 const innerText = (s: string) => s.replace(/<[^>]+>/g, '').replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim()
 
 // ── 規則を当てた画面（当てたら足す） ──────────────────────────────────────────
+// 2026-10-20 レビュー S3・S8: **`/study`（app/study/client.tsx・components/lab/**）を APPLIED に足すときは注意。**
+// この一覧は「段ラベルは <p> で置き、h1〜h3 の class を揃える」規則を当てた画面を並べたものだが、
+//  - ホーム（app/(night)/page.tsx）は L2 で段ラベルそのものを撤去しており、規則の当たり方が他と違う
+//  - `/study` は段ラベル（kicker）が「学ぶ」1つで、節の見出しは部品（components/lab/**）側が持つ
+// ので、足すときは**ホームと `/study` を除外する**か、**段ラベル専用の判定**（<p className="text-caption
+// text-muted">◯◯</p> が h1 の直前に1つ）に切り出すこと。そのまま足すと他の画面の規則まで緩む。
 const APPLIED = [
   'app/(night)/page.tsx',
   'app/trade/page.tsx',
@@ -113,7 +119,9 @@ const APPLIED = [
   'components/InvestorPanel.tsx',
 ]
 const HERO = 'app/(night)/page.tsx'
-const STAGE_LABELS = ['01 書く', '02 くらべる', '03 読み返す', 'AIの判断']
+// 2026-10-19 S-L1b: 番号を全廃し、4段「学ぶ→くらべる→書く→振り返り」に（「読み返す」は段の呼び名としては使わない。
+// ただし画面の中の動詞「読み返す」は残すので、この一覧には入れない）
+const STAGE_LABELS = ['学ぶ', 'くらべる', '書く', '振り返り', 'AIの判断']
 const RAW_SIZE = /(?:^|\s)text-(?:2xl|xl|lg|base|sm|xs)(?:\s|$)/
 /**
  * ホーム（HERO）だけ別の期待値（L2・2026-10-14・DECISIONS.md 同日「ホーム（L2）は design-taste-frontend スキルの規則を優先する」）。
@@ -222,9 +230,9 @@ for (const [f, src] of applied) {
   if (hs.length > 0) check(`${f}: 段ラベルそのものが h1／h2 になっていない`, bad.length === 0, bad.map(h => h.tag).join(' / '))
 }
 {
-  // 段ラベルを caption に下げた画面（2026-10-05 のスライスの範囲）。components/analyze/AnalyzeBanner.tsx（/learn の「02 くらべる」）は
+  // 段ラベルを caption に下げた画面（2026-10-05 のスライスの範囲）。components/analyze/AnalyzeBanner.tsx（/learn の「くらべる」）は
   // まだ small のまま＝未決（別のスライスで揃える。揃えたらここに足す）
-  const OLD_LABEL = /<p className="text-small text-muted">(?:01 書く|02 くらべる|03 読み返す|AIの判断)<\/p>/g
+  const OLD_LABEL = /<p className="text-small text-muted">(?:学ぶ|くらべる|書く|振り返り|AIの判断)<\/p>/g
   for (const f of ['app/trade/page.tsx', 'app/review/page.tsx', 'app/review/backfill/page.tsx', 'app/watch/client.tsx', 'app/review/[recordId]/page.tsx']) {
     const old = stripComments(read(f)).match(OLD_LABEL) ?? []
     check(`${f}: 段ラベルの旧形（<p className="text-small text-muted">）が無い`, old.length === 0, old.join(' / '))
@@ -234,11 +242,18 @@ for (const [f, src] of applied) {
   const bf = stripComments(read('app/review/backfill/page.tsx'))
   const watch = stripComments(read('app/watch/client.tsx'))
   const rec = stripComments(read('app/review/[recordId]/page.tsx'))
-  check('/trade: 「01 書く」は <p className="text-caption text-muted">', trade.includes('<p className="text-caption text-muted">01 書く</p>'))
-  check('/review: 「03 読み返す」は <p className="text-caption text-muted">', review.includes('<p className="text-caption text-muted">03 読み返す</p>'))
-  check('/review/backfill: 「03 読み返す」は <p className="text-caption text-muted">（2つの画面の状態とも）', count(bf, '<p className="text-caption text-muted">03 読み返す</p>') === 2)
+  check('/trade: 段ラベル「書く」（番号なし）は <p className="text-caption text-muted">', trade.includes('<p className="text-caption text-muted">書く</p>'))
+  check('/review: 段ラベル「振り返り」（番号なし）は <p className="text-caption text-muted">', review.includes('<p className="text-caption text-muted">振り返り</p>'))
+  check('/review/backfill: 段ラベル「振り返り」は <p className="text-caption text-muted">（2つの画面の状態とも）', count(bf, '<p className="text-caption text-muted">振り返り</p>') === 2)
   check('/watch: 「AIの判断」は <p className="text-caption text-muted">', watch.includes('<p className="text-caption text-muted">AIの判断</p>'))
   check('/review/[recordId]: パンくずは <p className="text-caption text-muted">', /<p className="text-caption text-muted">\s*<Link href="\/review"/.test(rec))
+  // 2026-10-20 レビュー S4: 段の呼び名を**文の中で**指すときは「」で囲む（番号を外したので、裸の「書く」は
+  // 動詞とも読めて境目が消える）。backfill の「『振り返り』で、書いたことと…」の流儀に全画面で揃える
+  const nf = stripComments(read('app/not-found.tsx'))
+  check('app/not-found.tsx: /trade への文字リンクは「「書く」へ進む」（裸の「書く へ進む」にしない）',
+    nf.includes('>「書く」へ進む</Link>') && !/>\s*書く\s+へ進む/.test(nf))
+  check('/review: 空の状態のボタンは「「書く」で最初の記録を書く」（裸の「書く で」にしない）',
+    review.includes('「書く」で最初の記録を書く') && !/[^「]書く\s+で最初の記録/.test(review))
 }
 
 console.log('■ 7. 記録の整合（DESIGN.md・check-review.ts）')

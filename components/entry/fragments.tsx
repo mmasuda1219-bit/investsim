@@ -4,7 +4,7 @@ import { fmtSlashDate, type AnswerExample } from '@/components/AnswerCheckCard'
 import { SERIES, svgDash, type SeriesStyle } from '@/components/chartTheme'
 import { composeFrom, fieldsFor, parseReason, type ReasonFieldSpec } from '@/lib/trade/reason'
 import { MIN_ELAPSED_BUSINESS_DAYS } from '@/lib/entry/answer-examples'
-import { NAV } from '@/components/SiteNav'
+import { labelOf } from '@/components/SiteNav'
 import s from './home.module.css'
 
 /**
@@ -45,8 +45,10 @@ export const ACTION_LABEL: Record<ExampleAction, string> = {
 /** 注記（法務 C）。AIの判断を見せる節の直下に置く。一字も変えない */
 export const NOTE_AI =
   'これは、このサイトのAIが仮想資金で出した判断の記録です。▲▼はAIの判断の分類で、特定の銘柄の売買を推奨するものではありません。'
-/** 記入例であることの明示（法務。一字も変えない）。「01」の番号は落とし、段の名は NAV から取る（DECISIONS 2026-10-14 決定(2)①） */
-export const SAMPLE_NOTE = `記入例が入った状態です。この画面では押せません。実際に書くのは「${NAV[0].label}」（上のボタン）。`
+/** 記入例であることの明示（法務。一字も変えない）。「01」の番号は落とし、段の名は NAV から取る（DECISIONS 2026-10-14 決定(2)①）。
+ *  **添字ではなく路（/trade）で引く**: この文が指しているのは「書く」の画面そのものなので、並びが変わっても
+ *  嘘にならないよう labelOf('/trade') で引く（2026-10-19 に3段→4段で NAV[0] が「学ぶ」になり、実際に嘘になりかけた）。 */
+export const SAMPLE_NOTE = `記入例が入った状態です。この画面では押せません。実際に書くのは「${labelOf('/trade')}」（上のボタン）。`
 export const PAIR_NOTE_SAMPLE = '左は記入例、右はこのサイトのAIが実際に書いた記録です。'
 export const PAIR_NOTE_TYPED = '左は、あなたが上の欄に書いた文です（このページの中だけで、保存も送信もしていません）。右はこのサイトのAIが実際に書いた記録です。'
 export const LINE_NOTE = '画面の例です。線は実際の株価から引き、無いときは出しません。'

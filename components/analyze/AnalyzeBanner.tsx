@@ -13,13 +13,13 @@
 export default function AnalyzeBanner() {
   return (
     <header className="space-y-3">
-      {/* 段ラベルは SiteNav の並び（02 くらべる・S1「3段の道」2026-09-29）。/trade・/review と同じ書式に
-          揃えていないと、3つの画面のどこにいるのかが画面から読み取れない。
+      {/* 段ラベルは SiteNav の並び（くらべる・4段の2段目。番号は 2026-10-19 に全廃）。/trade・/review と同じ書式に
+          揃えていないと、4段のどこにいるのかが画面から読み取れない。
           見出しとリードは **いまの機能どおり**（条件を決めて過去データに当てる画面）に書く。NAV の hint
           「AIが同じ問いにどう答えたかを読む」は S3 で作る中身なので、ここでは約束せず「準備中」と明示する（原則9）。
           「無料」はフッターの1文に集約（DESIGN.md §7）。「根拠つき未来予想」は断定と将来の数字（R6）に当たるので書かない。 */}
       <div>
-        <p className="text-small text-muted">02 くらべる</p>
+        <p className="text-small text-muted">くらべる</p>
         <h1 className="text-h1 text-ink text-balance">条件を決めて、過去のデータに当てる</h1>
         <p className="mt-1 text-body text-ink-2 max-w-[42rem]">
           クイックモードは、ニーズ別のプリセットから条件を選び、実データの数字プレビュー（純計算）を確かめてから、

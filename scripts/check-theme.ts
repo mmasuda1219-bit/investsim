@@ -297,9 +297,12 @@ function navChecks() {
   // 2026-09-25 S1b（レビュー指摘）: hint の文言は固定しない。原則12 が守るのは href・label・順序の3つ
   const navBody = navSrc.slice(navSrc.indexOf('export const NAV = ['), navSrc.indexOf('] as const'))
   const navEntries = [...navBody.matchAll(/\{ href: '([^']+)',\s+label: '([^']+)',\s+hint: '[^']*' \}/g)].map(m => [m[1], m[2]])
-  // S1「3段の道」（2026-09-29）: 4段から3段へ。/watch は段に置かない（フッターの常設リンク。scripts/check-watch-reachable.ts）
-  const NAV_FIXED = [['/trade', '書く'], ['/learn', 'くらべる'], ['/review', '読み返す']]
-  check('SiteNav: NAV の href・label・順序が変わっていない（原則12・3段。hint の文言は固定しない）', JSON.stringify(navEntries) === JSON.stringify(NAV_FIXED) && nav.includes('] as const'), JSON.stringify(navEntries))
+  // 2026-10-19 オーナー決定（S-L1b）: 3段から**4段**へ（1段目に「学ぶ」・「読み返す」の段の呼び名を「振り返り」に）。
+  // /watch は段に置かない（フッターの常設リンク。scripts/check-watch-reachable.ts）
+  const NAV_FIXED = [['/study', '学ぶ'], ['/learn', 'くらべる'], ['/trade', '書く'], ['/review', '振り返り']]
+  check('SiteNav: NAV の href・label・順序が変わっていない（原則12・4段。hint の文言は固定しない）', JSON.stringify(navEntries) === JSON.stringify(NAV_FIXED) && nav.includes('] as const'), JSON.stringify(navEntries))
+  // 段の番号は 2026-10-19 に全廃（DESIGN.md §6-7・§10-00）。下部ナビは4列で、番号の span を描かない
+  check('SiteNav: 下部ナビは grid-cols-4・段の番号（{i + 1}）を描かない', navSrc.includes('grid grid-cols-4') && !navSrc.includes('grid-cols-3') && !/\{i \+ 1\}/.test(navSrc))
 
   const search = stripTsComments(read('components/StockSearch.tsx'))
   check('StockSearch: 既製色の札（bg-red-50/text-red-700/bg-blue-50/text-blue-700）が無い', !/bg-red-50|text-red-700|bg-blue-50|text-blue-700/.test(search))
