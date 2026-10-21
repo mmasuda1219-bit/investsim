@@ -445,6 +445,33 @@
 
 ---
 
+## 2026-10-19〜21
+
+- **今日のゴール**: 「学ぶ → くらべる → 書く → 振り返り」の4段の1ページ目「学ぶ」を公開する。並行して、AIの添削が価値を出せるかを測る道具（フェーズA）を作る。
+- **やったこと**:
+  - **出荷済みコミット（main に push）**:
+    - `95355e3` 明るい地（L1）＋ホームの作り直し（L2）を本番へ（2026-10-19 16:09 に本番で確認）
+    - `541cb32` フェーズAの道具：添削のシステムプロンプト `lib/lab/critique/prompt.ts`・SDK 直呼び `anthropic.ts`・門 `guard.ts`・テストデータ `evals/critique/`（オーナーの実物メモ2件＋誤りの無い1件）・`scripts/eval-critique.ts`（3メモ×3回）・`scripts/eval-judge.ts`（別モデルで採点）・カタログ `per-average-kind` の誤発火修正
+    - `ced54cc` S-L1a「学ぶ」を `/study` で公開（`app/lab/9983` → `app/study` への引っ越し・noindex を外す・sitemap に載せる・`SHOW_LAB_9983=true`・1社固定の断りを h1 直下に無条件・§3 見出しを「計算の確かめと、確認したいこと」に・`/trade?symbol=` を作らない・`check-lab-9983` を公開前提に反転 372件）。reviewer の指摘5点（metadata を data から組む・openGraph/twitter・data 属性を検査で使う・`latestFyLabel`・注釈の旧住所26ファイル）を反映
+    - `c0731f4` HISTORY.md 第19章に 10/12〜14 の2段落
+    - `bfdb246` S-L1b ナビを4段に・番号全廃・`labelOf(href)`/`hintOf(href)` で路から引く（添字だとホームに嘘の文が出る）・「読み返す」→「振り返り」はナビと段ラベルだけ・凍結検査の緩和は許可リスト1本に限定・reviewer の W1〜W5・S1〜S9 を反映（検査 1,205件・全48本 2,900 PASS / 0 FAIL）
+    - `92410ed` HISTORY.md 第20章（2026-10-18〜20）
+  - **DECISIONS.md に計4件追記**: 2026-10-19 ×2・2026-10-20 ×1。弁護士向け質問 E18 を公開前提に書き換え（`docs/drafts/`・未追跡）
+  - **オーナーの明示承認**: 12px 据え置き（`/study` の法務の注記）を確認（2026-10-20）
+- **現在の状態**: 本番 https://investsim-nine.vercel.app に main 反映済み（デプロイ進行中）。S-L1a「学ぶ」は `/study` で公開（metadata 修正済み・検査 2,900 PASS）。フェーズAの測定ツール完成（スクリプト・評価モデル・採点スクリプト完備）。手元の作業ツリーに残るのは他セッションの `.claude/settings.json`・`DECISIONS.md` の 2026-09-24「広報チャネル」節・`evals/critique/report.md`（雛形）だけ。
+- **次の一手**（順に）:
+  1. ①鍵が通ったら `npx tsx scripts/eval-critique.ts` → `npx tsx scripts/eval-judge.ts` → `evals/critique/report.md` の数字（発見率・禁止語・引用実在率・clean 誤検知・一貫性・expectNot）をそのまま報告
+  2. ②測定の後に新しいカタログ6件（`fact-mismatch` 等・`scratchpad/phaseA-memos-real.md`）
+  3. ③`NAV`・`labelOf`・`hintOf` を `lib/nav.ts` へ（reviewer W5）
+  4. ④生の NUL バイト3ファイルのエスケープ
+  5. ⑤`/learn` → `/compare`・`SHOW_LAB_9983` の定数名・手入力データの更新運用は NEXT-STEPS.md 参照
+  6. ⑥ホームに「学ぶ」の節を入れるかは別スライス
+- **未解決・ブロッカー**:
+  - **フェーズAの測定が未実行**（オーナーの手作業待ち）。`ANTHROPIC_API_KEY` が2回とも無効（1回目は 108文字だが API が 401、2回目は 40文字＝コンソール短縮表示の誤コピー）。オーナーにコンソールで鍵を作り直し、作成直後の「Copy」ボタンで全文をコピーして `.env.local` の 43行目に貼るよう依頼中。
+  - **落とし穴の記録**: サブエージェントが「no progress for 600s」で3回停止 → `model: "opus"` で立て直して完走（メモリ保存済み）／PowerShell 5.1 は BOM 無し UTF-8 を cp932 で読み行が合体する／`next build` を回すと動いている `next start` が壊れる／Write ツールが本文の空白を実体の NUL にする
+
+---
+
 ## 2026-07-20
 
 - **今日のゴール**: 「ラボ×AIレポート統合」S1（クイックモード=ニーズ軸プリセット背骨）を出荷する。
