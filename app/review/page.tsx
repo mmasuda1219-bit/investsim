@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { LoginLink } from '@/components/LoginLink'
 import { PriceSincePanel } from '@/components/review/PriceSincePanel'
+import { HabitSummary } from '@/components/habits/HabitSummary'
 import { buildJudgements, type Judgement } from '@/lib/review/judgement'
 import { buildRecords, matchRecordId } from '@/lib/review/record'
 import { findPattern, keyOf, MIN_RECORDS, type Pattern } from '@/lib/review/patterns'
@@ -559,6 +560,10 @@ export default function ReviewPage() {
 
       {/* 主役: 過去の取引を入れる（この画面で唯一の主ボタン・常に出す） */}
       <BackfillLead />
+
+      {/* 書いたことと、したことのまとめ（S-H1・2026-10-25・DESIGN.md §6-20）。売り終えた記録だけを、書いた欄と売買の日で数える。
+          渡っているのは ReviewRecord そのもの（損益・株価の欄も含む）。ただし検出器の型（HabitRecordInput）に損益・株価の欄が無いので、まとめはそれを読めない。上の「あなたのクセが、1つ見えてきた。」の行と findPattern はそのまま */}
+      <HabitSummary records={records} />
 
       {/* 節1: あなたが書いたことと、そのあとの株価 — 記録の一覧。金額より先に出す（P10） */}
       <section className="space-y-3">
