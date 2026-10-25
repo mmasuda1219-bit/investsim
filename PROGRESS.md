@@ -20,6 +20,41 @@
 
 ---
 
+## 2026-10-24〜25（夜〜未明）
+
+> オーナーが寝ているあいだに進めた分。**コミット・プッシュ（手元の変更を記録して本番側へ送ること）は一切していない。**
+
+- **今日のゴール**: オーナーの依頼「振り返りで、書いた内容を基にした判断のクセの分析レポート（AI での分析の強化）」と「Steep の様式でホームを作り直す（investsim 版）」を設計し、承認済みの分（S-H1・規約ページ）を手元で見られる状態まで進める。
+- **やったこと**:
+  - **設計とゲート①（計画の承認）**: strategist・legal-compliance・architect の3係が「判断のクセ」レポートを設計 → MC が1つの計画にまとめ、オーナーが 2026-10-25 に決定。第1本は `/review` 一覧のまとめ／呼び名は「書いたことと、したことのまとめ」／`/privacy`・`/terms` を先に別の縦切り（画面からデータまで1本通す小さな単位）で作る／「AI の強化」は振り返りの中の AI を指す。計画は scratchpad の `brief-habits-gate1.md`
+  - **S-H1（`/review` 一覧の「書いたことと、したことのまとめ」）**: builder 実装 → reviewer（critical 2・warning 4・suggestion 7）→ 全部修正
+    - 新規: `lib/review/habits/{types,catalogue,text,patterns}.ts`・`components/habits/HabitSummary.tsx`・`scripts/check-review-habits.ts`・`scripts/lib/habits-forbidden.ts`
+    - 追記: `app/review/page.tsx`（差し込み1か所）・`DESIGN.md` §6-20
+    - 検査: `check-review-habits` 140 PASS・`check-review` 190 PASS・tsc（型の検査）エラー 0
+    - legal の文言点検は「出してよい」。勧められた1文を追加。MC が直接直したのは2点（写した一覧から「評価額」を外す／legal の1文）
+  - **`/privacy`・`/terms`（プライバシーポリシーと利用規約）**: legal が全文の文案 → builder が実装 → reviewer critical なし → suggestion 3件も修正
+    - 新規: `app/privacy/page.tsx`・`app/terms/page.tsx`・`lib/legal/dates.ts`・`scripts/check-legal-pages.ts`
+    - 追記: `app/layout.tsx`（フッター3行目）・`app/auth/login/page.tsx`（同意の1文）・`app/sitemap.ts`・`scripts/check-entry.ts:386`（古い期待値の更新）
+    - 検査: `check-legal-pages` 50 PASS
+    - 穴（【 】の空欄）が16個残る。運営者名は「InvestSim 運営」で確定。メール・住所・リージョン（データを置く地域）・裁判所・制定日・IP 保存期間が未記入
+  - **ホーム（Steep 様式）**: designer（1回停止→立て直し）と architect が設計・計画を完了（scratchpad の `design-home-steep-designer.md`・`design-home-steep-architect.md`）。**コードは未着手**
+  - **フェーズA（添削7種・測定記録）**: この期間の変更なし。オーナーの手元確認（ゲート②＝出荷前の承認）待ち
+  - **道具**: `next build` 成功、ローカル 3131 番を新しい build で再起動。弁護士への質問 E19〜E35 を scratchpad の `lawyer-questions-E19-E35.md` に用意
+  - **停止**: 係（サブエージェント）が4回「no progress for 600s」で止まった（PC の空きメモリ 1.2GB）。以後は係を1つずつ動かす運用に
+- **現在の状態**: 作業ツリー（手元のまだ記録していない変更）に、未コミットの変更が3つの塊で混在 ＝ ①フェーズA ②S-H1 ③規約ページ。ほかに別セッションの未追跡ファイル（`.taste-skill/`・`marketing/`・`shots/`・音声秘書の `.claude/hooks/voice-summary.*` など）もある。ローカル http://localhost:3131 は最新 build だが、**規約に1文足す前の版**（朝に再 build 予定）。ホームは設計のみ。
+- **次の一手**:
+  - **オーナー（朝）**:
+    1. 手元で `/study`・`/review`・`/privacy`・`/terms` を見て、3つのゲート②（フェーズA・S-H1・規約ページ）を判断する
+    2. ホームのゲート①で分岐6つを選ぶ（アクセント色・明朝体を使うか・角丸/ピル形・影・「正」の差し替え・学ぶ節に実数を出すか）
+    3. 規約の穴を埋める（メール・住所など）
+  - **MC**: 規約の1文を含めて再 build → 3131 を再起動。承認が出たら、コミット順（フェーズA → S-H1 → 規約）で塊ごとに分けてコミットし push（別セッションの未追跡ファイルは載せない）
+- **未解決・ブロッカー**:
+  - ゲート②×3（フェーズA・S-H1・規約ページ）とゲート①×1（ホーム）がオーナー待ち
+  - 規約の穴16個（オーナーの記入待ち）
+  - PC の空きメモリ不足（係の停止の原因と見られる。並列で動かさない）
+
+---
+
 ## 2026-09-28
 
 > MC が代筆（秘書部門は 9/24 以来停止中。次回セッションで復帰を試す）。
