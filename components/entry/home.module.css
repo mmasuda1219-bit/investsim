@@ -1,69 +1,105 @@
-/* ホーム（app/(night)/page.tsx）だけの見た目。L2（2026-10-14・DECISIONS.md 同日）。
+/* ホーム（app/(night)/page.tsx）だけの見た目。Steep の様式で作る investsim 版（2026-10-25・DECISIONS.md 同日）。
  *
- * 設計図は `design-taste-frontend` の `quiet-instrument`（静かな楽器・seed 1243233701）。
- * `node ~/.claude/skills/design-taste-frontend/scripts/draw.mjs --show` で再掲できる。
+ * それまでの正（L2「静かな楽器」quiet-instrument・2026-10-14）から替えた。替えたもの: 見出しの書体と大きさ
+ * （h1・h2 だけ明朝 'Noto Serif JP Variable'。h1 28/44/52px・h2 26/36px）・角丸（面 16・ボタン 12）・
+ * 影（ヒーローの実演パネルの1か所だけ。page.tsx が shadow-float クラスで付ける。--shadow-float は @theme inline の
+ * 生値で :root に無いので、この CSS に var(--shadow-float) を書いても効かない）・本文の行間 1.8・スクロールの入場の撤去・
+ * 「書く」節だけの淡い青緑の面（--wash）。
+ * 残したもの: 1px の線・枠・グラデーション・すりガラス・番号・小さな上書きラベルを使わない（data-ui の内側を除く）・
+ * 13px 未満を作らない・色はトークンだけ。
  *
- * ここに置く理由: スキルのハウスルール（1px の線・枠・グラデーション・休んでいるものへの影を使わない。
- * 本文 17〜19px・13px 未満を作らない）はホームだけに当てる（DECISIONS 2026-10-14 決定(1)）。
- * 他の画面は DESIGN.md のまま。globals.css の `:root`（22個）には触らず、ホーム専用の寸法・段階は
- * この CSS モジュールの中だけで持つ。色は必ず globals.css のトークン（var(--…)）から取る。
+ * ここに置く理由: globals.css の `:root`（22個）と @theme inline には触らず、ホーム専用の寸法・段階・面は
+ * この CSS モジュールの .page の局所変数だけで持つ（全体の規則をホームの都合で動かさない）。色は必ず var(--…) から取る。
+ * 明朝の読み込みは app/(night)/layout.tsx の import 1行だけ（app/layout.tsx には足さない＝他の画面は通信しない）。
  *
- * 配置の軸: 画面の左から 27% の縦の線（設計図 §6）。app/layout.tsx の <main> は max-w-6xl（1152px）で中央寄せ・
- * px-4 sm:px-6 なので、<main> の内側での位置 = 27vw − <main> の左端。幅が 1152px を超えると <main> の左端が
- * (100vw − 1152px) / 2 + 24px になるので、その分を引く。下限 140px は左の列（節2 の状態の語）の幅。
+ * 配置: 1200px 未満は1列（文の軸 --anchor から）。1200px 以上はヒーローが「左に文 620px・右に実演パネル 440px」、
+ * 4段の各節が「左に文 440px・右に断片 600px まで」。文は常に左（交互にしない）。<main> は max-w-6xl（1152px）・px-6 なので
+ * 内側は 1104px＝620 + 44 + 440。
  *
- * 面の分け方: 線ではなく調子の段差（§4）。断片の面は `color-mix()` で地（--bg）を 5% 沈めた**不透明**な色
- * （--surface は半透明の膜なので、注記を載せる面には使わない＝DESIGN.md §4-2 R11「免責を半透明の面に置かない」）。
+ * 面の分け方: 線ではなく調子の段差。地（--bg）／--panel（地を 5% 沈めた**不透明**の面）／--wash（白に青緑 12%）の3段。
+ * --surface は半透明の膜なので注記を載せる面に使わない（DESIGN.md §4-2 R11）。全幅の帯は作らない。
  *
- * 製品の断片（根に data-ui）の内側だけは製品自身の作法（1px の枠・小さい角丸）が許される（スキル references/imagery.md §7）。
+ * 製品の断片（根に data-ui）の内側だけは製品自身の作法（1px の枠・小さい角丸）が許される。
  * その規則は必ず `.ui[data-ui] …` で始まるセレクタに書く（lint.mjs が `data-ui` を含むセレクタだけを除外するため）。
  *
- * 動きは transform と opacity だけ。`prefers-reduced-motion: reduce` では移動を落とし、内容は消えない
- * （入場の「隠した状態」は JS が走って `data-motion="on"` を付けたあとにだけ当たる＝script が無ければ全部見える）。
+ * 動きは最初の1画面の入場（rise・ヒーローの4つ）だけ。transform と opacity だけ。`prefers-reduced-motion: reduce` では動かさない。
  */
 
 .page {
   --nav: 49px;        /* components/SiteNav.tsx の <header>: py-2.5 ×2 + h-7 + 1px */
   --main-pt: 20px;    /* app/layout.tsx の <main> の py-5 */
   --anchor: 0px;      /* 文の軸（<main> の内側での左の位置） */
-  --indent: 0px;      /* 節1 の「返ってくるもの」の字下げ（設計図: 56px） */
-  --peek: 120px;      /* ヒーローの実演パネルが最初の1画面に覗く高さ（スマホ 120px・パソコン 90px） */
+  --peek: 120px;      /* ヒーローの実演パネルが最初の1画面に覗く高さ（スマホ 120px・タブレット 90px。1200px 以上は2列なので使わない） */
   --bottom-nav: 56px; /* スマホの下部ナビ（SiteNav.tsx の BottomNav h-14）。パソコンでは 0 */
-  --step-small: 14px; /* 注記・支えの1文・ボタン（13px 未満を作らない） */
-  --step-body: 17px;  /* 本文 */
-  --step-lead: 20px;  /* 順序の語で始まる文・状態の語・締めの一文 */
-  --step-head: 28px;  /* 節の見出し */
-  --step-display: 24px; /* ヒーローの見出し。パソコンで 27px（どの幅でも大きくしない） */
-  --radius: 4px;      /* ページの角丸は1種類（断片の内側は製品の作法） */
+  --font-display: 'Noto Serif JP Variable', serif; /* h1・h2 だけ（明朝）。本文は body の Geist＋Noto Sans JP のまま */
+  --step-small: 14px; /* 注記（13px 未満を作らない） */
+  --step-body: 17px;  /* 本文・支えの1文・1社固定の断り（/study の「リードと同じ大きさ・薄くしない」に寄せる） */
+  --step-lead: 20px;  /* 各段の主張（hintOf）・締めの一文 */
+  --step-head: 26px;  /* 各段の見出し（h2）。768px 以上で 36px */
+  --step-display: 28px; /* ヒーローの見出し（h1）。768px 以上 44px・1200px 以上 52px */
+  --weight-head: 500;    /* 明朝の太さ。h2 は 26px・36px とも 40px 未満なので 500（400 だと横線が細く灰色に溶ける） */
+  --weight-display: 500; /* h1 は 28px で 500、40px 以上（44・52px）で 400 */
+  --radius: 12px;      /* ボタン・小さな面 */
+  --radius-face: 16px; /* 断片の面・実演パネル・「書く」節の面 */
   --panel: color-mix(in srgb, var(--bg), var(--ink) 5%);  /* 地より一段沈んだ不透明の面 */
+  --wash: color-mix(in srgb, var(--card), var(--brand) 12%); /* 「書く」節だけの淡い青緑の面（直の色値を書かない） */
+  --col-text: 560px;  /* 文の列 */
+  --col-wide: 760px;  /* 断片の列 */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --t-press: 140ms;
   --t-hover: 180ms;
-  --t-reveal: 700ms;
   color: var(--ink);
   font-size: var(--step-body);
-  line-height: 1.5;
-  /* 節の間は空白だけで分ける（設計図 §2: 96〜140px） */
+  line-height: 1.8;
+  /* 節の間は空白だけで分ける */
   --gap-section: 96px;
   padding-bottom: 24px;
 }
 @media (min-width: 768px) {
   .page {
     --anchor: calc(14vw - 24px);
-    --indent: 56px;
     --peek: 90px;
     --bottom-nav: 0px;
-    --step-display: 27px;
-    --gap-section: 120px;
+    --step-head: 36px;
+    --step-display: 44px;
+    --weight-display: 400;
+    --gap-section: 128px;
   }
 }
 @media (min-width: 1200px) {
   .page {
-    --anchor: max(140px, calc(27vw - 24px - max(0px, (100vw - 1152px) / 2)));
+    --anchor: 0px;
+    --step-display: 52px;
   }
 }
 
-/* ── ヒーロー（設計図 §6「Column on one line」）────────────────────────────── */
+/* ── 見出し（明朝・h1 と h2 だけ）──────────────────────────────────────────── */
+.h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--step-display);
+  font-weight: var(--weight-display);
+  font-style: normal;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  font-feature-settings: 'palt';
+  text-wrap: balance;
+  hyphens: none;
+}
+.h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--step-head);
+  font-weight: var(--weight-head);
+  font-style: normal;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  font-feature-settings: 'palt';
+  text-wrap: balance;
+  hyphens: none;
+}
+
+/* ── ヒーロー ─────────────────────────────────────────────────────────────── */
 .heroTop {
   /* 列の上端は画面の高さの 30%。下端の直前に実演パネルの上 --peek px が覗く */
   min-height: calc(100svh - var(--nav) - var(--main-pt) - var(--peek) - var(--bottom-nav));
@@ -71,23 +107,14 @@
 }
 .heroCol {
   margin-left: var(--anchor);
-  max-width: 380px;
-}
-.h1 {
-  margin: 0;
-  font-size: var(--step-display);
-  font-weight: 500;
-  line-height: 1.25;
-  letter-spacing: 0;
-  text-wrap: balance;
-  hyphens: none;
+  max-width: 620px;
 }
 .support {
-  margin: 16px 0 0;
-  max-width: 380px;
-  font-size: var(--step-small);
-  line-height: 1.5;
-  color: var(--ink-2);
+  margin: 20px 0 0;
+  max-width: var(--col-text);
+  font-size: var(--step-body);
+  line-height: 1.8;
+  color: var(--ink);
   text-wrap: pretty;
 }
 .actions {
@@ -95,28 +122,58 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 24px;
-  margin-top: 28px;
+  margin-top: 32px;
 }
+.heroAside { margin-left: var(--anchor); }
 .heroPanel {
-  margin-left: var(--anchor);
-  width: min(368px, 100%);
+  width: min(440px, 100%);
+  border-radius: var(--radius-face);
+  background: var(--card);
 }
-/* 覗き（上 90px）に、見出し・【見立て】・実際に書かれた文の最初の行を丸ごと入れる
-   （8 + 8 + 21 + 2 + 19.5 = 58.5px で文の行が始まり、16px の字が 90px の中に収まる。実測では 1440×900 で文の行が約 72px から） */
-.heroPanel .ui[data-ui] { padding-top: 8px; }
+/* 覗き（上 90〜120px）に、見出し・【見立て】・実際に書かれた文の最初の行を入れる */
+.heroPanel .ui[data-ui] { padding-top: 8px; background: var(--card); }
+@media (min-width: 1200px) {
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 620px) 440px;
+    gap: 44px;
+    align-items: start;
+    padding-top: 72px;
+  }
+  /* 2列では画面の高さ（100svh）を基準にしない */
+  .heroTop { min-height: 0; padding-top: 0; }
+  .heroCol { margin-left: 0; }
+  .heroAside { margin-left: 0; transform: translateY(48px); }
+}
+/* 768px 以上（実演パネルの幅が 440px に決まる幅）: 白い面は表示中の層の高さに合わせる。
+   3つの層は同じマスに重ねているので、そのままでは面の高さがいちばん高い層（入力欄・約 559px）に揃い、
+   短い「記録」の層（約 316px）を出している間は面の下半分が白く空く（影を付けた面なので「未完成の面」に見える）。
+   表示していない層を流れから外し（position: absolute）、面が表示中の層に縮むようにする。
+   層が切り替わるたびに下の節がずれない（CLS を出さない）よう、外側の .heroAside に入力欄の層ぶんの高さを確保する。
+   入れ替わりの間、消えていく層は面の上に重なったまま 1.6 秒で薄れる。DemoPanel.tsx には触らない（2026-10-25） */
+@media (min-width: 768px) {
+  .heroAside { min-height: 600px; }
+  .heroPanel .stack { position: relative; }
+  .heroPanel .layer:not([data-on]) {
+    position: absolute;
+    top: 8px;    /* .heroPanel .ui[data-ui] の padding-top */
+    left: 20px;  /* .ui[data-ui] の padding */
+    right: 20px;
+  }
+}
 
-/* ── 操作部（ボタンの形は1種類・角丸は1種類）──────────────────────────────── */
+/* ── 操作部（ボタンの形は1種類）──────────────────────────────────────────── */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 0 18px;
+  min-height: 48px;
+  padding: 0 24px;
   border-radius: var(--radius);
   background: var(--brand);
   color: var(--on-brand);
-  font-size: var(--step-small);
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
   line-height: 1;
   text-decoration: none;
   transition: background-color var(--t-hover) ease, transform var(--t-press) var(--ease-out);
@@ -126,7 +183,8 @@
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  font-size: var(--step-small);
+  font-size: 16px;
+  line-height: 1.5;
   color: var(--ink);
   text-decoration: underline;
   text-decoration-color: transparent;
@@ -145,103 +203,81 @@
   outline-offset: 2px;
 }
 
-/* ── 節（見出し・本文）─────────────────────────────────────────────────────── */
+/* ── 4段の節（<ol>。番号の文字は出さない）─────────────────────────────────── */
+.stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .section { margin-top: var(--gap-section); }
-.h2 {
-  margin: 0;
-  font-size: var(--step-head);
-  font-weight: 500;
-  line-height: 1.25;
-  letter-spacing: 0;
-  text-wrap: balance;
-  hyphens: none;
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  margin-left: var(--anchor);
 }
-.h3 {
-  margin: 0;
+.stageText { min-width: 0; max-width: var(--col-text); }
+.stageBody { min-width: 0; max-width: var(--col-wide); }
+.lead {
+  margin: 16px 0 0;
   font-size: var(--step-lead);
-  font-weight: 500;
-  line-height: 1.35;
-  text-wrap: balance;
-  hyphens: none;
-}
-.body {
-  margin: 12px 0 0;
-  max-width: 42ch;
+  line-height: 1.6;
   color: var(--ink);
   text-wrap: pretty;
 }
+.body {
+  margin: 16px 0 0;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.fixedNote {
+  margin: 12px 0 0;
+  font-size: var(--step-body);
+  line-height: 1.8;
+  color: var(--ink);
+}
+.more { margin: 12px 0 0; }
 .soft { color: var(--ink-2); }
 .small {
   font-size: var(--step-small);
-  line-height: 1.5;
+  line-height: 1.7;
 }
-.measure { max-width: 560px; }
-.narrow { max-width: 42rem; }
-
-/* 節1: 与えたものと、返ってくるもの（設計図 §7-1）。3つのやりとり・88px 間隔 */
-.exchanges {
-  list-style: none;
-  margin: 56px 0 0;
-  padding: 0;
-}
-.exchange + .exchange { margin-top: 88px; }
 .call {
-  margin-top: 16px;
+  margin-top: 20px;
   padding: 20px;
   border-radius: var(--radius);
   background: var(--panel);
 }
 .call p { margin: 0; }
 .call p + p { margin-top: 0.6em; }
-.response {
-  margin-top: 24px;
-  margin-left: var(--indent);
-}
-.wide { width: min(760px, calc(100% - var(--indent))); }
-.note { margin: 16px 0 0; max-width: 42ch; color: var(--ink-2); text-wrap: pretty; }
+.note { margin: 16px 0 0; max-width: var(--col-text); color: var(--ink-2); text-wrap: pretty; }
 
-/* 節2: 同じ1件を、3つの状態で（設計図 §7-2）。左の列に状態の語、右に 640px の複製 */
-.showcase {
-  list-style: none;
-  margin: 96px 0 0;
-  padding: 0;
+/* 「書く」節（心臓）だけの淡い青緑の面。<main> の内側いっぱい。面の上は --ink／--ink-2 だけ（--brand の文字を置かない） */
+.wash {
+  margin-left: 0;
+  padding: 20px;
+  border-radius: var(--radius-face);
+  background: var(--wash);
 }
-.copy {
-  display: grid;
-  grid-template-columns: minmax(0, 640px);
-  gap: 10px 24px;
-}
-.copy + .copy { margin-top: 48px; }
-.stateWord {
-  order: 2; /* スマホでは複製の下（設計図 §7-2 の phone） */
-  margin: 0;
-  font-size: var(--step-body);
-  line-height: 1.3;
-  color: var(--ink-2);
-}
+.wash .call { background: var(--card); }
 @media (min-width: 768px) {
-  .copy { margin-left: var(--anchor); } /* 左の列が狭い幅では複製を軸に乗せ、語は複製の下 */
-  .copy + .copy { margin-top: 56px; }
+  .wash { padding: 40px; }
 }
 @media (min-width: 1200px) {
-  .copy {
-    margin-left: 0;
-    grid-template-columns: calc(var(--anchor) - 24px) minmax(0, 640px);
+  .stage {
+    grid-template-columns: minmax(0, 440px) minmax(0, 600px);
+    column-gap: 64px;
     align-items: start;
   }
-  .stateWord {
-    order: 0;
-    grid-column: 1;
-    grid-row: 1;
-    text-align: right;
-    font-size: var(--step-lead);
-    padding-top: 20px; /* 複製の最初の行と水平にそろえる（断片の内側の余白 20px） */
-  }
-  .copyBody { grid-column: 2; grid-row: 1; }
+  .stageText { grid-column: 1; }
+  .stageBody { grid-column: 2; }
+  /* 実例2件は2列ぶんの幅（文の下・左から） */
+  .span { grid-column: 1 / -1; max-width: none; }
+  /* 面の内側は 1104 − 40 × 2 = 1024px */
+  .wash { grid-template-columns: minmax(0, 400px) minmax(0, 560px); }
 }
 
-/* 節3: ふつうの一文と、1つの動作（設計図 §7-3）。上下に決めた空白。
-   設計図は 30svh／20svh だが、inspect.mjs の「ほぼ空の画面は1ページに1つ（ヒーローの休み）まで」と両立する値（18svh／12svh）にした */
+/* 締め: ふつうの一文と、1つの動作。上下に決めた空白 */
 .cta {
   margin-left: var(--anchor);
   padding-top: 18svh;
@@ -252,7 +288,7 @@
   max-width: 34ch;
   font-size: var(--step-lead);
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.6;
   color: var(--ink);
 }
 .ctaActions {
@@ -263,10 +299,8 @@
   margin-top: 24px;
 }
 .disclaimer { margin-left: var(--anchor); max-width: 560px; }
-/* 軸に乗せる。見出し・注記の margin 指定より後に書く（上書きの順序） */
-.axis { margin-left: var(--anchor); }
 
-/* ── 動き（スキル step 9）──────────────────────────────────────────────────── */
+/* ── 動き（最初の1画面の入場だけ）──────────────────────────────────────────── */
 /* 読み込み時の入場（ヒーローの4つ）: 下から 18px 上がりながら不透明に。backwards で遅延の間も隠れない */
 @keyframes rise {
   from { opacity: 0; transform: translateY(18px); }
@@ -277,18 +311,9 @@
     animation: rise 800ms var(--ease-out) backwards;
     animation-delay: calc(var(--i, 0) * 90ms + 120ms);
   }
-  /* 節に入ったときの入場。隠した状態は JS が data-motion="on" を付けたあとだけ（script が無ければ全部見える） */
-  .page[data-motion="on"] [data-reveal]:not([data-in]) {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  .page [data-reveal] {
-    transition: opacity var(--t-reveal) var(--ease-out), transform 800ms var(--ease-out);
-    transition-delay: calc(var(--i, 0) * 80ms);
-  }
 }
 
-/* ── 実演パネルの3つの状態（設計図 §8「Slow crossfade」の翻訳）────────────── */
+/* ── 実演パネルの3つの状態（ゆっくり入れ替わる）────────────────────────────── */
 .stack {
   display: grid;
 }
@@ -314,7 +339,7 @@
 .ui[data-ui] {
   box-sizing: border-box;
   padding: 20px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-face);
   background: var(--panel);
   color: var(--ink);
   font-size: 16px;
@@ -353,7 +378,7 @@
 }
 .ui[data-ui] .textarea::placeholder { color: var(--muted); }
 .ui[data-ui] .textarea:focus { outline: none; border-color: var(--brand); }
-.ui[data-ui] .textarea[data-pointer] { border-color: var(--brand); } /* 「1つは選択中」の見え方（設計図 §5） */
+.ui[data-ui] .textarea[data-pointer] { border-color: var(--brand); } /* 「1つは選択中」の見え方 */
 .ui[data-ui] .submit {
   display: flex;
   align-items: center;
@@ -425,6 +450,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 学ぶ節の数字（lib/lab/9983.ts の Sourced）。色を付けない・桁をそろえる・出典と時点は 13px の --muted */
+.ui[data-ui] .figures { margin: 0; }
+.ui[data-ui] .figures > div + div { margin-top: 20px; }
+.ui[data-ui] .figure {
+  margin: 2px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 左右に並べる（くらべる） */
 .ui[data-ui] .pair {
   display: grid;
@@ -450,7 +487,7 @@
   overflow-wrap: anywhere;
 }
 
-/* 20営業日後（読み返す）: 文の下に株価の線が入る場所 */
+/* N営業日後（読み返す）: 文の下に株価の線が入る場所 */
 .ui[data-ui] .lineSlot {
   margin-top: 12px;
   padding: 16px;
@@ -481,7 +518,7 @@
 /* 実例2件（components/AnswerCheckCard.tsx）は地の上に置く部品なので、断片の面の上では白い紙にする */
 .ui[data-ui] .twoUp > article { background: var(--card); }
 
-/* 複製の中の小さな実ボタン（節2 の真ん中の1つ）。製品の副ボタンの形 */
+/* 振り返り節の小さな実ボタン（押すと読み返しの形に変わる）。製品の副ボタンの形 */
 .ui[data-ui] .uiButton {
   display: inline-flex;
   align-items: center;

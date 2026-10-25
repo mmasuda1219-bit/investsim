@@ -332,10 +332,13 @@ function routeChecks() {
   check("page: 'use client' のまま", /^'use client'/.test(page))
   check('page: 旧の --surface の地の塗り（shadow-[0_0_0_100vmax_var(--surface)]）を持たない', !page.includes('var(--surface)]') && !page.includes('shadow-[0_0_0_100vmax_var(--surface)]'))
   // 2026-09-29 S2「プレゼン型ホーム」の目印（詳細は scripts/check-entry.ts・check-answer-examples.ts）。L1 では page.tsx に触らない（構成の作り直しは L2）
-  // L2（2026-10-14）の目印。構成の詳細は scripts/check-entry.ts（27px・2行の見出し・順序の語・3つの状態・ハウスルール）
-  check('page: 中身の目印（27px の見出し「買う理由を書いて、残す。」・主ボタン /trade「1件目のメモを書く」・「与えて、返ってくる」・「同じ1件が、こう変わる」・AIの実例の選び方・共通部品の免責）',
+  // 2026-10-25（Steep の様式で作る investsim 版）の目印。構成の詳細は scripts/check-entry.ts（明朝の2行の見出し・4段・見た目の値・法務）
+  check('page: 中身の目印（見出し「買う理由を書いて、残す。」・主ボタン /trade「1件目のメモを書く」・4段の data-stage（study／compare／write／review）と見出し labelOf・AIの実例の選び方・共通部品の免責）',
     page.includes('買う理由を書いて、残す。') && page.includes('1件目のメモを書く') && page.includes('href="/trade"')
-      && page.includes('与えて、返ってくる') && page.includes('同じ1件が、こう変わる') && page.includes('判断日が古い順に、値上がりした例と値下がりした例を1件ずつ。') && page.includes('<Disclaimer part="general" />')
+      && ['study', 'compare', 'write', 'review'].every(k => page.includes(`data-stage="${k}"`))
+      && ['/study', '/learn', '/trade', '/review'].every(h => page.includes(`{labelOf('${h}')}</h2>`))
+      && page.includes('判断日が古い順に、値上がりした例と値下がりした例を1件ずつ。') && page.includes('<Disclaimer part="general" />')
+      && !page.includes('与えて、返ってくる') && !page.includes('同じ1件が、こう変わる')
       && !page.includes('株を売り買いする前に、その理由を書いて残す場所です。') && !page.includes('このサイトは、3つの画面でできています'))
   const rootLayout = stripTsComments(read('app/layout.tsx'))
   check("app/layout.tsx: root の viewport は明るい地（themeColor '#F6F8FB'・colorScheme 'light'）", rootLayout.includes("themeColor: '#F6F8FB'") && rootLayout.includes("colorScheme: 'light'"))

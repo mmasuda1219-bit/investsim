@@ -1,3 +1,7 @@
+// ホームの h1・h2 だけに使う和文明朝（2026-10-25 Steep 版・DECISIONS.md 同日）。セルフホスト・unicode-range で使った字の分だけ通信する。
+// 読み込みはこの1行だけ（app/layout.tsx には足さない＝他の画面は明朝を読まない）。書体名は 'Noto Serif JP Variable'（components/entry/home.module.css の --font-display）
+import '@fontsource-variable/noto-serif-jp'
+
 /**
  * トップページのルートグループのレイアウト（S1a・2026-09-25 新設、SV1a・2026-09-25 で縮小、L2・2026-10-14 でにじみを撤去）。
  *

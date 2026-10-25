@@ -2,6 +2,16 @@
 
 非自明な設計判断・修正はここに1エントリずつ追記する。フォーマットは `.claude/skills/decision-log/SKILL.md` を参照。
 
+## 2026-10-25: ホームを Steep の様式で作る investsim 版にする。ホームの正を quiet-instrument から本項に替え、2026-10-14 の (2)⑥の一部と「正は quiet-instrument」を覆す
+
+- 背景: オーナーが Steep（steep.app）の様式の抽出物を渡し「これをもとにサイトのホームを、私のサイト版で」（2026-10-24）。いまのホームは4段のうち「学ぶ」を持たず3節・見出しはどの幅でも27px・CompareView が2回・スクロールで現れる演出が DESIGN §5-6 に反していた。designer の設計と architect の計画を経て、オーナーが分岐を推奨の組で承認（2026-10-25）し、手元で見て「先に本番に出す」と決定
+- 決定: 範囲はホーム（app/(night)/page.tsx）だけ。節は ヒーロー → 学ぶ → くらべる → 書く → 振り返り → 締め → 免責 の7つ（4段は <ol>・番号の文字なし・見出しは labelOf(href)・主張は hintOf(href)）。アクセントは青緑を残し、淡い青緑 --wash の面を「書く」節の1か所だけ。見出しは h1 と段の h2 だけ Noto Serif JP Variable（セルフホスト・import は app/(night)/layout.tsx の1行だけ・h1 は 28/44/52px で 768px 以上 400、h2 は 26/36px で 500）。角丸は面16・ボタン12・ピルなし。影はヒーローの実演パネル1つだけ（shadow-float クラス。var(--shadow-float) は @theme inline の生値で効かない）。実演パネルの白い面は表示中の層の高さに縮め、768px 以上は外側に 600px を確保して層の切り替えで下の節がずれないようにする。学ぶ節は純利益の前期比と発表翌営業日の前日比を lib/lab/9983.ts の Sourced から出典・時点つきで出し、SHOW_LAB_9983=false なら節ごと出さない。題材の1行は「純利益が増えたと発表された翌営業日に、株価は下がりました。なぜでしょう。」（評価語を使わない事実の版）。1社固定の断り FIXED_COMPANY_NOTE は数字より上に無条件・17px・--ink。スクロールの入場（useReveal）は外し、入場はヒーローの4要素だけ。FIXED_COMPANY_NOTE は lib/lab/fixed-note.ts に移し（app/study/client.tsx は再輸出）、ホームに /study の画面本体が入らないようにした（/ の JS は gzip で +33KB → +8.5KB）
+- 覆すもの: 2026-10-14 決定(2)⑥のうち「影を置かない」（1か所だけ許す）／同日の「正は design-taste-frontend の quiet-instrument」／quiet-instrument 固有の「見出しはどの幅でも大きくしない（27px）」と節の入場。維持: (1) ホームだけ、(2)①〜⑤・⑦（見出しは2行以内）、(3)(4)(5)。段の呼び名を h2 にすることは check-headings 規則6（見出しの上に置く小さな段ラベルの禁止）の趣旨の外とする
+- 却下: 桃色＋焦げ茶（ナビの現在地の青緑と2色になる。青緑を桃色に置くと4.40で不可）／角丸24とピル（2026-10-12 で却下済み・§6-3 札とボタンが同形になる）／90px の見出し／明朝の斜体・太字／全幅の帯／明朝を app/layout.tsx に入れる／FIXED_COMPANY_NOTE を app/study/client.tsx から import（/study の画面本体がホームの JS に入る）／題材の1行「数字が良いのに」（評価語）
+- 不変条件: :root の22トークンと @theme inline は変えない（ホームの値は home.module.css の .page の局所変数）／法務の定数（DISCLAIMER_TEXT・NOTE_AI・PICK_NOTE・EMPTY_LINE・ERROR_LINE・「売買で実際のお金は1円も動きません。」・出所と時点の行・FIXED_COMPANY_NOTE）は一字も変えず・畳まず・薄めず・13px以上／AI の記録を出す節それぞれで断片より後に NOTE_AI／学ぶ節の数字は直書きしない・色で上げ下げを示さない／主ボタンの行き先は /trade 固定・全員に同じ並び。目的: 入口の見た目を変えても、助言性・誤認を避ける線と実データの原則を1つも緩めないため
+- 影響: app/(night)/page.tsx・app/(night)/layout.tsx・components/entry/home.module.css・components/entry/useReveal.ts（削除）・lib/lab/fixed-note.ts（新規）・app/study/client.tsx（再輸出）・scripts/check-entry.ts（212件）・scripts/check-theme.ts・scripts/check-lab-9983.ts・DESIGN.md §3・§5-2・§5-4・§5-5・§10-00・§11-14〜16・package.json
+- 未決: lib/lab/9983.ts・display.ts の分割で / の JS をさらに減らすか（+8.5KB）／1440px でヒーローの下の約300px の余白／AnswerCheckCard のチャートを designer の仕様に揃えるか／360px での実機確認と明朝の読み込み前後の CLS（qa）／ホームや SNS に「割安」「買い場」「過剰反応」を書かない申し送り（legal → cmo・content-creator）／.taste-skill/ が git 管理外のままでよいか
+
 ## 2026-10-25: 振り返りの一覧に「書いたことと、したことのまとめ（売り終えた◯件から）」を足す（S-H1・規則だけ・株価と損益を読まない）
 
 - 背景: オーナー「AI での分析の強化。振り返りで出せるレポート。書くで書いた内容を基にした癖の分析」（2026-10-24）。strategist（クセの一覧 K1〜K12・AI の役割）・legal-compliance（横断しても C-2 は条件付きで保てる。保有中の記録に線の到達を出すのは critical・損益で分けるのは critical・件数で書き%にしない・呼び名は「評価」「分析」「診断」を避ける）・architect（型・データ・検査・スライス）の3報告を MC が1つにまとめ、ゲート①でオーナーが決定（2026-10-25）: 第1本は一覧のまとめ／呼び名「書いたことと、したことのまとめ」／/privacy・/terms を先に別の縦切りで作る／「AI の強化」は振り返りの中の AI。参考 HKUDS/Vibe-Trading の行動診断（KNOWLEDGE.md 2026-10-24）は損益で勝ち負けを分けて測るので、追いかけ買い・アンカリングを本人の買値の並びで測る考え方だけを取り込む（S-H3）

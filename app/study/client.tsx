@@ -17,6 +17,7 @@ import { composeCritique, type Critique } from '@/lib/lab/critique/compose'
 import { GLOSSARY_EXTRA } from '@/lib/lab/glossary-extra'
 import { EMPTY_MEMO, type LabMemo } from '@/lib/lab/memo-fields'
 import { formatYen } from '@/lib/lab/money'
+import { FIXED_COMPANY_NOTE } from '@/lib/lab/fixed-note'
 
 /**
  * /study「学ぶ」の中身（2026-10-09 S-A に /lab/9983 として作り、2026-10-19 S-L1a で公開）。
@@ -37,8 +38,7 @@ import { formatYen } from '@/lib/lab/money'
 /** 段ラベル（番号なし。並びと呼び名の正は components/SiteNav.tsx の NAV） */
 export const PAGE_KICKER = '学ぶ'
 export const PAGE_LEAD = '決算の数字を見て、つながりをたどり、判断メモを書き、添削を読む。1社の実データで、その流れを1本通します。'
-/** 1社固定の断り。h1 の直下に無条件で出す（文言はオーナー決定 2026-10-19。社名と証券コードは data から） */
-export const FIXED_COMPANY_NOTE = `練習用に1社（${LAB_9983.company.name}・${LAB_9983.company.code}）を固定しています。この会社を勧めるものではありません。他の銘柄を選ぶ機能はまだありません。`
+export { FIXED_COMPANY_NOTE } from '@/lib/lab/fixed-note'
 /** 添削に AI を使っていないことの表示（公開後も残す） */
 export const NO_AI_NOTE = '添削は決まった規則で組み立てます。AI は使っていません。'
 export const WHEN_TITLE = 'いつ見るか'

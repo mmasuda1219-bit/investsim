@@ -862,7 +862,8 @@ console.log('■ (e) 【公開】sitemap に /study がある・noindex が無�
    *  app/sitemap.ts は「リンク」ではなく公開の一覧なので、上で別に見ている（ここでは数えない）。
    *  **両向きに見る**: 許していない所からリンクしていないこと（stray）と、許した入口が**実際に**リンクしていること
    *  （missing）。後者が無いと「入口を消したのに検査が気づかない」＝公開したのに誰も到達できない状態を通してしまう */
-  const ALLOWED_LINKERS: readonly string[] = ['components/SiteNav.tsx']
+  // 2026-10-25: ホームの「学ぶ」の節（{SHOW_LAB_9983 && ( の内側・「学ぶを開く →」）を入口に足した（scripts/check-entry.ts が内側にあることを見る）
+  const ALLOWED_LINKERS: readonly string[] = ['components/SiteNav.tsx', 'app/(night)/page.tsx']
   const linkers: string[] = []
   for (const f of [...walk('app'), ...walk('components')]) {
     if (f.startsWith('app/study/') || f === 'app/sitemap.ts') continue
@@ -892,8 +893,11 @@ console.log('■ (t) 【公開】1社固定の断り・数字の時点・銘柄�
   const text = textOf(html)
 
   // 1社固定の断り: h1 の直下・無条件・リードと同じ大きさ（畳まない・薄くしない）
-  check('client.tsx: 1社固定の断り（FIXED_COMPANY_NOTE）の社名と証券コードは data から引く（手で書かない）',
-    src.includes('${LAB_9983.company.name}') && src.includes('${LAB_9983.company.code}')
+  // 2026-10-25: 定数は lib/lab/fixed-note.ts に移した（ホームも同じ定数を読む。client.tsx はそこから import して再輸出する）
+  const noteSrc = stripComments(read('lib/lab/fixed-note.ts'))
+  check('lib/lab/fixed-note.ts: 1社固定の断り（FIXED_COMPANY_NOTE）の社名と証券コードは data から引く（手で書かない）・client.tsx はそこから import して使う',
+    noteSrc.includes('${LAB_9983.company.name}') && noteSrc.includes('${LAB_9983.company.code}')
+    && src.includes("import { FIXED_COMPANY_NOTE } from '@/lib/lab/fixed-note'") && !src.includes('export const FIXED_COMPANY_NOTE')
     && FIXED_COMPANY_NOTE.includes(LAB_9983.company.name) && FIXED_COMPANY_NOTE.includes(LAB_9983.company.code))
   check('描画結果に1社固定の断りがある（「この会社を勧めるものではありません」「他の銘柄を選ぶ機能はまだありません」を含む）',
     text.includes(FIXED_COMPANY_NOTE) && FIXED_COMPANY_NOTE.includes('この会社を勧めるものではありません') && FIXED_COMPANY_NOTE.includes('他の銘柄を選ぶ機能はまだありません'))

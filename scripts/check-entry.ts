@@ -1,8 +1,11 @@
-// トップページ（入口画面）の検査。L2「静かな楽器」（2026-10-14・DECISIONS.md 同日「ホーム（L2）は design-taste-frontend スキルの規則を優先する」）で全面的に建て直した。
+// トップページ（入口画面）の検査。L2「静かな楽器」（2026-10-14）で建て直し、2026-10-25 に Steep の様式で作る investsim 版
+// （DECISIONS.md 同日。ホームの正を quiet-instrument から替えた）に合わせて書き換えた。
 //   $env:PATH = "C:\Program Files\nodejs;$env:PATH"; npx tsx scripts/check-entry.ts
 //
-// 法務の条件（legal-compliance 2026-09-25 (G)・2026-09-28 論点5〜7・2026-09-29）と、スキルのハウスルール（1px の線・枠・グラデーション・
-// 休んでいるものへの影・番号・小さな上書きラベルを使わない。本文 17px・13px 未満を作らない）を機械で見る。
+// 法務の条件（legal-compliance 2026-09-25 (G)・2026-09-28 論点5〜7・2026-09-29）と、ホームの見た目の規則（1px の線・枠・グラデーション・
+// すりガラス・番号・小さな上書きラベルを使わない。影は実演パネルの1か所だけ。本文 17px・13px 未満を作らない）を機械で見る。
+// **法務の行は 2026-10-25 の書き換えでも一字も緩めていない**（免責・畳まない・薄めない・13px 未満禁止・書かない語・AI推論なし・
+// 1円も動きません・騰落率なし・/stocks/ なし・全員同じ・読み口・フッター）。文言を固定した行は、読む範囲（between）だけ新しい節へ移した。
 // PASS の合計は S2 出荷時（150件）を下回らない（2026-09-28 の不変条件「検査の合計件数は…下回らない」を引き継ぐ）。
 //
 // 見るもの:
@@ -10,20 +13,24 @@
 //  - 画面に使わない語: 見本／お手本／模範／正解例／自動売買／的中／当たった／外れた／正解率、および単独の「答え合わせ」。
 //    従来の リスクゼロ／うまくなる／上手くなる／おすすめ／買い時／売り時／無料／今日、名人／投資家、R6・R9・R12 の語。
 //    AI 出力向けの禁止語（FORBIDDEN_IN_OUTPUT）も画面の文言に無い（注記の打消し「推奨するものではありません」だけ例外）
-//  - ヒーロー: 27px・2行の見出し（どの幅でも大きくしない）・支えの1文・主ボタン /trade・文字リンク /review/backfill・騰落率を置かない（R3）
+//  - ヒーロー: 明朝・2行の見出し（28/44/52px）・支えの1文・主ボタン /trade・文字リンク /review/backfill・騰落率を置かない（R3）・
+//    1200px 以上は左に文・右に実演パネル（影はこの1か所だけ＝shadow-float クラス）
 //  - 実演パネル（components/entry/DemoPanel.tsx）: reason.ts の問い・3つの状態の移り変わり（1.6秒／5.5秒）・触ると止まる・
 //    タブが隠れたら止める・「動きを減らす」で動かさない・保存も送信もしない
-//  - 節1「与えて、返ってくる」: 順序の語（まず／つぎに／そして）・番号なし・記録された1件／左右に並べる／実例2件（AnswerCheckCard ×2）
-//  - 節2「同じ1件が、こう変わる」: 3つの状態（書いた日／その直後／N営業日後）・真ん middle の1つは押すと3つ目に変わる・線は架空で引かない
-//  - 節3: ふつうの一文と1つの動作（見出しの大きさの文字を出さない）
+//  - 4段（<ol>・番号の文字なし・data-stage が study → compare → write → review）。見出しは labelOf(href)・主張は hintOf(href)
+//    学ぶ: {SHOW_LAB_9983 && ( の内側・1社固定の断り（FIXED_COMPANY_NOTE を import）・数字は lib/lab/9983.ts の Sourced から出典と時点つき
+//    くらべる: 左右に並べる断片（ここで1回だけ）・「ちがい」・注記（C）
+//    書く: この節だけ --wash の面・--brand の文字を置かない
+//    振り返り: 押すと読み返しの形に変わる1件・AIの実例2件（AnswerCheckCard）・選び方の1文・注記（C）
+//  - 締め: ふつうの一文と1つの動作
 //  - 「全員に同じものを同じ順で」: localStorage／sessionStorage／document.cookie／useSearchParams が無く、fetch は /api/entry/examples の1本
 //  - 読み口 app/api/entry/examples/route.ts の外形（S2 から変えない）
-//  - ハウスルール: にじみ（radial-gradient）撤去・影なし・線なし（data-ui の内側を除く）・角丸1種類・文字段階5つ・色はトークンだけ・
-//    動きは transform と opacity だけ・opacity:0 で待たせない・infinite なし
+//  - 見た目: 明朝は h1・h2 だけ（400／500・斜体なし・import は app/(night)/layout.tsx の1行）・角丸 12／16 の2種・色はトークンだけ・
+//    --wash と --panel の上の文字のコントラスト（color-mix を手計算）・動きは最初の1画面の入場だけ（スクロールの入場なし）・infinite なし
 //  - フッターの枠（R10）・SITE_DESC・lib/entry/samples.ts の関数を実際に呼ぶ
 //
 // 実ネットワーク不要。ファイルを読むだけ。選び方の純関数の検査は scripts/check-answer-examples.ts。
-// 見た目の実測（27px・2行・本文 17px・線・影・動いた要素数）は design-taste-frontend の inspect.mjs（実機ブラウザ）が担う。
+// 見た目の実測（2行・本文 17px・線・影・動いた要素数）は taste-skill の inspect.mjs（実機ブラウザ）が担う。
 
 import fs from 'fs'
 import path from 'path'
@@ -32,6 +39,10 @@ import { FORBIDDEN_IN_OUTPUT, forbiddenWordsIn } from '../lib/investors/rulebook
 import { firstSentence, isFullyShowable, isShowable, isTextShowable, pickSamples, type SampleDecision } from '../lib/entry/samples'
 import { fieldsFor } from '../lib/trade/reason'
 import { MIN_ELAPSED_BUSINESS_DAYS } from '../lib/entry/answer-examples'
+import { LAB_9983, fyLabel } from '../lib/lab/9983'
+import { FIXED_COMPANY_NOTE } from '../lib/lab/fixed-note'
+import { formatSignedPercent } from '../lib/lab/money'
+import { signWord } from '../lib/lab/display'
 
 let passed = 0
 let failed = 0
@@ -90,6 +101,25 @@ function cssBlocks(css: string): { selector: string; body: string }[] {
   }
   return out
 }
+/** `<div data-ui` で始まる要素の中身（対応する </div> まで）を全部返す。断片が見出しを包んでいないかを見るため */
+function dataUiElements(src: string): string[] {
+  const out: string[] = []
+  let from = 0
+  for (;;) {
+    const start = src.indexOf('<div data-ui', from)
+    if (start < 0) break
+    let depth = 0
+    let i = start
+    while (i < src.length) {
+      if (src.startsWith('<div', i) && /[\s>]/.test(src[i + 4] ?? '')) { depth++; i += 4; continue }
+      if (src.startsWith('</div>', i)) { depth--; i += 6; if (depth === 0) break; continue }
+      i++
+    }
+    out.push(src.slice(start, i))
+    from = start + 1
+  }
+  return out
+}
 
 const pageRaw = read('app/(night)/page.tsx')
 const page = stripComments(pageRaw)
@@ -99,7 +129,6 @@ const css = read('app/globals.css').replace(/\/\*[\s\S]*?\*\//g, '')
 const homeCss = read('components/entry/home.module.css').replace(/\/\*[\s\S]*?\*\//g, '')
 const fragments = stripComments(read('components/entry/fragments.tsx'))
 const demo = stripComments(read('components/entry/DemoPanel.tsx'))
-const reveal = stripComments(read('components/entry/useReveal.ts'))
 const disclaimer = stripComments(read('components/ui/Disclaimer.tsx'))
 const samplesSrc = stripComments(read('lib/entry/samples.ts'))
 const card = stripComments(read('components/AnswerCheckCard.tsx'))
@@ -118,18 +147,28 @@ function navLabel(href: string): string {
   if (!m) throw new Error(`navLabel: ${href} が NAV に無い`)
   return m[1]
 }
+/** 段の説明文（hint）も NAV から読む（navLabel と同じ理由で import しない） */
+function navHint(href: string): string {
+  const src = stripComments(read('components/SiteNav.tsx'))
+  const body = src.slice(src.indexOf('export const NAV = ['), src.indexOf('] as const'))
+  const m = new RegExp(`\\{ href: '${href}',\\s+label: '[^']+',\\s+hint: '([^']+)'`).exec(body)
+  if (!m) throw new Error(`navHint: ${href} が NAV に無い`)
+  return m[1]
+}
 const PICK_NOTE = '判断日が古い順に、値上がりした例と値下がりした例を1件ずつ。成績のよい判断を選んでいるのではありません。'
 const LINE_NOTE = '画面の例です。線は実際の株価から引き、無いときは出しません。'
 
 // 節の切り出し（page の JSX の目印で区切る）
 const hero = between(page, 'data-section="hero"', '</section>')
-const how = between(page, 'data-section="how"', '</section>')
-const states = between(page, 'data-section="states"', '</section>')
 const closing = between(page, 'data-section="closing"', '</section>')
-const exWrite = between(how, 'data-exchange="write"', '</li>')
-const exCompare = between(how, 'data-exchange="compare"', '</li>')
-const exWait = between(how, 'data-exchange="wait"', '</li>')
-const entry = fragments + '\n' + demo + '\n' + reveal
+const stagesList = between(page, '<ol className={s.stages}', '</ol>')
+const stStudy = between(page, 'data-stage="study"', '</li>')
+const stCompare = between(page, 'data-stage="compare"', '</li>')
+const stWrite = between(page, 'data-stage="write"', '</li>')
+const stReview = between(page, 'data-stage="review"', '</li>')
+/** 段の鍵 → 路（見出しと主張は路から引く） */
+const STAGES = [['study', '/study', stStudy], ['compare', '/learn', stCompare], ['write', '/trade', stWrite], ['review', '/review', stReview]] as const
+const entry = fragments + '\n' + demo
 const screen = page + '\n' + layout + '\n' + entry + '\n' + card
 const homeCssBlocks = cssBlocks(homeCss)
 
@@ -144,7 +183,7 @@ check('トップ・layout・断片: 「投資助言・代理業には該当し�
 check('トップ: 旧の手書き免責「InvestSim は投資判断を練習するためのシミュレーターです」が無い', !screen.includes('InvestSim は投資判断を練習するためのシミュレーターです'))
 check('トップ・layout・断片・カード: <details> を使わない（免責・注記を畳まない＝R7）', !screen.includes('<details'))
 check('トップ・断片・カード: 注記・免責に opacity を足していない（R7）', !/opacity-\d|opacity:/.test(page + entry) && !/opacity-\d|opacity:/.test(card))
-check('home.module.css: opacity は 0 と 1 だけ（動きの始点・終点。注記を薄めるための小数の opacity が無い）', !/opacity:\s*0\.\d/.test(homeCss) && count(homeCss, 'opacity: 0;') >= 2 && count(homeCss, 'opacity: 1;') >= 2)
+check('home.module.css: opacity は 0 と 1 だけ（動きの始点・終点。注記を薄めるための小数の opacity が無い）', !/opacity:\s*0\.\d/.test(homeCss) && count(homeCss, 'opacity: 0;') >= 1 && count(homeCss, 'opacity: 1;') >= 1)
 check('トップ・断片: 13px 未満の文字を作らない（text-caption・text-[1?px] を使わない。断片の内側も 13px 以上）', !/text-caption|text-\[(?:[0-9]|1[0-2])px\]/.test(page + entry) && !/font-size:\s*(?:[0-9]|1[0-2])px/.test(homeCss))
 check('断片: 注記は --muted か --ink-2 の 13px 以上（.uiNote 14px・.dt/.meta 13px）', /\.ui\[data-ui\] \.uiNote \{[^}]*font-size: 14px/.test(homeCss) && /\.ui\[data-ui\] \.meta \{[^}]*font-size: 13px/.test(homeCss))
 
@@ -167,40 +206,65 @@ check('トップ・layout・断片・カード: 急かす語（今だけ／先�
 check('トップ・断片: 採点の語（採点／点数／合格／診断／アドバイス／助言／相談）が無い（良し悪しを判定しない）', !/採点|点数|合格|診断|アドバイス|助言|相談/.test(page + entry))
 {
   // AI 出力向けの禁止語も画面の文言に無い。注記の打消し（「推奨するものではありません」）だけ例外
-  const copy = (page + '\n' + entry + '\n' + card).split('推奨するものではありません').join('')
+  // 2026-10-25: 学ぶ節で描画される文字列（1社固定の断り・hintOf('/study')・出典の文字・期の呼び名）も照合する（page の中では式なので文字列に出てこない）
+  const studyRendered = [FIXED_COMPANY_NOTE, navHint('/study'), LAB_9983.netProfit.yoy?.source.label ?? '', LAB_9983.price.changePct.source.label, fyLabel(LAB_9983.company.latestFy)].join('\n')
+  const copy = (page + '\n' + entry + '\n' + card + '\n' + studyRendered).split('推奨するものではありません').join('')
   const hits = forbiddenWordsIn(copy, FORBIDDEN_IN_OUTPUT)
-  check('トップ・断片・カード: FORBIDDEN_IN_OUTPUT の語が画面の文言に無い（打消しの注記を除く）', hits.length === 0, hits.join(' / '))
+  check('トップ・断片・カード・学ぶ節の描画文字列（FIXED_COMPANY_NOTE・hintOf(/study)・出典）: FORBIDDEN_IN_OUTPUT の語が画面の文言に無い（打消しの注記を除く）', hits.length === 0 && studyRendered.includes('この会社を勧めるものではありません'), hits.join(' / '))
 }
 check('トップ・断片: AI推論を走らせない（/api/ai-session/[id]/tick・/api/analyze を呼ばない）', !/\/tick|\/api\/analyze|anthropic/i.test(page + entry))
 check('架空の判断・銘柄を書いていない（AAPL 等のティッカーの直書きがページ・断片に無い）', !/['"](?:AAPL|MSFT|NVDA|TSLA|AMZN|7203\.T|9984\.T)['"]/.test(page + entry))
 check('トップ・断片: 番号の段ラベル（01 書く／02 くらべる／03 読み返す）と padStart が無い（スキル「No index numbering」）', !/0[1-3] (?:書く|くらべる|読み返す)/.test(screen) && !/padStart\(/.test(page + entry))
 check('トップ・断片: 「01」「02」「03」の文字列を画面に出さない', !/[>"'`]\s*0[1-3]\s*[<"'`]/.test(page + entry))
 
-console.log('■ ヒーロー（設計図 §6「Column on one line」・R3: 騰落率を置かない）')
+console.log('■ ヒーロー（R3: 騰落率を置かない）')
 const h1 = between(page, '<h1', '</h1>')
 check('h1 は「買う理由を書いて、残す。／N営業日後に、読み返す。」の2行（<br /> で切り、N は MIN_ELAPSED_BUSINESS_DAYS）',
   /買う理由を書いて、残す。<br \/>\{MIN_ELAPSED_BUSINESS_DAYS\}営業日後に、読み返す。/.test(h1) && h1.includes('className={`${s.h1} ${s.rise}`}'))
 check('h1 は1つだけ（display は1画面に1つ）', count(page, '<h1') === 1)
-check('h1 の大きさは 27px・medium・行間 1.25（home.module.css の .h1 と --step-display。vw や clamp で大きくしない）',
-  /\.h1 \{[^}]*font-size: var\(--step-display\)[^}]*font-weight: 500[^}]*line-height: 1\.25/.test(homeCss)
-  && homeCss.includes('--step-display: 24px;') && homeCss.includes('--step-display: 27px;') && !/\.h1 \{[^}]*(?:vw|clamp\()/.test(homeCss))
-check('トップ: text-display（52px / 900）を使わない（この設計図だけの例外: 見出しは本文よりわずかに大きいだけ）', !page.includes('text-display') && !entry.includes('text-display'))
-check('支えの1文: 「仮想資金の練習です。／売買で実際のお金は1円も動きません。」（作者が <br /> で切る・やわらかい方のインク）',
-  hero.includes('仮想資金の練習です。<br />売買で実際のお金は1円も動きません。') && /\.support \{[^}]*color: var\(--ink-2\)/.test(homeCss))
+{
+  const lines = h1.replace(/^<h1[^>]*>/, '').replace(/<\/h1>$/, '').split('<br />')
+    .map(t => t.replace('{MIN_ELAPSED_BUSINESS_DAYS}', String(MIN_ELAPSED_BUSINESS_DAYS)).trim())
+  check('h1 の2行はそれぞれ14字以下（360px の 28px でも2行に収まる長さ）', lines.length === 2 && lines.every(l => [...l].length <= 14), lines.map(l => `${l}（${[...l].length}字）`).join(' / '))
+}
+check("h1 は明朝（var(--font-display)）・var(--step-display)・太さ var(--weight-display)・斜体なし・行間 1.35・字間 0.01em・palt（vw や clamp で大きくしない）",
+  /\.h1 \{[^}]*font-family: var\(--font-display\);[^}]*font-size: var\(--step-display\);[^}]*font-weight: var\(--weight-display\);[^}]*font-style: normal;[^}]*line-height: 1\.35;[^}]*letter-spacing: 0\.01em;[^}]*font-feature-settings: 'palt';/.test(homeCss)
+  && !/\.h1 \{[^}]*(?:vw|clamp\()/.test(homeCss))
+check('h1 の大きさは 28px（スマホ）→ 44px（768px 以上）→ 52px（1200px 以上）の3つの宣言だけ',
+  count(homeCss, /--step-display:\s*\d+px;/g) === 3 && homeCss.includes('--step-display: 28px;')
+  && between(homeCss, '@media (min-width: 768px) {\n  .page {', '}').includes('--step-display: 44px;')
+  && between(homeCss, '@media (min-width: 1200px) {\n  .page {', '}').includes('--step-display: 52px;'))
+check('トップ: text-display（52px / 900）を使わない（ホームの見出しは home.module.css の段階）', !page.includes('text-display') && !entry.includes('text-display'))
+check('支えの1文: 「仮想資金の練習です。／売買で実際のお金は1円も動きません。」（作者が <br /> で切る・本文の大きさ 17px・--ink）',
+  hero.includes('仮想資金の練習です。<br />売買で実際のお金は1円も動きません。') && /\.support \{[^}]*font-size: var\(--step-body\);[^}]*color: var\(--ink\);/.test(homeCss))
 check('主ボタン: /trade「1件目のメモを書く」が s.button（ヒーローに1つ・アクセントはここだけ）', /<Link href="\/trade" className=\{s\.button\}>1件目のメモを書く<\/Link>/.test(hero) && count(hero, 'className={s.button}') === 1)
 check('文字リンク: /review/backfill「過去に買った株を記録する →」が s.textLink', /<Link href="\/review\/backfill" className=\{s\.textLink\}>過去に買った株を記録する →<\/Link>/.test(hero))
-check('home.module.css: ボタンは1種類（.button: --brand の塗り・角丸 var(--radius)・44px 以上・影なし）',
-  /\.button \{[^}]*min-height: 44px[^}]*border-radius: var\(--radius\)[^}]*background: var\(--brand\)/.test(homeCss) && !/\.button \{[^}]*shadow/.test(homeCss))
-check('home.module.css: 角丸は1種類（--radius: 4px。ページ側の角丸はすべて var(--radius)）',
-  homeCss.includes('--radius: 4px;') && homeCssBlocks.filter(b => !b.selector.includes('data-ui') && /border-radius/.test(b.body)).every(b => /border-radius:\s*var\(--radius\)/.test(b.body)))
+check('home.module.css: ボタンは1種類（.button: 48px・左右 24px・角丸 var(--radius)・--brand の塗り・600 16px/1・影なし）',
+  /\.button \{[^}]*min-height: 48px;[^}]*padding: 0 24px;[^}]*border-radius: var\(--radius\);[^}]*background: var\(--brand\);[^}]*font-size: 16px;[^}]*font-weight: 600;[^}]*line-height: 1;/.test(homeCss) && !/\.button \{[^}]*shadow/.test(homeCss))
+check('home.module.css: 角丸は2種類（--radius: 12px＝ボタンと小さな面／--radius-face: 16px＝断片・実演パネル・「書く」の面）。ページ側の角丸はすべてこの2つの var・24px とピル（9999px・999px）が無い',
+  homeCss.includes('--radius: 12px;') && homeCss.includes('--radius-face: 16px;')
+  && homeCssBlocks.filter(b => !b.selector.includes('data-ui') && /border-radius/.test(b.body)).every(b => /border-radius:\s*var\(--radius(?:-face)?\)/.test(b.body))
+  && /\.ui\[data-ui\] \{[^}]*border-radius: var\(--radius-face\)/.test(homeCss) && !/border-radius:\s*(?:24px|9{3,}px|50%)/.test(homeCss))
 check('ヒーローに騰落率が無い（changePct・fmtSignedPct・answerSentence・% を置かない＝R3）', hero.length > 0 && !/changePct|fmtSignedPct|answerSentence|%/.test(hero))
 check('ヒーローに /stocks/ へのリンクが無い（法務条件。ページ・断片全体でも無い）', !(page + entry).includes('/stocks/'))
-check('ヒーロー: 列は 380px・軸は左から 27%（≥1200px）・右半分は空ける（.heroCol max-width 380px・--anchor に 27vw）',
-  /\.heroCol \{[^}]*max-width: 380px/.test(homeCss) && homeCss.includes('calc(27vw - 24px') && /\.heroTop \{[^}]*padding-top: calc\(30svh/.test(homeCss))
-check('ヒーロー: 実演パネルが下端から覗く（.heroPanel 368px・--peek 90px（パソコン）／120px（スマホ）・.heroTop の min-height が --peek を引く）',
-  /\.heroPanel \{[^}]*width: min\(368px, 100%\)/.test(homeCss) && homeCss.includes('--peek: 90px;') && homeCss.includes('--peek: 120px;') && /\.heroTop \{[^}]*min-height: calc\(100svh[^}]*var\(--peek\)/.test(homeCss))
-check('ヒーロー: 実演パネル <DemoPanel onDraft={setDraft} /> が s.heroPanel の中・入場 s.rise', /<div className=\{`\$\{s\.heroPanel\} \$\{s\.rise\}`\} style=\{idx\(3\)\}>\s*<DemoPanel onDraft=\{setDraft\} \/>/.test(hero))
-check('ヒーローより下に h1 が無く、h2 は「与えて、返ってくる」「同じ1件が、こう変わる」の2つ', count(page.slice(page.indexOf('data-section="how"')), '<h1') === 0 && count(page, '<h2') === 2)
+check('ヒーロー: 1200px 以上は2列（minmax(0, 620px) 440px・間 44px）・文の列は 620px まで・実演パネルは 48px 下げる（.heroAside translateY(48px)）',
+  homeCss.includes('@media (min-width: 1200px) {\n  .hero {\n    display: grid;\n    grid-template-columns: minmax(0, 620px) 440px;\n    gap: 44px;')
+  && /\.heroCol \{[^}]*max-width: 620px/.test(homeCss) && /\.heroAside \{[^}]*transform: translateY\(48px\)/.test(homeCss))
+check('ヒーロー: 1200px 未満は実演パネルが下端から覗く（.heroPanel 440px まで・--peek 120px（スマホ）／90px（768px 以上）・.heroTop の min-height が 100svh から --peek を引く）。1200px 以上は 100svh を基準にしない',
+  /\.heroPanel \{[^}]*width: min\(440px, 100%\)/.test(homeCss) && homeCss.includes('--peek: 90px;') && homeCss.includes('--peek: 120px;')
+  && /\.heroTop \{[^}]*min-height: calc\(100svh[^}]*var\(--peek\)/.test(homeCss) && homeCss.includes('.heroTop { min-height: 0; padding-top: 0; }'))
+check('ヒーロー: 768px 以上は実演パネルの面が表示中の層の高さに縮む（表示していない層は position: absolute）・下の節がずれないよう .heroAside が 600px を確保する（2026-10-25 1440px の白い空き）',
+  homeCss.includes("@media (min-width: 768px) {\n  .heroAside { min-height: 600px; }\n  .heroPanel .stack { position: relative; }\n  .heroPanel .layer:not([data-on]) {\n    position: absolute;"))
+check('ヒーロー: 実演パネル <DemoPanel onDraft={setDraft} /> が s.heroPanel の中・入場 s.rise・影は shadow-float クラス（s.heroAside の中）',
+  /<div className=\{s\.heroAside\}>\s*<div className=\{`\$\{s\.heroPanel\} \$\{s\.rise\} shadow-float`\} style=\{idx\(3\)\}>\s*<DemoPanel onDraft=\{setDraft\} \/>/.test(hero))
+{
+  const h2s = [...page.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].map(m => m[1].trim())
+  check("ヒーローより下に h1 が無く、h2 は段ごとに1つ（4つ）で中身は {labelOf('/study')}・{labelOf('/learn')}・{labelOf('/trade')}・{labelOf('/review')} がこの順",
+    count(page.slice(page.indexOf('<ol className={s.stages}')), '<h1') === 0
+    && h2s.join(',') === "{labelOf('/study')},{labelOf('/learn')},{labelOf('/trade')},{labelOf('/review')}", h2s.join(' / '))
+}
+check('L2 の節見出し（「与えて、返ってくる」「同じ1件が、こう変わる」）と順序の語の h3（まず／つぎに／そして）が残っていない',
+  !page.includes('与えて、返ってくる') && !page.includes('同じ1件が、こう変わる') && !/<h3/.test(page))
 
 console.log('■ 実演パネル（components/entry/DemoPanel.tsx・訪問者ができる1つのこと）')
 const buyFields = fieldsFor('buy')
@@ -228,82 +292,138 @@ check('DemoPanel: タブが隠れたら止める（visibilitychange・document.h
 check('DemoPanel: 「動きを減らす」設定では最初の1つだけを出し、動かさない（matchMedia(prefers-reduced-motion: reduce) で効果を抜ける・.layer の transition: none）',
   demo.includes("if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return") && /@media \(prefers-reduced-motion: reduce\) \{\s*\.layer \{ transition: none; \}/.test(homeCss))
 check('DemoPanel: 記録の層を押すと書く前に戻る（指1本・いつでも書ける）', demo.includes('onClick={() => { if (active === 2) hold(0) }}'))
-check('DemoPanel: 最初に出すのは記録された1件（useState(2)）で、順は 記録 → 空欄 → 記入例（(a + 1) % LAYERS）。覗き（上 90px）に実際に書かれた文の行が入る（dense・ヒーローの断片と詰めたカードは padding-top 8px・dl は 2px）',
+check('DemoPanel: 最初に出すのは記録された1件（useState(2)）で、順は 記録 → 空欄 → 記入例（(a + 1) % LAYERS）。覗きに実際に書かれた文の行が入る（dense・ヒーローの断片と詰めたカードは padding-top 8px・dl は 2px）',
   demo.includes('const [active, setActive] = useState(2)') && demo.includes('setActive(a => (a + 1) % LAYERS)') && demo.includes('dense') && fragments.includes("data-dense={dense ? '' : undefined}")
-  && homeCss.includes('.heroPanel .ui[data-ui] { padding-top: 8px; }') && homeCss.includes('.ui[data-ui] .dl[data-dense] { margin-top: 2px; }') && homeCss.includes('.ui[data-ui] .card[data-dense] { padding-top: 8px; }') && fragments.includes("<div className={s.card} data-dense={dense ? '' : undefined}>"))
+  && /\.heroPanel \.ui\[data-ui\] \{ padding-top: 8px;/.test(homeCss) && homeCss.includes('.ui[data-ui] .dl[data-dense] { margin-top: 2px; }') && homeCss.includes('.ui[data-ui] .card[data-dense] { padding-top: 8px; }') && fragments.includes("<div className={s.card} data-dense={dense ? '' : undefined}>"))
 check('DemoPanel: 詰めた記録の層でも「記入例が入った状態です。」（または自分の文である旨）を同じカードの中に書く', demo.includes("'記入例が入った状態です。'") && demo.includes('あなたが上の欄に書いた文です（保存も送信もしていません）。'))
-check('DemoPanel・断片・useReveal: 保存も送信もしない（fetch／XMLHttpRequest／sendBeacon／localStorage／sessionStorage／cookie が無い）',
+check('DemoPanel・断片: 保存も送信もしない（fetch／XMLHttpRequest／sendBeacon／localStorage／sessionStorage／cookie が無い）',
   !/fetch\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|document\.cookie/.test(entry))
 check('DemoPanel: 時刻・乱数で中身を変えない（Date.now／Math.random／new Date が無い）', !/Date\.now|Math\.random|new Date\(/.test(entry))
 check('断片: 訪問者の文があるかは isTyped（空欄だけ・記入例のままは false）。画面に出すメモは memoToShow', fragments.includes('export function isTyped(draft: Memo | null): boolean') && fragments.includes('return filled && !same') && fragments.includes('return isTyped(draft) ? (draft as Memo) : EXAMPLE_MEMO'))
 check('home.module.css: 隠れている層は visibility: hidden（読み上げ・焦点・inspect の計測から外れる）', /\.layer \{[^}]*visibility: hidden/.test(homeCss) && /\.layer\[data-on\] \{[^}]*visibility: visible/.test(homeCss))
 
-console.log('■ 節1「与えて、返ってくる」（設計図 §7-1。順序の語で示す・番号なし）')
-check('h2「与えて、返ってくる」が s.h2・入場 data-reveal', /<h2 id="how-heading" className=\{s\.h2\} data-reveal style=\{idx\(0\)\}>与えて、返ってくる<\/h2>/.test(how))
-check('3つのやりとりは <ol>（順序は要素で持つ）・data-exchange が write → compare → wait の順',
-  how.includes('<ol className={s.exchanges}>') && [...how.matchAll(/data-exchange="(\w+)"/g)].map(m => m[1]).join(',') === 'write,compare,wait')
-check('各やりとりは順序の語で始まる文（まず／つぎに／そして）の h3 で開く',
-  /<h3 className=\{s\.h3\}[^>]*>まず、買う理由を書く。<\/h3>/.test(exWrite) && /<h3 className=\{s\.h3\}[^>]*>つぎに、このサイトのAIが書いたものと並べる。<\/h3>/.test(exCompare)
-  && /<h3 className=\{s\.h3\}[^>]*>そして、\{MIN_ELAPSED_BUSINESS_DAYS\}営業日ほど待つ。<\/h3>/.test(exWait))
-check('home.module.css: やりとりは 88px 間隔・返ってくるものは 56px 字下げ（≥768px）・h3 は 20px medium',
-  homeCss.includes('.exchange + .exchange { margin-top: 88px; }') && /\.response \{[^}]*margin-left: var\(--indent\)/.test(homeCss) && homeCss.includes('--indent: 56px;') && /\.h3 \{[^}]*font-size: var\(--step-lead\)[^}]*font-weight: 500/.test(homeCss))
-check('まず: 本文に「理由と、やめる条件を書かないと記録できません」（降りる条件を書かないと記録できない＝このサイトだけの制約）', exWrite.includes('理由と、やめる条件を書かないと記録できません。'))
-check('まず: 与えるもの＝上の欄に書いた文そのまま（givenOf・問い：答え）・記入例か自分の文かを明示',
-  exWrite.includes('{given.map(g => (') && exWrite.includes('<span className={s.soft}>{g.question}：</span>{g.value}') && exWrite.includes('記入例です。上の欄に書くと、ここがその文に入れ替わります。') && exWrite.includes('上の欄に書いた文です。このページの中だけで、保存も送信もしません。'))
-check('まず: 返ってくるもの＝記録された1件（RecordView・data-ui・地の上＝bare）', /<div data-ui className=\{`\$\{s\.ui\} \$\{s\.bare\}`\}>\s*<RecordView memo=\{memo\} typed=\{typed\} \/>/.test(exWrite))
-check('RecordView: 見出しは「買ったときに書いたこと」・【見出し】ごとの <dl>・記入例か自分の文かの hint',
-  fragments.includes('<p className={s.cardHead}>買ったときに書いたこと</p>') && fragments.includes("{typed ? 'あなたが上の欄に書いた文（このページの中だけ。保存も送信もしていません）' : '記入例が入った状態です'}") && fragments.includes('<dt className={s.dt}>{sec.label ? `【${sec.label}】` : \'（見出しなし）\'}</dt>'))
-check('つぎに: 与えるのは上の文そのまま（面を置かない）・返ってくるもの＝左右に並べる（CompareView・data-ui）',
-  exCompare.includes('与えるのは、上の文そのままです。') && !exCompare.includes('className={s.call}') && /<div data-ui className=\{s\.ui\}>\s*<CompareView memo=\{memo\} typed=\{typed\} older=\{older\} aiFallback=\{aiFallback\} \/>/.test(exCompare))
+console.log('■ 4段（学ぶ → くらべる → 書く → 振り返り。<ol>・番号の文字なし・見出しは路から引く）')
+check('4段は <ol className={s.stages}>（順序は要素で持つ）・data-stage が study → compare → write → review の順',
+  stagesList.length > 0 && [...page.matchAll(/data-stage="(\w+)"/g)].map(m => m[1]).join(',') === 'study,compare,write,review')
+check('home.module.css: 4段の <ol> は list-style: none（番号の記号を出さない）・節の間は --gap-section', /\.stages \{[^}]*list-style: none/.test(homeCss) && homeCss.includes('.section { margin-top: var(--gap-section); }'))
+check('各段は見出し（h2・labelOf）→ 主張（s.lead・hintOf）の順で開く（同じ路から引く）',
+  STAGES.every(([key, href, st]) => st.includes(`<h2 id="${key}-heading" className={s.h2}>{labelOf('${href}')}</h2>`) && st.includes(`<p className={s.lead}>{hintOf('${href}')}</p>`)
+    && st.indexOf('<h2') < st.indexOf('{hintOf(')), STAGES.filter(([, , st]) => st.length === 0).map(([k]) => k).join(','))
+check('段の呼び名は NAV と一致（学ぶ／くらべる／書く／振り返り）・トップで NAV を添字で読まない', navLabel('/study') === '学ぶ' && navLabel('/learn') === 'くらべる' && navLabel('/trade') === '書く' && navLabel('/review') === '振り返り' && !/NAV\[/.test(page))
+check('home.module.css: 1200px 以上は各段が「左に文 440px・右に断片 600px まで」（文は常に左＝.stageText が列1・.stageBody が列2）',
+  /\.stage \{\s*grid-template-columns: minmax\(0, 440px\) minmax\(0, 600px\);/.test(between(homeCss, '@media (min-width: 1200px) {\n  .stage {', '}')) && homeCss.includes('.stageText { grid-column: 1; }') && homeCss.includes('.stageBody { grid-column: 2; }')
+  && /\.stageText \{[^}]*max-width: var\(--col-text\)/.test(homeCss) && /\.stageBody \{[^}]*max-width: var\(--col-wide\)/.test(homeCss) && homeCss.includes('--col-text: 560px;') && homeCss.includes('--col-wide: 760px;'))
+
+console.log('■ 学ぶ（1社固定の題材。数字は lib/lab/9983.ts の Sourced から）')
+{
+  const gated = /\{SHOW_LAB_9983 && \(([\s\S]*?)<\/li>\s*\)\}/.exec(page)
+  check('学ぶ: 節ごと {SHOW_LAB_9983 && ( の内側（false なら <li> ごと消える）・/study へのリンクも内側の1本だけ',
+    gated != null && /^\s*<li className=\{`\$\{s\.section\} \$\{s\.stage\}`\} data-stage="study"/.test(gated[1]) && count(page, '"/study"') === 1 && count(gated[1], '"/study"') === 1
+    && page.includes("import { SHOW_AI_WATCH, SHOW_LAB_9983 } from '@/lib/features'"))
+}
+check('学ぶ: 1社固定の断りは /study と同じ定数 FIXED_COMPANY_NOTE を lib/lab/fixed-note.ts から import（文字列で書き直さない。app/study/client.tsx を import しない＝/study の部品をホームの JS に入れない）・h2 の直下・data-ui の外',
+  page.includes("import { FIXED_COMPANY_NOTE } from '@/lib/lab/fixed-note'") && !page.includes('@/app/study/client')
+  && /<h2 id="study-heading" className=\{s\.h2\}>\{labelOf\('\/study'\)\}<\/h2>\s*<p className=\{s\.fixedNote\}>\{FIXED_COMPANY_NOTE\}<\/p>/.test(stStudy)
+  && !page.includes('この会社を勧めるものではありません') && stStudy.indexOf('{FIXED_COMPANY_NOTE}') < stStudy.indexOf('data-ui'))
+check('home.module.css: 1社固定の断り（.fixedNote）は本文と同じ 17px・--ink（/study の「リードと同じ大きさ・薄くしない」に寄せる。畳まない・薄めない）',
+  /\.fixedNote \{[^}]*font-size: var\(--step-body\);[^}]*color: var\(--ink\);/.test(homeCss) && homeCss.includes('--step-body: 17px;') && !/\.fixedNote \{[^}]*opacity/.test(homeCss))
+check('学ぶ: 題材の1行は事実だけ「純利益が増えたと発表された翌営業日に、株価は下がりました。なぜでしょう。」（評価の語「良い」を使わない）',
+  stStudy.includes('<p className={s.body}>純利益が増えたと発表された翌営業日に、株価は下がりました。なぜでしょう。</p>') && !/良い|好調|悪い|不調/.test(stStudy))
+{
+  // 「発表された翌営業日」: 発表日（company.latestAnnouncement）の次の平日が、前日比の日（price.closeDate）。
+  // 純利益の前期比の出典（決算短信）の時点も発表日と同じ。祝日は見ない（平日だけで数える近似）
+  const ann = LAB_9983.company.latestAnnouncement.value
+  const d = new Date(`${ann}T00:00:00Z`)
+  do { d.setUTCDate(d.getUTCDate() + 1) } while (d.getUTCDay() === 0 || d.getUTCDay() === 6)
+  const nextBiz = d.toISOString().slice(0, 10)
+  check('学ぶ: 題材の1行が data と食い違わない（純利益の前期比がプラス・その発表日の次の平日が前日比の日・前日比がマイナス・前期比の出典の時点が発表日）',
+    (LAB_9983.netProfit.yoy?.value ?? 0) > 0 && LAB_9983.price.changePct.value < 0 && nextBiz === LAB_9983.price.closeDate && LAB_9983.netProfit.yoy?.source.asOf === ann,
+    `${LAB_9983.netProfit.yoy?.value} / ${LAB_9983.price.changePct.value} / 発表 ${ann} → 次の平日 ${nextBiz}・前日比の日 ${LAB_9983.price.closeDate}`)
+}
+check('学ぶ: 数字は LAB_9983.netProfit.yoy と LAB_9983.price.changePct の .value・出典は .source.label と .source.asOf・期は fyLabel・日は price.closeDate',
+  page.includes('const STUDY_NET_PROFIT_YOY = LAB_9983.netProfit.yoy') && page.includes('const STUDY_PRICE_CHANGE = LAB_9983.price.changePct')
+  && stStudy.includes('{signedWithWord(STUDY_NET_PROFIT_YOY.value)}') && stStudy.includes('{signedWithWord(STUDY_PRICE_CHANGE.value)}')
+  && stStudy.includes('{STUDY_NET_PROFIT_YOY.source.label}・{STUDY_NET_PROFIT_YOY.source.asOf}') && stStudy.includes('{STUDY_PRICE_CHANGE.source.label}・{STUDY_PRICE_CHANGE.source.asOf}')
+  && stStudy.includes('{LAB_9983.price.closeDate}') && stStudy.includes('{fyLabel(LAB_9983.company.latestFy)}'))
+check('学ぶ: 数字と日付の直書きが無い（25.3・4.04・2026-10-0… がページに無い）', !/25\.3|4\.04|2026-10-0/.test(page))
+check('学ぶ: 符号は formatSignedPercent（U+2212）と signWord（語）で示し、色を付けない（signStyle・text-danger・text-success を使わない）',
+  page.includes("import { formatSignedPercent } from '@/lib/lab/money'") && page.includes("import { signWord } from '@/lib/lab/display'") && !/signStyle|signColor|text-danger|text-success/.test(page)
+  && formatSignedPercent(-4.04) === '\u22124.04%' && signWord(-1) === 'マイナス' && signWord(1) === null)
+check('学ぶ: 数字の面は data-ui の1つ・桁をそろえる（.figure は tabular-nums・--ink。色を付けない）・出典と時点は .meta（13px・--muted）',
+  count(stStudy, 'data-ui') === 1 && count(stStudy, 'className={s.meta}') === 2 && /\.ui\[data-ui\] \.figure \{[^}]*color: var\(--ink\);[^}]*font-variant-numeric: tabular-nums/.test(homeCss))
+
+console.log('■ くらべる（左右に並べる断片はここで1回だけ）')
+check('くらべる: 本文「与えるのは、上の文そのままです。」（面を置かない）・断片＝左右に並べる（CompareView・data-ui）・CompareView はページに1回',
+  stCompare.includes('与えるのは、上の文そのままです。') && !stCompare.includes('className={s.call}') && /<div data-ui className=\{s\.ui\}>\s*<CompareView memo=\{memo\} typed=\{typed\} older=\{older\} aiFallback=\{aiFallback\} \/>/.test(stCompare) && count(page, '<CompareView') === 1)
 check('CompareView: 左「あなたが書いたこと（記入例）」／右「このサイトのAIが書いたこと」・系列の見分けは線の見本（Swatch: SERIES.you／SERIES.ai）で文字に色を使わない',
   fragments.includes("{typed ? 'あなたが書いたこと' : 'あなたが書いたこと（記入例）'}") && fragments.includes('このサイトのAIが書いたこと') && fragments.includes('<Swatch style={SERIES.you} />') && fragments.includes('<Swatch style={SERIES.ai} />') && !/style=\{\{\s*color/.test(page + entry))
 check('CompareView: 「左は記入例、右はこのサイトのAIが実際に書いた記録です。」を明示。自分の文のときは「保存も送信もしていません」の文に替わる',
   fragments.includes("export const PAIR_NOTE_SAMPLE = '左は記入例、右はこのサイトのAIが実際に書いた記録です。'") && fragments.includes('保存も送信もしていません）。右はこのサイトのAIが実際に書いた記録です。') && fragments.includes('{typed ? PAIR_NOTE_TYPED : PAIR_NOTE_SAMPLE}'))
 check('CompareView: 右は older（2件のうち判断日が古い方）の理由の全文＋銘柄コード・方向の札・判断日', fragments.includes('{older.reasoning}') && fragments.includes('{older.symbol}・{ACTION_LABEL[older.action]}・判断日 {fmtSlashDate(older.decidedAt)}'))
-check('つぎに: 「ちがい」の1文は静的な説明文（差を自動判定して採点しない。「判定しません」）', exCompare.includes('どちらが良いかを、このサイトは判定しません。') && !/changePct|score|点/.test(exCompare))
-check('つぎに: 注記（C）が断片の直下・本文の大きさ（s.note。畳まない・薄めない）', exCompare.includes('<p className={s.note}>{NOTE_AI}</p>') && fragments.includes(`export const NOTE_AI =\n  '${NOTE_AI}'`))
-check('つぎに: 並べて読む画面は準備中と明示（いまの機能は hintOf(/learn) から。無いものを約束しない）', exCompare.includes("{hintOf('/learn')}ことができます。左右に並べて読む画面は準備中です。") && exCompare.includes("「{labelOf('/learn')}」の画面では"))
-check('つぎに: /watch へ「AIの判断を全部読む →」は {SHOW_AI_WATCH && ( の内側（出し分けの規則は scripts/check-watch-reachable.ts）', /\{SHOW_AI_WATCH && \(\s*<Link href="\/watch" className=\{s\.textLink\}>AIの判断を全部読む →<\/Link>\s*\)\}/.test(exCompare))
-check('そして: 与えるもの＝待つこと（N営業日ほど経つと…同じことを5回書くと、共通するところを1つだけ出します。）・/review に実物がある',
-  exWait.includes('{`${MIN_ELAPSED_BUSINESS_DAYS}営業日ほど経つと、書いたメモを、その後の株価と並べて読み返します。書いたときに何を考えていたかが、そのまま残っています。同じことを5回書くと、共通するところを1つだけ出します。`}')
+check('くらべる: 「ちがい」の1文は静的な説明文（差を自動判定して採点しない。「判定しません」）', stCompare.includes('どちらが良いかを、このサイトは判定しません。') && !/changePct|score|点/.test(stCompare))
+check('くらべる: 注記（C）が断片の直下・本文の大きさ（s.note。畳まない・薄めない）', stCompare.includes('<p className={s.note}>{NOTE_AI}</p>') && fragments.includes(`export const NOTE_AI =\n  '${NOTE_AI}'`))
+check('くらべる: 並べて読む画面は準備中と明示（いまの機能は hintOf(/learn) から。無いものを約束しない）', stCompare.includes("{hintOf('/learn')}ことができます。左右に並べて読む画面は準備中です。") && stCompare.includes("「{labelOf('/learn')}」の画面では"))
+check('くらべる: /watch へ「AIの判断を全部読む →」は {SHOW_AI_WATCH && ( の内側（出し分けの規則は scripts/check-watch-reachable.ts）', /\{SHOW_AI_WATCH && \(\s*<Link href="\/watch" className=\{s\.textLink\}>AIの判断を全部読む →<\/Link>\s*\)\}/.test(stCompare))
+
+console.log('■ 書く（心臓。この節だけ --wash の面）')
+check('書く: 本文に「理由と、やめる条件を書かないと記録できません」（降りる条件を書かないと記録できない＝このサイトだけの制約）', stWrite.includes('理由と、やめる条件を書かないと記録できません。'))
+check('書く: ヒーローの欄に書いた文がそのまま映る（givenOf・問い：答え）・記入例か自分の文かを明示',
+  stWrite.includes('{given.map(g => (') && stWrite.includes('<span className={s.soft}>{g.question}：</span>{g.value}') && stWrite.includes('記入例です。上の欄に書くと、ここがその文に入れ替わります。') && stWrite.includes('上の欄に書いた文です。このページの中だけで、保存も送信もしません。'))
+check('書く: 断片＝記録された1件（RecordView・data-ui・面の上＝bare）', /<div data-ui className=\{`\$\{s\.ui\} \$\{s\.bare\}`\}>\s*<RecordView memo=\{memo\} typed=\{typed\} \/>/.test(stWrite))
+check('RecordView: 見出しは「買ったときに書いたこと」・【見出し】ごとの <dl>・記入例か自分の文かの hint',
+  fragments.includes('<p className={s.cardHead}>買ったときに書いたこと</p>') && fragments.includes("{typed ? 'あなたが上の欄に書いた文（このページの中だけ。保存も送信もしていません）' : '記入例が入った状態です'}") && fragments.includes('<dt className={s.dt}>{sec.label ? `【${sec.label}】` : \'（見出しなし）\'}</dt>'))
+check('書く: 主ボタン /trade「1件目のメモを書く」（ヒーローと同じ文言・同じ形）', /<Link href="\/trade" className=\{s\.button\}>1件目のメモを書く<\/Link>/.test(stWrite))
+check('書く: 淡い青緑の面（s.wash）はこの節の1か所だけ・--wash の参照も home.module.css の .wash の1か所だけ',
+  /<li className=\{`\$\{s\.section\} \$\{s\.stage\} \$\{s\.wash\}`\} data-stage="write"/.test(page) && count(page, 's.wash') === 1 && count(homeCss, 'var(--wash)') === 1 && /\.wash \{[^}]*background: var\(--wash\);/.test(homeCss))
+check('home.module.css: --wash は color-mix で白（--card）に青緑（--brand）12%（直の色値を書かない）・面は角丸 16・内側 20px（768px 以上 40px）',
+  homeCss.includes('--wash: color-mix(in srgb, var(--card), var(--brand) 12%);') && /\.wash \{[^}]*padding: 20px;[^}]*border-radius: var\(--radius-face\);/.test(homeCss) && homeCss.includes('.wash { padding: 40px; }'))
+check('書く: --wash の面の上に --brand の文字を置かない（.wash を含むセレクタに color: var(--brand) が無い・必須の印 s.required を出さない）',
+  homeCssBlocks.filter(b => b.selector.includes('.wash')).every(b => !/(?:^|[^-])color:\s*var\(--brand/.test(b.body)) && !stWrite.includes('s.required') && !/text-brand/.test(stWrite) && /\.textLink \{[^}]*color: var\(--ink\)/.test(homeCss))
+
+console.log('■ 振り返り（待つこと・押すと読み返しの形に・AIの実例2件）')
+check('振り返り: 本文（N営業日ほど経つと…同じことを5回書くと、共通するところを1つだけ出します。）・/review に実物がある',
+  stReview.includes('{`${MIN_ELAPSED_BUSINESS_DAYS}営業日ほど経つと、書いたメモを、その後の株価と並べて読み返します。書いたときに何を考えていたかが、そのまま残っています。同じことを5回書くと、共通するところを1つだけ出します。`}')
   && exists('lib/review/patterns.ts') && exists('components/review/PriceSincePanel.tsx'))
-check('そして: 本文に「待つことが、このサイトの決まりです」（待ち時間はこのサイトの制約）', exWait.includes('待つことが、このサイトの決まりです。'))
-check('そして: 選び方の1文（一字違わず・small・--ink-2）を実例の上に', exWait.includes('<p className="max-w-[42rem] text-small text-ink-2">{PICK_NOTE}</p>') && page.includes(`const PICK_NOTE = '${PICK_NOTE}'`) && exWait.indexOf('{PICK_NOTE}') < exWait.indexOf('<AnswerCheckCard'))
-check('そして: 返ってくるもの＝AnswerCheckCard を up / down で1件ずつ・760px に広がる（s.wide）・地の上（bare）',
-  page.includes("from '@/components/AnswerCheckCard'") && exWait.includes('<AnswerCheckCard example={examples.up} kind="up" />') && exWait.includes('<AnswerCheckCard example={examples.down} kind="down" />')
-  && exWait.includes('className={`${s.response} ${s.wide}`}') && homeCss.includes('.wide { width: min(760px, calc(100% - var(--indent))); }'))
-check('そして: 読み込み中は薄い面2つ・失敗は role="status" の文・無いときは「まだ無い」の文（架空で埋めない）',
-  count(exWait, '<Skeleton') === 2 && exWait.includes('<p role="status" className="text-small text-ink-2">{ERROR_LINE}</p>') && exWait.includes("{state === 'empty' && <p className=\"text-small text-ink-2\">{EMPTY_LINE}</p>}"))
-check('そして: 注記（C）＋「あなたが書いた理由も、「＜labelOf(/review)＞」に残ります。」', exWait.includes("<p className={s.note}>{NOTE_AI} あなたが書いた理由も、「{labelOf('/review')}」に残ります。</p>"))
-check('そして: 路から引く先は /review で、その呼び名は「振り返り」（NAV と一致）', navLabel('/review') === '振り返り', navLabel('/review'))
+check('振り返り: 本文に「待つことが、このサイトの決まりです」（待ち時間はこのサイトの制約）', stReview.includes('待つことが、このサイトの決まりです。'))
+check('振り返り: 押す前は記録された1件（RecordView）・「N営業日、待ったことにする」を押すと読み返しの形（RereadView）に変わる',
+  /\{waited \? \(\s*<RereadView memo=\{memo\} typed=\{typed\} \/>\s*\) : \(\s*<>\s*<RecordView memo=\{memo\} typed=\{typed\} \/>\s*<button type="button" className=\{s\.uiButton\} onClick=\{\(\) => setWaited\(true\)\}>/.test(stReview)
+  && stReview.includes('{MIN_ELAPSED_BUSINESS_DAYS}営業日、待ったことにする'))
+check('RereadView: 株価の線は架空で引かない（<svg>／<line>／<path> が無く、線が入る場所を文で示す）・「画面の例です。線は実際の株価から引き、無いときは出しません。」',
+  (() => { const v = between(fragments, 'export function RereadView', '\n}\n'); return v.length > 0 && !/<svg|<line|<path/.test(v) && v.includes('{LINE_NOTE}') && v.includes('実際の株価の線が、ここに入ります。') })()
+  && fragments.includes(`export const LINE_NOTE = '${LINE_NOTE}'`))
+check('RereadView: 「書いたときに何を考えていたかが、そのまま残っています。」・見出し「書いた理由と、その後の株価」', fragments.includes('<p className={s.cardHead}>書いた理由と、その後の株価</p>') && fragments.includes('書いたときに何を考えていたかが、そのまま残っています。'))
+check('振り返り: 選び方の1文（一字違わず・small・--ink-2）を実例の上に', stReview.includes('<p className="max-w-[42rem] text-small text-ink-2">{PICK_NOTE}</p>') && page.includes(`const PICK_NOTE = '${PICK_NOTE}'`) && stReview.indexOf('{PICK_NOTE}') < stReview.indexOf('<AnswerCheckCard'))
+check('振り返り: AnswerCheckCard を up / down で1件ずつ・1200px 以上は2列ぶんに広がる（s.span）・地の上（bare）',
+  page.includes("from '@/components/AnswerCheckCard'") && stReview.includes('<AnswerCheckCard example={examples.up} kind="up" />') && stReview.includes('<AnswerCheckCard example={examples.down} kind="down" />')
+  && stReview.includes('className={`${s.stageBody} ${s.span}`}') && homeCss.includes('.span { grid-column: 1 / -1; max-width: none; }'))
+check('振り返り: 読み込み中は薄い面2つ・失敗は role="status" の文・無いときは「まだ無い」の文（架空で埋めない）',
+  count(stReview, '<Skeleton') === 2 && stReview.includes('<p role="status" className="text-small text-ink-2">{ERROR_LINE}</p>') && stReview.includes("{state === 'empty' && <p className=\"text-small text-ink-2\">{EMPTY_LINE}</p>}"))
+check('振り返り: 注記（C）＋「あなたが書いた理由も、「＜labelOf(/review)＞」に残ります。」', stReview.includes("<p className={s.note}>{NOTE_AI} あなたが書いた理由も、「{labelOf('/review')}」に残ります。</p>"))
+check('振り返り: 路から引く先は /review で、その呼び名は「振り返り」（NAV と一致）', navLabel('/review') === '振り返り', navLabel('/review'))
 check('「まだ無い」の文は N営業日の条件を書く（MIN_ELAPSED_BUSINESS_DAYS から）・「20営業日」の直書きが無い',
   page.includes('const EMPTY_LINE = `並べて見せられるAIの記録は、まだありません（判断日から${MIN_ELAPSED_BUSINESS_DAYS}営業日以上たったものが要ります）。`') && !/20営業日/.test(page + entry) && MIN_ELAPSED_BUSINESS_DAYS === 20)
 check('カード: 面は地の上・出所の行がある（R8・R11）・断片の面の上では白い紙（.twoUp > article）', card.includes('rounded-card border border-border p-4') && card.includes('{example.source}') && homeCss.includes('.ui[data-ui] .twoUp > article { background: var(--card); }'))
 check('カード: 出所の行と軸の実値は 14px（text-small）。12px（text-caption）が無い（R7・R8: 読めることが目的。L2 2026-10-14）', !card.includes('text-caption') && card.includes('<p className="text-small text-muted tabular-nums">{asOf}{elapsed}。縦の破線は判断日。</p>') && card.includes('justify-between text-small text-muted tabular-nums'))
 
-console.log('■ 節2「同じ1件が、こう変わる」（設計図 §7-2「One row, three states」）')
-check('h2「同じ1件が、こう変わる」が s.h2・軸の上（s.axis）', /<h2 id="states-heading" className=\{`\$\{s\.h2\} \$\{s\.axis\}`\} data-reveal style=\{idx\(0\)\}>同じ1件が、こう変わる<\/h2>/.test(states))
-check('3つの複製は <ol>・data-state が written → after → later の順', states.includes('<ol className={s.showcase}>') && [...states.matchAll(/data-state="(\w+)"/g)].map(m => m[1]).join(',') === 'written,after,later')
-check('状態の語は 書いた日／その直後／N営業日後（左の列・右揃え・やわらかいインク。スマホでは複製の下）',
-  states.includes('<p className={s.stateWord}>書いた日</p>') && states.includes("{waited ? `${MIN_ELAPSED_BUSINESS_DAYS}営業日後` : 'その直後'}") && states.includes('<p className={s.stateWord}>{MIN_ELAPSED_BUSINESS_DAYS}営業日後</p>')
-  && /\.stateWord \{[^}]*order: 2/.test(homeCss) && /\.stateWord \{[^}]*text-align: right/.test(homeCss) && /\.stateWord \{[^}]*color: var\(--ink-2\)/.test(homeCss))
-check('複製は 640px・56px 間隔（≥768px）・何も枠に入れない（.copy の grid に 640px・.copy + .copy 56px）', homeCss.includes('grid-template-columns: calc(var(--anchor) - 24px) minmax(0, 640px);') && homeCss.includes('.copy + .copy { margin-top: 56px; }'))
-check('書いた日＝記録された1件（RecordView・data-ui・地の上）', /data-state="written"[\s\S]*?<div className=\{`\$\{s\.copyBody\} \$\{s\.ui\} \$\{s\.bare\}`\} data-ui>\s*<RecordView memo=\{memo\} typed=\{typed\} \/>/.test(states))
-check('その直後＝左右に並べる（CompareView）＋生きている1つ: 「N営業日、待ったことにする」を押すと3つ目の状態（RereadView）に変わる',
-  states.includes('<button type="button" className={s.uiButton} onClick={() => setWaited(true)}>') && states.includes('{MIN_ELAPSED_BUSINESS_DAYS}営業日、待ったことにする') && /\{waited \? \(\s*<RereadView memo=\{memo\} typed=\{typed\} \/>\s*\) : \(\s*<CompareView/.test(states))
-check('N営業日後＝読み返す（RereadView・data-ui・地の上）', /data-state="later"[\s\S]*?<div className=\{`\$\{s\.copyBody\} \$\{s\.ui\} \$\{s\.bare\}`\} data-ui>\s*<RereadView memo=\{memo\} typed=\{typed\} \/>/.test(states))
-check('RereadView: 株価の線は架空で引かない（<svg>／<line>／<path> が無く、線が入る場所を文で示す）・「画面の例です。線は実際の株価から引き、無いときは出しません。」',
-  (() => { const v = between(fragments, 'export function RereadView', '\n}\n'); return v.length > 0 && !/<svg|<line|<path/.test(v) && v.includes('{LINE_NOTE}') && v.includes('実際の株価の線が、ここに入ります。') })()
-  && fragments.includes(`export const LINE_NOTE = '${LINE_NOTE}'`))
-check('RereadView: 「書いたときに何を考えていたかが、そのまま残っています。」・見出し「書いた理由と、その後の株価」', fragments.includes('<p className={s.cardHead}>書いた理由と、その後の株価</p>') && fragments.includes('書いたときに何を考えていたかが、そのまま残っています。'))
-check('節2 の直下にも注記（C）（AIの記録を見せる節の直下＝3か所目）', states.includes('<p className={`${s.note} ${s.axis}`}>{NOTE_AI}</p>') && count(page, '{NOTE_AI}') === 3)
+console.log('■ 注記（C）は AI の記録を出す節それぞれで、断片より後に')
+check('注記（C）{NOTE_AI} はページに2つ（くらべる・振り返り＝AIの記録を見せる2つの節）', count(page, '{NOTE_AI}') === 2)
+{
+  const aiStages = STAGES.filter(([, , st]) => /<CompareView|<AnswerCheckCard/.test(st))
+  check('AI の記録を出す節（CompareView／AnswerCheckCard を含む節）それぞれで、最後の断片より後に {NOTE_AI} がある',
+    aiStages.length === 2 && aiStages.every(([, , st]) => {
+      const lastAi = Math.max(st.lastIndexOf('<CompareView'), st.lastIndexOf('<AnswerCheckCard'))
+      return st.indexOf('{NOTE_AI}', lastAi) > lastAi
+    }), aiStages.map(([k]) => k).join(','))
+  check('AI の記録はヒーロー・学ぶ・書く・締めに出さない（CompareView／AnswerCheckCard は くらべる と 振り返り だけ）',
+    !/<CompareView|<AnswerCheckCard/.test(hero + stStudy + stWrite + closing))
+}
 
-console.log('■ 節3「ふつうの一文と、1つの動作」（設計図 §7-3）')
-check('一文「最初の1件は、短くてかまいません。」は <p>（見出しの大きさの文字をこの節に出さない）', /<p className=\{s\.sentence\} data-reveal style=\{idx\(0\)\}>最初の1件は、短くてかまいません。<\/p>/.test(closing) && !/<h[1-6]/.test(closing))
+console.log('■ 締め（ふつうの一文と、1つの動作）')
+check('一文「最初の1件は、短くてかまいません。」は <p>（見出しの大きさの文字をこの節に出さない）', /<p className=\{s\.sentence\}>最初の1件は、短くてかまいません。<\/p>/.test(closing) && !/<h[1-6]/.test(closing))
 check('一文は 20px・regular・34ch 以内（.sentence）', /\.sentence \{[^}]*max-width: 34ch[^}]*font-size: var\(--step-lead\)[^}]*font-weight: 400/.test(homeCss))
 check('締めのボタン: /trade「1件目のメモを書く」（主ボタンと同じ文言・同じ形）＋文字リンク /review/backfill',
   /<Link href="\/trade" className=\{s\.button\}>1件目のメモを書く<\/Link>/.test(closing) && /<Link href="\/review\/backfill" className=\{s\.textLink\}>過去に買った株を記録する →<\/Link>/.test(closing))
-check('href="/trade" の直書きは主ボタンと締めの2か所だけ（断片は /trade へ飛ばない。行き先が state で変わらない）', count(page, 'href="/trade"') === 2 && !/href=\{[^}]*\?/.test(page + entry) && !entry.includes('href="/trade"'))
+check('href="/trade" の直書きはヒーロー・書く・締めの3か所だけ（断片は /trade へ飛ばない。行き先が state で変わらない）', count(page, 'href="/trade"') === 3 && !/href=\{[^}]*\?/.test(page + entry) && !entry.includes('href="/trade"'))
 check('締めの上下に決めた空白（.cta の padding-top／bottom は svh）', /\.cta \{[^}]*padding-top: \d+svh[^}]*padding-bottom: \d+svh/.test(homeCss))
 check('ボタンの文言は「押すと何が起きるか」の動詞（OK／送信／次へ を使わない）', !/>\s*(OK|送信|次へ)\s*</.test(page + entry))
 
@@ -342,42 +462,98 @@ check('route: 画面に出す経過日数と 20 の判定は日足の本数か�
   route.includes('const tradingDaysAfter = bars.length - 1 - baseIdx') && route.includes('if (tradingDaysAfter < MIN_ELAPSED_BUSINESS_DAYS) continue') && route.includes('elapsedBusinessDays: tradingDaysAfter'))
 check('route: 本番で service-role が無ければ 502 に倒す（設定漏れを「まだ無い」に化けさせない）', route.includes("process.env.NODE_ENV === 'production' && !hasServiceRole()"))
 
-console.log('■ ハウスルール（design-taste-frontend。DECISIONS 2026-10-14 決定(2) の7か所）')
+console.log('■ 見た目の規則（DECISIONS 2026-10-14 決定(2) の7か所のうち①〜⑤⑦を維持・⑥は 2026-10-25 に1か所だけ許した）')
 check('① 番号を落とす（上で確認済み）・② 段ラベルを落とす（見出しの上に小さなラベルの <p> が無い）', !/<p className=\{`?\$?\{?s\.small\}?`?\}>[^<]{1,12}<\/p>\s*<h[23]/.test(page))
 check('③ 1px の線・枠を使わない: page・断片の TSX に border-t/b/l/r・h-px・divide-・<hr が無い', !/border-[tblrxy](?![a-z-])|\bh-px\b|\bw-px\b|divide-[xy]|<hr\b/.test(page + entry))
 check('③ home.module.css: border は data-ui の内側（.ui[data-ui] …）のセレクタにだけ',
   homeCssBlocks.filter(b => /(^|[^-])border(?!-radius)/.test(b.body)).every(b => b.selector.includes('data-ui')))
 check('④ グラデーションを落とす: layout のにじみ（radial-gradient）が無く、page・断片・home.module.css にも gradient が無い', !/gradient/.test(layout + page + entry + homeCss) && layout.includes('return <>{children}</>'))
 check('⑤ すりガラスを使わない: backdrop-blur／backdrop-filter が無い', !/backdrop-blur|backdrop-filter/.test(page + entry + homeCss + layout))
-check('⑥ 休んでいるものに影・発光を置かない: shadow が無い（主ボタンの発光も落とした＝R1 の許可2か所の1つ）', !/shadow/.test(page + entry + homeCss + layout))
-check('⑦ 見出しは2行以内: h1 は <br /> で2行に固定・h2 は 2〜4語（9〜11字）', count(h1, '<br />') === 1 && ['与えて、返ってくる', '同じ1件が、こう変わる'].every(t => t.length <= 11))
+check('⑥ 影は実演パネルの1か所だけ: page に shadow-float が1回（ヒーローの s.heroPanel の上）・ほかの shadow が page に無い。断片・layout・home.module.css に shadow が無い（var(--shadow-float) は :root に無く効かないので CSS に書かない）',
+  count(page, 'shadow-float') === 1 && count(page, /shadow/g) === 1 && hero.includes('${s.heroPanel} ${s.rise} shadow-float') && !/shadow/.test(entry + homeCss + layout))
+check('⑦ 見出しは2行以内: h1 は <br /> で2行に固定・h2 は段の呼び名（4字以内）', count(h1, '<br />') === 1 && ['/study', '/learn', '/trade', '/review'].every(h => navLabel(h).length <= 4))
 check('R1: rgb(45 212 191 の直値（明るい青緑）が page・layout・断片に無い（にじみごと撤去）', !/rgb\(45[ _]212[ _]191/.test(screen) && !/#2DD4BF/i.test(homeCss))
 check('R4: infinite が無い（page・layout・断片・home.module.css・globals.css）', !/infinite/.test(screen) && !/infinite/.test(homeCss) && !/infinite/.test(css))
 check('home.module.css: 色はトークン（var(--…)）だけ・直値の色が無い', !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(homeCss))
 check('home.module.css: 面は不透明（--panel は color-mix で地を 5% 沈めた色。半透明の --surface を注記の面にしない）', homeCss.includes('--panel: color-mix(in srgb, var(--bg), var(--ink) 5%);') && !/\.ui\[data-ui\] \{[^}]*var\(--surface\)/.test(homeCss))
-check('home.module.css: 文字の段階は5つ（14 / 17 / 20 / 27 / 28）', homeCss.includes('--step-small: 14px;') && homeCss.includes('--step-body: 17px;') && homeCss.includes('--step-lead: 20px;') && homeCss.includes('--step-head: 28px;') && homeCss.includes('--step-display: 27px;'))
-check('home.module.css: 本文は 17px・行間 1.5・--ink（.page）。見出しの字間は 0', /\.page \{[^}]*font-size: var\(--step-body\)[^}]*line-height: 1\.5/.test(homeCss) && /\.h1 \{[^}]*letter-spacing: 0/.test(homeCss) && /\.h2 \{[^}]*letter-spacing: 0/.test(homeCss))
-check('home.module.css: 小さな上書きラベルを作らない（uppercase・letter-spacing の正の値が無い）', !/text-transform:\s*uppercase|letter-spacing:\s*0\.\d/.test(homeCss) && !/uppercase|tracking-/.test(page + entry))
-check('home.module.css: 節の間は空白だけ（--gap-section 96px／120px）', homeCss.includes('--gap-section: 96px;') && homeCss.includes('--gap-section: 120px;') && homeCss.includes('.section { margin-top: var(--gap-section); }'))
-check('home.module.css: アクセント（--brand）の塗りはボタンと断片の内側だけ（見出し・線・下線に使わない）',
-  homeCssBlocks.filter(b => /var\(--brand\)/.test(b.body)).every(b => /^\.button|data-ui/.test(b.selector) || b.selector.includes('.button')))
-check('globals.css: :root のトークン（22個）は変えない（ホーム専用の寸法は home.module.css に閉じる）', count(between(css, ':root {', '\n}'), /^\s{2}--[a-z-]+:/gm) === 22 + 5 && !css.includes('--step-') && !css.includes('--anchor'))
+check('home.module.css: 文字の段階（14 / 17 / 20・見出し 26→36・ヒーロー 28→44→52）',
+  homeCss.includes('--step-small: 14px;') && homeCss.includes('--step-body: 17px;') && homeCss.includes('--step-lead: 20px;')
+  && homeCss.includes('--step-head: 26px;') && between(homeCss, '@media (min-width: 768px) {\n  .page {', '}').includes('--step-head: 36px;') && count(homeCss, /--step-head:\s*\d+px;/g) === 2)
+check('home.module.css: 本文は 17px・行間 1.8・--ink（.page）。見出し（.h1・.h2）の字間は 0.01em',
+  /\.page \{[^}]*color: var\(--ink\);[^}]*font-size: var\(--step-body\);[^}]*line-height: 1\.8;/.test(homeCss) && /\.h1 \{[^}]*letter-spacing: 0\.01em/.test(homeCss) && /\.h2 \{[^}]*letter-spacing: 0\.01em/.test(homeCss))
+check('home.module.css: 小さな上書きラベルを作らない（uppercase が無く、letter-spacing は .h1・.h2 の2か所だけ）',
+  !/text-transform:\s*uppercase/.test(homeCss) && homeCssBlocks.filter(b => /letter-spacing/.test(b.body)).map(b => b.selector).join(',') === '.h1,.h2' && !/uppercase|tracking-/.test(page + entry))
+check('home.module.css: 節の間は空白だけ（--gap-section 96px／128px）', homeCss.includes('--gap-section: 96px;') && homeCss.includes('--gap-section: 128px;') && homeCss.includes('.section { margin-top: var(--gap-section); }'))
+check('home.module.css: アクセント（--brand）はボタンと断片の内側、ほかは .page の --wash の宣言1か所だけ（見出し・線・下線に使わない）',
+  homeCssBlocks.filter(b => /var\(--brand\)/.test(b.body)).every(b => /^\.button|data-ui/.test(b.selector) || b.selector.includes('.button')
+    || (b.selector === '.page' && count(b.body, 'var(--brand)') === 1 && b.body.includes('--wash: color-mix(in srgb, var(--card), var(--brand) 12%);'))))
+check('globals.css: :root のトークン（22個）は変えない（ホーム専用の寸法は home.module.css に閉じる）', count(between(css, ':root {', '\n}'), /^\s{2}--[a-z-]+:/gm) === 22 + 5 && !css.includes('--step-') && !css.includes('--anchor') && !css.includes('--wash') && !css.includes('--radius-face'))
 
-console.log('■ 動き（スキル step 9: 入場・反応・移り変わり。transform と opacity だけ・待たせない）')
-check('useReveal: IntersectionObserver で1度だけ（unobserve）・root に data-motion="on" を付けてから隠す・無ければ全部にすぐ data-in',
-  reveal.includes('new IntersectionObserver(') && reveal.includes('io.unobserve(e.target)') && reveal.includes("el.setAttribute('data-motion', 'on')") && reveal.includes("for (const t of targets) t.setAttribute('data-in', '')"))
-check('useReveal: 「動きを減らす」では隠さない（matchMedia(prefers-reduced-motion: reduce) で data-in を付けて終える）', reveal.includes("window.matchMedia('(prefers-reduced-motion: reduce)').matches") && reveal.indexOf('calm ||') < reveal.indexOf("el.setAttribute('data-motion', 'on')"))
-check('home.module.css: 隠した状態は .page[data-motion="on"] の下・prefers-reduced-motion: no-preference の中だけ（script が無ければ全部見える）',
-  /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\.page\[data-motion="on"\] \[data-reveal\]:not\(\[data-in\]\) \{\s*opacity: 0;\s*transform: translateY\(24px\);/.test(homeCss) && count(homeCss, '[data-reveal]:not([data-in])') === 1)
-check('home.module.css: 入場は opacity と transform だけ・60〜90ms 刻み（--i × 80ms／90ms）・@keyframes は rise の1つ',
-  homeCss.includes('transition-delay: calc(var(--i, 0) * 80ms);') && homeCss.includes('animation-delay: calc(var(--i, 0) * 90ms + 120ms);') && count(homeCss, '@keyframes') === 1 && /@keyframes rise \{\s*from \{ opacity: 0; transform: translateY\(18px\); \}\s*to \{ opacity: 1; transform: none; \}/.test(homeCss))
+console.log('■ 明朝（h1・h2 だけ。読み込みは app/(night)/layout.tsx の1行）')
+check("app/(night)/layout.tsx: import '@fontsource-variable/noto-serif-jp' が1行だけ（app/layout.tsx・globals.css・page には無い＝他の画面は明朝を読まない）",
+  count(layout, "import '@fontsource-variable/noto-serif-jp'") === 1 && count(layout, 'noto-serif-jp') === 1 && !rootLayout.includes('noto-serif-jp') && !css.includes('noto-serif-jp') && !page.includes('noto-serif-jp'))
+check('package.json: @fontsource-variable/noto-serif-jp を 5.3.1 で持つ（セルフホスト。外部の配信を使わない）', /"@fontsource-variable\/noto-serif-jp": "\^?5\.3\.1"/.test(read('package.json')))
+check("home.module.css: 明朝は --font-display（'Noto Serif JP Variable', serif）で、使うのは .h1・.h2 だけ",
+  homeCss.includes("--font-display: 'Noto Serif JP Variable', serif;") && homeCssBlocks.filter(b => b.body.includes('var(--font-display)')).map(b => b.selector).join(',') === '.h1,.h2'
+  && count(homeCss, 'Noto Serif JP') === 1)
+check('home.module.css: 明朝の太さは 400／500 だけ（40px 未満は 500＝h2 は 26・36px とも 500、h1 は 28px で 500・44／52px で 400）・斜体なし',
+  [...homeCss.matchAll(/--weight-(?:head|display):\s*(\d+);/g)].map(m => m[1]).join(',') === '500,500,400'
+  && count(homeCss, /--weight-head:/g) === 1 && homeCss.includes('--step-head: 26px;') && homeCss.includes('--step-display: 28px;')
+  && !/font-style:\s*(?:italic|oblique)/.test(homeCss) && !/<em\b|<i\b|italic/.test(page))
+
+console.log('■ 面の上の文字のコントラスト（color-mix を sRGB の成分ごとの線形補間で手計算。色の正は globals.css の :root）')
+{
+  const rootBody = between(css, ':root {', '\n}')
+  const hexOf = (name: string): number[] => {
+    const m = new RegExp(`${name}:\\s*#([0-9A-Fa-f]{6})\\b`).exec(rootBody)
+    if (!m) throw new Error(`${name} が :root に無い（#RRGGBB で）`)
+    return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16))
+  }
+  /** color-mix(in srgb, A, B p%) = A × (1 − p) + B × p（成分ごと） */
+  const mix = (a: number[], b: number[], p: number) => a.map((v, i) => v * (1 - p) + b[i] * p)
+  const lum = (c: number[]) => {
+    const [r, g, b] = c.map(v => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
+  const pctOf = (decl: RegExp): number => { const m = decl.exec(homeCss); return m ? Number(m[1]) / 100 : NaN }
+  const washP = pctOf(/--wash: color-mix\(in srgb, var\(--card\), var\(--brand\) (\d+)%\);/)
+  const panelP = pctOf(/--panel: color-mix\(in srgb, var\(--bg\), var\(--ink\) (\d+)%\);/)
+  const [card, bg, ink, ink2, muted, brand] = ['--card', '--bg', '--ink', '--ink-2', '--muted', '--brand'].map(hexOf)
+  const wash = mix(card, brand, washP)
+  const panel = mix(bg, ink, panelP)
+  const fmt = (n: number) => n.toFixed(2)
+  for (const [faceName, face] of [['--wash', wash], ['--panel', panel]] as const) {
+    for (const [inkName, c] of [['--ink', ink], ['--ink-2', ink2], ['--muted', muted]] as const) {
+      const r = ratio(c, face)
+      check(`${inkName} の文字は ${faceName} の上で 4.5 以上（${fmt(r)}）`, r >= 4.5, fmt(r))
+    }
+  }
+  const rb = ratio(brand, wash)
+  check(`--brand（主ボタンの塗り）と --wash の差は 3.0 以上（部品の見分け・${fmt(rb)}）`, rb >= 3.0, fmt(rb))
+  const rw = ratio(wash, bg)
+  check(`--wash と地（--bg）は段差として見分けられる（1.05 以上・線ではないので 1.3 は求めない・${fmt(rw)}）`, rw >= 1.05, fmt(rw))
+}
+
+console.log('■ 動き（最初の1画面の入場だけ。transform と opacity だけ・待たせない）')
+check('スクロールの入場を置かない: data-reveal・IntersectionObserver・useReveal・data-motion が page・断片・CSS に無く、components/entry/useReveal.ts が無い',
+  !/data-reveal|IntersectionObserver|useReveal|data-motion/.test(page + entry + homeCss) && !exists('components/entry/useReveal.ts'))
+check('home.module.css: 入場は opacity と transform だけ・90ms 刻み（--i × 90ms）・@keyframes は rise の1つ・prefers-reduced-motion: no-preference の中だけ',
+  homeCss.includes('animation-delay: calc(var(--i, 0) * 90ms + 120ms);') && count(homeCss, '@keyframes') === 1 && /@keyframes rise \{\s*from \{ opacity: 0; transform: translateY\(18px\); \}\s*to \{ opacity: 1; transform: none; \}/.test(homeCss)
+  && /@media \(prefers-reduced-motion: no-preference\) \{\s*\.rise \{/.test(homeCss) && !homeCss.includes('transition-delay: calc(var(--i'))
 check('home.module.css: transition は性質を名指し（transition: all が無い）・ease-in（単独）を使わない', !/transition:\s*all/.test(homeCss) && !/[^-\w]ease-in(?!-out)\b/.test(homeCss))
-check('トップ: ヒーローの入場は4つ（h1・支えの1文・動作・実演パネル）・節の入場は data-reveal が 16 以上・useReveal(root)',
-  count(hero, '${s.rise}') === 4 && count(page, 'data-reveal') >= 16 && page.includes('useReveal(root)') && page.includes('<div ref={root} className={s.page}>'))
+check('トップ: 入場はヒーローの4つ（h1・支えの1文・動作・実演パネル）だけ', count(hero, '${s.rise}') === 4 && count(page, 's.rise') === 4)
 check('home.module.css: すべての操作部に押下・ホバー・焦点の反応（.button:active scale・:hover は (hover: hover) の中・:focus-visible は --focus の 2px）',
   homeCss.includes('.button:active { transform: scale(0.97); }') && /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.button:hover \{ background: var\(--brand-strong\); \}/.test(homeCss) && /\.textLink:focus-visible,[\s\S]*?outline: 2px solid var\(--focus\)/.test(homeCss))
-check('トップ: data-ui の断片は7つ（実演パネル1・節1に3・節2に3）で、h1／h2 を包まない', count(page, 'data-ui') === 6 && count(demo, 'data-ui') === 1 && !/data-ui[^>]*>[\s\S]{0,200}<h[12]/.test(page))
-check('スマホで横にはみ出さない作り（.stack の子は min-width: 0・.dd は overflow-wrap: anywhere・複製は minmax(0, 640px)）', homeCss.includes('.stack > * {\n  grid-area: 1 / 1;\n  min-width: 0;\n}') && /\.ui\[data-ui\] \.dd \{[^}]*overflow-wrap: anywhere/.test(homeCss) && homeCss.includes('grid-template-columns: minmax(0, 640px);'))
+{
+  const uis = dataUiElements(page)
+  check('トップ: data-ui の断片は page に5つ（学ぶ1・くらべる1・書く1・振り返り2）＋DemoPanel に1つで、どれも h1／h2 を包まない',
+    uis.length === 5 && count(demo, 'data-ui') === 1 && count(stStudy, 'data-ui') === 1 && count(stCompare, 'data-ui') === 1 && count(stWrite, 'data-ui') === 1 && count(stReview, 'data-ui') === 2
+    && uis.every(u => !/<h[12]/.test(u)), `page の data-ui ${uis.length} 個`)
+}
+check('スマホで横にはみ出さない作り（.stack の子は min-width: 0・.dd は overflow-wrap: anywhere・段の列は minmax(0, 1fr) と min-width: 0）',
+  homeCss.includes('.stack > * {\n  grid-area: 1 / 1;\n  min-width: 0;\n}') && /\.ui\[data-ui\] \.dd \{[^}]*overflow-wrap: anywhere/.test(homeCss)
+  && /\.stage \{[^}]*grid-template-columns: minmax\(0, 1fr\);/.test(homeCss) && homeCss.includes('.stageText { min-width: 0;') && homeCss.includes('.stageBody { min-width: 0;'))
 
 console.log('■ フッター（R10）・SITE_DESC・DESIGN.md')
 const footer = between(rootLayout, '<footer', '</footer>')
@@ -394,6 +570,7 @@ check('app/layout.tsx: SITE_DESC は「実際のお金は1円も動きません�
 const design = read('DESIGN.md')
 check('DESIGN.md §4-2: 「R1〜R8 は機械で判定できる形」（R9〜R12 は機械判定でない）', design.includes('R1〜R8 は機械で判定できる形にしてあります') && !design.includes('すべて機械で判定できる形にしてあります'))
 check('DESIGN.md §4-2 R3: 「ヒーロー（最初の1画面）のカードに騰落率を置かない」', design.includes('ヒーロー（最初の1画面）のカードに騰落率を置かない'))
+check('DESIGN.md: ホームの h1・h2 だけ Noto Serif JP（§5-2 の書体の表）', design.includes('ホームの h1・h2 だけ Noto Serif JP'))
 const SIG_CHECK_NAME = 'globals.css: --axis と --rule-line が :root にある'
 check('DESIGN.md §5-1・§10: check-signals-undecidable.ts を行番号（:数字）で参照していない（検査名で参照する）', !/check-signals-undecidable\.ts:\d+/.test(design))
 check(`DESIGN.md §5-1・§10: 検査名「${SIG_CHECK_NAME}」で参照している（2か所）`, count(design, `「${SIG_CHECK_NAME}」`) === 2, `×${count(design, `「${SIG_CHECK_NAME}」`)}`)
