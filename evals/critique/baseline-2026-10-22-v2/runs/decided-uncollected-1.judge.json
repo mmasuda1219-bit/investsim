@@ -1,0 +1,369 @@
+{
+  "memoId": "decided-uncollected",
+  "run": 1,
+  "judgeModel": "claude-sonnet-5",
+  "startedAt": "2026-10-22T12:55:30.435Z",
+  "ms": 39978,
+  "usage": {
+    "inputTokens": 4469,
+    "outputTokens": 3839
+  },
+  "stopReason": "end_turn",
+  "raw": "```json\n{\n  \"A\": [\n    { \"expectId\": \"sales-mismatch\", \"found\": true, \"byFinding\": [0], \"note\": \"前期比+16.6%との相違を指摘\" },\n    { \"expectId\": \"per-one-reading\", \"found\": true, \"byFinding\": [2], \"note\": \"PERの単一解釈と比較対象未提示を指摘\" },\n    { \"expectId\": \"forecast-as-reason\", \"found\": false, \"byFinding\": [], \"note\": \"結論の将来予想を根拠とする問題は指摘されていない\" },\n    { \"expectId\": \"momentum-as-reason\", \"found\": true, \"byFinding\": [3], \"note\": \"値動きの前提の裏付け不足を指摘\" },\n    { \"expectId\": \"fame-as-safety\", \"found\": false, \"byFinding\": [], \"note\": \"知名度と財務安全性の区別は指摘されていない\" },\n    { \"expectId\": \"net-eps-untouched\", \"found\": false, \"byFinding\": [], \"note\": \"純利益・EPS未言及の指摘はなく、来期予想の話にすり替わっている\" }\n  ],\n  \"A_dropped\": [\n    { \"expectId\": \"sales-mismatch\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"per-one-reading\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"forecast-as-reason\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"momentum-as-reason\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"fame-as-safety\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"net-eps-untouched\", \"found\": false, \"byDropped\": [] }\n  ],\n  \"B\": [],\n  \"D\": [\n    { \"finding\": 0, \"genuine\": true, \"reason\": \"原文の記述と公表数字が一致し、矛盾なし\" },\n    { \"finding\": 1, \"genuine\": true, \"reason\": \"原文の記述に関連し、来期予想の数字も公表値と一致\" },\n    { \"finding\": 2, \"genuine\": true, \"reason\": \"原文の記述とPER・平均値の数字が公表値と一致\" },\n    { \"finding\": 3, \"genuine\": true, \"reason\": \"原文の記述と株価・前日比の数字が公表値と一致\" },\n    { \"finding\": 4, \"genuine\": true, \"reason\": \"原文の記述とセグメント別数値が公表値と一致\" }\n  ],\n  \"F\": [],\n  \"G\": [\n    { \"expectNotId\": \"judge-the-decision\", \"violated\": false, \"byFinding\": [], \"text\": \"\" },\n    { \"expectNotId\": \"judge-the-stock\", \"violated\": false, \"byFinding\": [], \"text\": \"\" }\n  ]\n}\n```",
+  "parsed": {
+    "A": [
+      {
+        "expectId": "sales-mismatch",
+        "found": true,
+        "byFinding": [
+          0
+        ],
+        "note": "前期比+16.6%との相違を指摘"
+      },
+      {
+        "expectId": "per-one-reading",
+        "found": true,
+        "byFinding": [
+          2
+        ],
+        "note": "PERの単一解釈と比較対象未提示を指摘"
+      },
+      {
+        "expectId": "forecast-as-reason",
+        "found": false,
+        "byFinding": [],
+        "note": "結論の将来予想を根拠とする問題は指摘されていない"
+      },
+      {
+        "expectId": "momentum-as-reason",
+        "found": true,
+        "byFinding": [
+          3
+        ],
+        "note": "値動きの前提の裏付け不足を指摘"
+      },
+      {
+        "expectId": "fame-as-safety",
+        "found": false,
+        "byFinding": [],
+        "note": "知名度と財務安全性の区別は指摘されていない"
+      },
+      {
+        "expectId": "net-eps-untouched",
+        "found": false,
+        "byFinding": [],
+        "note": "純利益・EPS未言及の指摘はなく、来期予想の話にすり替わっている"
+      }
+    ],
+    "A_dropped": [
+      {
+        "expectId": "sales-mismatch",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "per-one-reading",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "forecast-as-reason",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "momentum-as-reason",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "fame-as-safety",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "net-eps-untouched",
+        "found": false,
+        "byDropped": []
+      }
+    ],
+    "B": [],
+    "D": [
+      {
+        "finding": 0,
+        "genuine": true,
+        "reason": "原文の記述と公表数字が一致し、矛盾なし"
+      },
+      {
+        "finding": 1,
+        "genuine": true,
+        "reason": "原文の記述に関連し、来期予想の数字も公表値と一致"
+      },
+      {
+        "finding": 2,
+        "genuine": true,
+        "reason": "原文の記述とPER・平均値の数字が公表値と一致"
+      },
+      {
+        "finding": 3,
+        "genuine": true,
+        "reason": "原文の記述と株価・前日比の数字が公表値と一致"
+      },
+      {
+        "finding": 4,
+        "genuine": true,
+        "reason": "原文の記述とセグメント別数値が公表値と一致"
+      }
+    ],
+    "F": [],
+    "G": [
+      {
+        "expectNotId": "judge-the-decision",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      },
+      {
+        "expectNotId": "judge-the-stock",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      }
+    ]
+  },
+  "parseError": null,
+  "machine": {
+    "shapeOk": true,
+    "malformed": 0,
+    "C": {
+      "raw": 5,
+      "quoteOk": 5,
+      "nearMiss": 0
+    },
+    "B": {
+      "forbiddenFindings": 0,
+      "words": []
+    },
+    "D": {
+      "rawCount": 5,
+      "keptCount": 5,
+      "emptyRaw": false,
+      "emptyKept": false
+    },
+    "F": {
+      "tokens": [
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "direct"
+        },
+        {
+          "token": "9,634",
+          "value": 9634,
+          "cls": "direct"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "direct"
+        },
+        {
+          "token": "4,005",
+          "value": 4005,
+          "cls": "direct"
+        },
+        {
+          "token": "16.6",
+          "value": 16.6,
+          "cls": "direct"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "direct"
+        },
+        {
+          "token": "9,634",
+          "value": 9634,
+          "cls": "direct"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "direct"
+        },
+        {
+          "token": "4,005",
+          "value": 4005,
+          "cls": "direct"
+        },
+        {
+          "token": "16.6",
+          "value": 16.6,
+          "cls": "direct"
+        },
+        {
+          "token": "2027",
+          "value": 2027,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "4",
+          "value": 4,
+          "cls": "direct"
+        },
+        {
+          "token": "4,500",
+          "value": 4500,
+          "cls": "direct"
+        },
+        {
+          "token": "12.3",
+          "value": 12.3,
+          "cls": "direct"
+        },
+        {
+          "token": "5,600",
+          "value": 5600,
+          "cls": "direct"
+        },
+        {
+          "token": "3.2",
+          "value": 3.2,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "40.6",
+          "value": 40.6,
+          "cls": "direct"
+        },
+        {
+          "token": "39.3",
+          "value": 39.3,
+          "cls": "direct"
+        },
+        {
+          "token": "1,768.08",
+          "value": 1768.08,
+          "cls": "direct"
+        },
+        {
+          "token": "27.7",
+          "value": 27.7,
+          "cls": "direct"
+        },
+        {
+          "token": "20.6",
+          "value": 20.6,
+          "cls": "direct"
+        },
+        {
+          "token": "22.5",
+          "value": 22.5,
+          "cls": "direct"
+        },
+        {
+          "token": "18.9",
+          "value": 18.9,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "09",
+          "value": 9,
+          "cls": "direct"
+        },
+        {
+          "token": "71,780",
+          "value": 71780,
+          "cls": "direct"
+        },
+        {
+          "token": "3,020",
+          "value": 3020,
+          "cls": "direct"
+        },
+        {
+          "token": "4.04",
+          "value": 4.04,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "08",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "26.2",
+          "value": 26.2,
+          "cls": "direct"
+        },
+        {
+          "token": "61",
+          "value": 61,
+          "cls": "derived"
+        },
+        {
+          "token": "5.7",
+          "value": 5.7,
+          "cls": "direct"
+        },
+        {
+          "token": "1.8",
+          "value": 1.8,
+          "cls": "direct"
+        },
+        {
+          "token": "2.3",
+          "value": 2.3,
+          "cls": "direct"
+        }
+      ],
+      "unknown": []
+    }
+  }
+}

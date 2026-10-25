@@ -27,6 +27,8 @@
 //  (i) compose を実際に呼ぶ（結論が空／ROE と ROA／全欄埋め／営業利益と純利益の混同／PER の平均 ほか）
 //  (j) MiniTrend の座標計算（lineGeometry）が正負で同じ倍率
 //  (k) money.ts の整形（実データの値で）＋前期比の計算値が会社公表の % と一致
+//  (u) 2026-10-22（測定1・2の後に足した catalogue の7項目・catalogue6-2026-10-22・reviewer の負例 review-negatives-2026-10-22）: fact-mismatch・momentum-as-reason・fame-as-safety・
+//      forecast-as-reason・cf-profit-unchecked・segment-impression の正例と負例（似ているが出してはいけない文）・明細の行の文
 //  ほか: 見出しの階層（check-headings.ts と同じ規則）・role="img"・出所の文が無条件に描かれる・U+2212
 //  2026-10-12（オーナーの読みやすさの指示5点・DECISIONS 2026-10-09 の追記）:
 //  (l) 描画結果の Sourced 由来の数字の直後に [N]（出典の番号）がある・解説文のかけらをつなぐと fill と同じ文
@@ -58,7 +60,7 @@ import { MEMO_FIELDS, EMPTY_MEMO, DECISION_OPTIONS, type LabMemo } from '../lib/
 import { GLOSSARY_EXTRA } from '../lib/lab/glossary-extra'
 import { labForbiddenWordsIn, LAB_FORBIDDEN, LAB_FORBIDDEN_ALL } from '../lib/lab/forbidden-extra'
 import { CRITIQUE_SECTIONS, NOTES_TEXT, CRITIQUE_TITLE } from '../lib/lab/critique/sections'
-import { CATALOGUE, numbersNear, approxEqual, catalogueById, NOTHING_FOUND, CHECK_SCOPE_NOTE, detectAll, nearby } from '../lib/lab/critique/catalogue'
+import { CATALOGUE, numbersNear, approxEqual, catalogueById, NOTHING_FOUND, CHECK_SCOPE_NOTE, detectAll, nearby, factMismatches, FACT_TEMPLATES, FACT_ALIAS_NOTE } from '../lib/lab/critique/catalogue'
 import { LEARN_THEMES, pickTheme, THEME_FOR_MISSING } from '../lib/lab/critique/learn-themes'
 import { composeCritique, CONNECT_TEMPLATES, mentionedMetrics, EXTRA_NAMES, NAMES_HEADING } from '../lib/lab/critique/compose'
 import { SHOW_LAB_9983, LAB_CRITIQUE_AI, LAB_SIGN_COLOR } from '../lib/features'
@@ -382,7 +384,7 @@ console.log('■ (i) compose を実際に呼ぶ')
   check('自由記述 → §1 は「自由記述」1本の逐語引用・§2 は文字数', free.flow.quotes.length === 1 && free.flow.quotes[0].label === '自由記述' && free.flow.quotes[0].text === MEMO_FREE.free && /自由記述で \d+ 文字/.test(free.written.lines[0]))
   // 本文の穴埋めが全部埋まっている（{…} が残らない）
   const all = [MEMO_EMPTY, MEMO_ROE_ROA, MEMO_FULL, MEMO_OP_NET, MEMO_PER_AVG, MEMO_FREE].map(m => composeCritique(m))
-  const leftovers = all.flatMap(c => [...c.check.hits.map(x => x.body), ...c.connect.lines, ...c.written.lines]).filter(t => /\{[A-Za-z]+\}/.test(t))
+  const leftovers = all.flatMap(c => [...c.check.hits.flatMap(x => [x.body, ...x.details.map(d => d.text)]), ...c.connect.lines, ...c.written.lines]).filter(t => /\{[A-Za-z]+\}/.test(t))
   check('§3 の本文・§5 の併置文に {var} が残っていない', leftovers.length === 0, leftovers.slice(0, 3).join(' | '))
   check('§5 は固定の併置文4本（買う／買わないを言わない）', full.connect.lines.length === 4 && CONNECT_TEMPLATES.length === 4 && full.connect.lines.every(l => !/買う|買わない|売る|売らない/.test(l)))
   check('§3 の文に「間違っていた」「買うべき」が無い（カタログの本文）', CATALOGUE.every(e => !/間違っていた|買うべき|買わないべき/.test(e.title + e.body)))
@@ -1145,16 +1147,153 @@ console.log('■ (s) フェーズA（2026-10-18）: 門 guard.ts・返答の解�
   check('classifyNumbers: 利用者の 11.92 は memo、21 − 11.92 = 9.08 は derived、1,234 は unknown、2026 は year', f2['11.92'] === 'memo' && f2['9.08'] === 'derived' && f2['1,234'] === 'unknown' && f2['2026'] === 'year', JSON.stringify(f2))
   // 規則版（catalogue）の検出（AI との比較用）
   const base = (id: string) => detectAll({ text: memoById(id).text, memo: { mode: 'free', decision: null, parts: {}, free: memoById(id).text }, data: LAB_9983 }).map(e => e.id)
-  // 10 件のカタログを実物 2 件と clean に当てた結果を固定する（2026-10-19。per-average-kind の誤発火を直した後の基準値）
-  check('規則版: 実物1（集めたが決められない）は conclusion-empty・roe-roa-mix・roa-unpublished の 3 件だけ（per-average-kind は当たらない）', base('collected-undecided').slice().sort().join() === ['conclusion-empty', 'roe-roa-mix', 'roa-unpublished'].sort().join(), base('collected-undecided').join(','))
-  check('規則版: 実物2（決めたが集めていない）には何も当たらない（売上 10%増・PER 40倍・値動き・知名度は規則では拾えない）', base('decided-uncollected').length === 0, base('decided-uncollected').join(','))
-  check('規則版: clean には何も当たらない', base('clean').length === 0, base('clean').join(','))
+  // 17 件のカタログを実物 2 件と clean に当てた結果を固定する（2026-10-22。測定1の後に6項目を足し、測定2の後に op-only-judgement を足した基準値。2026-10-19 は実物1が3件・実物2が0件）
+  const want1 = ['conclusion-empty', 'roe-roa-mix', 'roa-unpublished', 'fact-mismatch', 'cf-profit-unchecked', 'segment-impression']
+  const want2 = ['fact-mismatch', 'momentum-as-reason', 'fame-as-safety', 'forecast-as-reason', 'op-only-judgement']
+  check(`規則版: 実物1（集めたが決められない）は ${want1.join('・')} の ${want1.length} 件だけ（per-average-kind は当たらない）`, base('collected-undecided').slice().sort().join() === want1.slice().sort().join(), base('collected-undecided').join(','))
+  check(`規則版: 実物2（決めたが集めていない）は ${want2.join('・')} の ${want2.length} 件だけ（PER 40倍「くらい」は概数なので fact-mismatch の対象外・per-only は「割高」等の語が無いので当たらない）`, base('decided-uncollected').slice().sort().join() === want2.slice().sort().join(), base('decided-uncollected').join(','))
+  check('規則版: clean には何も当たらない（不変条件。正しい数字・来期予想・前の期の数字・セグメントの % だけのメモ）', base('clean').length === 0, base('clean').join(','))
   console.log(`  （規則版の当たり — 実物1: ${base('collected-undecided').join('・') || '無し'}／実物2: ${base('decided-uncollected').join('・') || '無し'}／clean: ${base('clean').join('・') || '無し'}）`)
   // 記録・スクリプト
   const leak = walk('evals/critique', /\.(json|md)$/).filter(f => /sk-ant-[A-Za-z0-9_-]{8,}/.test(read(f)))
   check('evals/critique/** の記録（json・md）に鍵らしき文字列（sk-ant-…）が無い', leak.length === 0, leak.join(','))
   check('scripts/eval-critique.ts・eval-judge.ts・evals/critique/**・lib/lab/critique/anthropic.ts は lib/report/claude.ts・lib/ai-trader を import しない', ['scripts/eval-critique.ts', 'scripts/eval-judge.ts', 'lib/lab/critique/anthropic.ts', 'lib/lab/critique/guard.ts', ...walk('evals/critique')].every(f => !/report\/claude|ai-trader\//.test(stripComments(read(f)))))
   check('scripts/eval-judge.ts: C と F を判定 AI に数えさせない（machineParts で数え、system に「機械が数える」とある）', /function machineParts/.test(read('scripts/eval-judge.ts')) && read('scripts/eval-judge.ts').includes('数は機械が数える'))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('■ (u) 測定1・2の後に足した7項目（2026-10-22）')
+{
+  const free = (text: string): LabMemo => memo({ mode: 'free', decision: null, free: text })
+  const hit = (id: string, text: string, m: LabMemo = free(text)) => detectAll({ text, memo: m, data: LAB_9983 }).some(e => e.id === id)
+  const NEW6 = ['fact-mismatch', 'momentum-as-reason', 'fame-as-safety', 'forecast-as-reason', 'cf-profit-unchecked', 'segment-impression', 'op-only-judgement']
+  check('7項目がカタログにあり、題と kind が仕様どおり（fact-mismatch だけ calc、他の6つは check＝札が「計算方法」にならない。review S1）',
+    catalogueById('fact-mismatch').title === '書かれた数字が、会社の公表値と違う' && catalogueById('fact-mismatch').kind === 'calc'
+    && catalogueById('momentum-as-reason').title === '値動きそのものを理由にしている' && catalogueById('momentum-as-reason').kind === 'check'
+    && catalogueById('fame-as-safety').title === '知名度を、財務の安全性の代わりにしている' && catalogueById('fame-as-safety').kind === 'check'
+    && catalogueById('forecast-as-reason').title === '結論の理由が、将来の株価の予想になっている' && catalogueById('forecast-as-reason').kind === 'check'
+    && catalogueById('cf-profit-unchecked').title === 'キャッシュフローを、利益と並べて見ていない' && catalogueById('cf-profit-unchecked').kind === 'check'
+    && catalogueById('segment-impression').title === '内訳を、数字でなく印象で書いている' && catalogueById('segment-impression').kind === 'check'
+    && catalogueById('op-only-judgement').title === '営業利益だけで業績を見て、純利益・EPS に触れていない' && catalogueById('op-only-judgement').kind === 'check')
+  // 文面の線（legal-compliance 2026-10-07 C-2）: 本人の文と公表値だけ。判定・推奨・評価の語を使わない
+  const lines6 = NEW6.map(id => catalogueById(id)).flatMap(e => [e.title, fill(e.body, labVars(LAB_9983))])
+  check('7項目の題・本文に「間違っていた」「買うべき」「割高」「割安」「危険」「健全」が無く、禁止語（forbidden.ts＋LAB_FORBIDDEN）も無い',
+    lines6.every(t => !/間違っていた|買うべき|割高|割安|危険|健全/.test(t) && labForbiddenWordsIn(t).length === 0), lines6.flatMap(t => labForbiddenWordsIn(t)).join(','))
+  check('forecast-as-reason の本文は「当否に触れない」「このサイトも将来の株価は出しません」を含む（構造の指摘）', catalogueById('forecast-as-reason').body.includes('当たるかどうかには、この添削は触れません') && catalogueById('forecast-as-reason').body.includes('このサイトも将来の株価は出しません'))
+  check('fact-mismatch の本文は「どちらが正しい」を書かない（「確かめます」で終わる・「誤り」「正しい」が無い）', !/誤り|正しい|間違/.test(catalogueById('fact-mismatch').body))
+  // 明細の行のテンプレート: 数字の直書きが無い・禁止語が無い・全部埋まる
+  const factT = [...Object.values(FACT_TEMPLATES), FACT_ALIAS_NOTE]
+  check('fact-mismatch の明細のテンプレートに2桁以上の数字の直書きが無い', factT.every(t => !/\d{2,}/.test(t.replace(/\{[A-Za-z][A-Za-z0-9]*\}/g, ''))))
+  const factVars = { ...labVars(LAB_9983), memoQuote: '', roePrev: '20.2%', eqPrev: '58.9%' }
+  check('fact-mismatch の明細のテンプレートは labVars＋{memoQuote}{roePrev}{eqPrev} で全部埋まり、禁止語が無い', factT.every(t => { try { return labForbiddenWordsIn(fill(t, factVars)).length === 0 } catch { return false } }))
+
+  // ── fact-mismatch ──
+  const fm = (t: string) => factMismatches(t, LAB_9983)
+  check('fact-mismatch 正例: 実物1の「ROAは11.92%」（開示 11.6%・当期は未開示）→ level', fm('ROAは11.92%、ROEは21%。').some(f => f.key === 'roa' && f.how === 'level' && f.quote === 'ROAは11.92%'))
+  check('fact-mismatch 正例: 実物1の「ESPが下がっている」→ EPS の direction（綴り ESP）', fm('ESPが下がっている。').some(f => f.key === 'eps' && f.how === 'direction' && f.alias))
+  check('fact-mismatch 正例: 実物2の「売上高は前期比で10%増えていた」→ yoy', fm('売上高は前期比で10%増えていた。').some(f => f.key === 'sales' && f.how === 'yoy'))
+  check('fact-mismatch 正例: 「自己資本比率は45%」「PERは25倍」「営業利益は前期比20%増」「純利益が減った」', ['自己資本比率は45%。', 'PERは25倍。', '営業利益は前期比20%増。', '純利益が減った。'].every(t => fm(t).length === 1), ['自己資本比率は45%。', 'PERは25倍。', '営業利益は前期比20%増。', '純利益が減った。'].map(t => fm(t).length).join(','))
+  const fmNeg = [
+    'ROEは21%。',                                  // ±0.3 以内（21.2%）
+    'ROAは11.6%。',                                // 前の期の開示値
+    '自己資本比率は 58.9% から 62.6% で +3.7ポイント。', // 前の期の値から書いた
+    'EPSが増えた。',                                // 向きが同じ
+    'EPSが下がっているか、決算短信で確かめる。',     // 仮定・問い
+    'PERは40倍くらい。',                            // 概数
+    '来期の会社予想は売上収益 +12.3%、純利益 +3.2%。', // 会社予想の文
+    '海外ユニクロの売上は前期比 26.2%増。',          // セグメントの売上
+    '小売業の平均PERは27.7倍。',                    // 平均の PER
+    '売上高営業利益率は18.8%。',                    // 利益率（売上でも営業利益でもない）
+    '営業利益は5,425億円で前期比プラス。',           // 金額の水準は見ない（op-net-mix の担当）
+  ]
+  check('fact-mismatch 負例: 正しい数字・前の期の値・仮定・概数・会社予想・セグメント・平均・利益率・金額の水準 → 出ない', fmNeg.every(t => fm(t).length === 0), fmNeg.filter(t => fm(t).length > 0).join(' | '))
+  const c1 = composeCritique(free(memoById('collected-undecided').text)).check.hits.find(x => x.id === 'fact-mismatch')
+  check('fact-mismatch の明細: 実物1は2行（ESP・ROA）で、メモの引用と公表値（+25.3%・11.6%）を並べ、ESP の読み替えを断る・かけらをつなぐと文字と同じ・公表値に出典の番号',
+    !!c1 && c1.details.length === 2
+    && c1.details[0].text.includes('メモ「ESPが下がっている」') && c1.details[0].text.includes('+25.3%') && c1.details[0].text.includes(FACT_ALIAS_NOTE)
+    && c1.details[1].text.includes('メモ「ROAは11.92%」') && c1.details[1].text.includes('11.6%') && c1.details[1].text.includes('開示していません')
+    && c1.details.every(d => piecesText(d.pieces) === d.text)
+    && c1.details.every(d => d.pieces.some(p => p.kind === 'value' && p.cite != null)),
+    c1?.details.map(d => d.text).join(' | ') ?? 'no hit')
+  const c2 = composeCritique(free(memoById('decided-uncollected').text)).check.hits.find(x => x.id === 'fact-mismatch')
+  check('fact-mismatch の引用は「指標名から数字（または向きの語）まで」で、句の残り（利用者の評価の語）を写さない（review S3）',
+    fm('売上高は前期比で10%増えていた。業績は問題ない。')[0]?.quote === '売上高は前期比で10%増' && fm('ROAは11.92%で高いと思う。')[0]?.quote === 'ROAは11.92%' && fm('ESPが下がっているので不安。')[0]?.quote === 'ESPが下がっている'
+    && !!c2 && c2.details.length === 1 && c2.details[0].text.startsWith('メモ「売上高は前期比で10%増」／'),
+    c2?.details.map(d => d.text).join(' | ') ?? 'no hit')
+  const c1html = textOf(render(h(CritiqueView, { critique: composeCritique(free(memoById('collected-undecided').text)) })))
+  check('fact-mismatch の明細は §3 に描かれる（「メモ「ROAは11.92%」」が描画結果にある）', c1html.replace(/\s+/g, '').includes('メモ「ROAは11.92%」／会社の公表値:'))
+
+  // ── momentum-as-reason ──
+  check('momentum-as-reason 正例: 実物2「最近ずっと株価が上がっているので、勢いがあると思った」', hit('momentum-as-reason', '最近ずっと株価が上がっているので、勢いがあると思った。'))
+  check('momentum-as-reason 負例: 「利益が伸びているので」（主語が会社の数字）／「株価は上がっているが、利益も伸びているので」（句が違う）／「株価が下がったので PER が下がった」（計算のつながり）／「株価がまだ上がり続けそうだから」（見通し＝forecast の担当）',
+    !hit('momentum-as-reason', '利益が伸びているので、業績は問題ない。') && !hit('momentum-as-reason', '株価は上がっているが、利益も伸びているので買う。') && !hit('momentum-as-reason', '株価が下がったので、PERも下がった。') && !hit('momentum-as-reason', '株価がまだ上がり続けそうだから。'))
+
+  // ── fame-as-safety ──
+  check('fame-as-safety 正例: 実物2「有名な会社なので潰れることはないと思う」／「大手だから安心」', hit('fame-as-safety', '有名な会社なので潰れることはないと思う。') && hit('fame-as-safety', '大手だから安心。'))
+  check('fame-as-safety 負例: 「有名な会社なので、ニュースが多い」（安全の語が無い）／「海外の伸びが大きいので安心」（規模でなく伸び）', !hit('fame-as-safety', '有名な会社なので、ニュースが多い。') && !hit('fame-as-safety', '海外の伸びが大きいので安心。'))
+
+  // ── forecast-as-reason ──
+  check('forecast-as-reason 正例: 実物2の結論「買う。株価がまだ上がり続けそうだから」（自由記述）／欄で書いた結論「上がりそうだから」', hit('forecast-as-reason', '【結論】買う。株価がまだ上がり続けそうだから。') && hit('forecast-as-reason', '', memo({ decision: 'buy', parts: { conclusion: '上がりそうだから買う。' } })))
+  check('forecast-as-reason 負例: 結論でない欄の「株価は上がりそうだから」／結論が「来期の利益が伸びそうだから」（会社の数字の見通し）／clean の結論',
+    !hit('forecast-as-reason', '', memo({ decision: 'buy', parts: { metrics: '株価は上がりそうだから気になった。', conclusion: '利益の伸びを確かめたので買う。' } }))
+    && !hit('forecast-as-reason', '', memo({ decision: 'buy', parts: { conclusion: '来期の利益が伸びそうだから買う。' } }))
+    && !hit('forecast-as-reason', memoById('clean').text))
+
+  // ── cf-profit-unchecked ──
+  check('cf-profit-unchecked 正例: 実物1「キャッシュフローが増えていて、手元資金も確保されているので安心材料だと思う」', hit('cf-profit-unchecked', 'キャッシュフローが増えていて、手元資金も確保されているので安心材料だと思う。'))
+  check('cf-profit-unchecked 負例: 「営業CF は 7,886億円で、純利益 5,425億円より大きい。手元資金も増えた。」（利益と並べている）／「営業CF と手元資金を見た」（判断の語が無い）',
+    !hit('cf-profit-unchecked', '営業CF は 7,886億円で、純利益 5,425億円より大きい。手元資金も増えた。') && !hit('cf-profit-unchecked', '営業CF と手元資金を見た。'))
+
+  // ── segment-impression ──
+  check('segment-impression 正例: 実物1「セグメントを見ると海外の人気が高そう」', hit('segment-impression', 'セグメントを見ると海外の人気が高そう。'))
+  check('segment-impression 負例: 「海外ユニクロが +26.2%（構成比 約61%）」（数字がある）／「海外ユニクロの伸びが気になった」（印象の語が無い）／「海外の景気が弱い」（外の話）',
+    !hit('segment-impression', 'セグメントは海外ユニクロが +26.2%（構成比 約61%）で大きい。') && !hit('segment-impression', '海外ユニクロの伸びが気になった。') && !hit('segment-impression', '海外の景気が弱い。'))
+
+  // ── op-only-judgement（測定2の後に追加） ──
+  check('op-only-judgement 正例: 実物2「営業利益も増えていたので、業績は問題ない」／「営業利益が伸びていて業績は順調」', hit('op-only-judgement', '営業利益も増えていたので、業績は問題ない。') && hit('op-only-judgement', '営業利益が伸びていて業績は順調。'))
+  check('op-only-judgement 負例: 実物1（営業利益と純利益の両方に触れる）／「営業利益も増えていたので、業績は問題ない。EPS も見た。」（同じメモに EPS）／「営業利益は5,425億円で前期比プラス」（業績の判断が無い）／clean',
+    !hit('op-only-judgement', memoById('collected-undecided').text) && !hit('op-only-judgement', '営業利益も増えていたので、業績は問題ない。EPS も見た。') && !hit('op-only-judgement', '営業利益は5,425億円で前期比プラス。') && !hit('op-only-judgement', memoById('clean').text))
+  check('op-only-judgement の本文は営業利益・純利益・EPS の前期比（+31.7%・+25.3%・+25.3%）を並べる', (() => { const b = fill(catalogueById('op-only-judgement').body, labVars(LAB_9983)); return b.includes('+31.7%') && (b.match(/\+25\.3%/g) ?? []).length === 2 })())
+
+  // ── reviewer の負例（review-negatives-2026-10-22）: 当たってはいけない文。7項目のどれにも当たらない ──
+  const NEW7 = NEW6
+  const hitsNew = (text: string, m: LabMemo = free(text)) => detectAll({ text, memo: m, data: LAB_9983 }).map(e => e.id).filter(id => NEW7.includes(id))
+  const REVIEW_NEG: string[] = [
+    // W1 丸めた正しい数字
+    '自己資本比率は63%。', '自己資本比率は62%。', '売上は前期比17%増。', '売上は前期比16%増。', 'ROAは12%。', 'PERは40倍。',
+    'ROE 21.2%。', 'ROEは21%。', 'ROEは約21%。', 'ROEは2割を超える。', 'ROEは前期の20.2%から21.2%に上がった。', 'ROEは20.2%から21.2%に上がった。',
+    '営業利益は前期比32%増。', 'EPSは前期比25%増。', 'EPSは1,768円。',
+    // W2 を超え／上回る
+    '自己資本比率は60%を超えている。',
+    // W3 向きは完了形・進行形だけ・懸念の文は読まない
+    'ROEが下がるリスクを確認したい。', '営業利益が減っているので、業績が順調とは言えない。',
+    // W4 セグメント・地域・事業の数字
+    '中国大陸の売上は前期比5%減。', 'Eコマースの売上高は前期比10%増。', 'ユニクロ事業全体の売上は前期比10%増。',
+    // W5 型5つ
+    '株価が上がっているのを見てから決算を読んだ。', '株価が上がったので、含み益が出ている。',
+    '大手だから安心、とは言えないので自己資本比率を見た。', '有名な会社だから潰れない、と思い込まないようにする。',
+    '株主への現金還元が増えた。', '現金配当が増えた。',
+    '海外投資家の売買が多い。', '国内の同業他社と比べてPERが高そう。',
+    '営業利益の推移が順調かどうか、次の決算で確かめる。',
+    '円安で株価が上がりそうだから、買うかどうかは決算を見て決める。',
+    // reviewer が「当たらない」を確かめていた文
+    '純利益は前期から伸びた。売上総利益率は下がった。', 'ROEが上がった理由は、純利益が伸びたから。', '株価が下がったので、配当利回りは上がった。',
+  ]
+  const negHits = REVIEW_NEG.map(t => [t, hitsNew(t)] as const).filter(([, ids]) => ids.length > 0)
+  check(`reviewer の負例 ${REVIEW_NEG.length} 文は、7項目のどれにも当たらない`, negHits.length === 0, negHits.map(([t, ids]) => `${t} → ${ids.join(',')}`).join(' | '))
+  const negFields = [
+    '保留。前回、株価が上がりそうだからと買って失敗したので、今回は数字を見る。',
+    '買う。チャートが上がりそうだから、ではなく、利益の伸びを見た。',
+  ].map(c => [c, hitsNew('', memo({ decision: 'hold', parts: { conclusion: c } }))] as const).filter(([, ids]) => ids.length > 0)
+  check('reviewer の負例（結論の欄）: 「上がりそうだからと買って失敗した」「上がりそうだから、ではなく」は forecast-as-reason に当たらない', negFields.length === 0, negFields.map(([t, ids]) => `${t} → ${ids.join(',')}`).join(' | '))
+  const REVIEW_POS: [string, string][] = [
+    ['ROAは11.92%、ROEは21%。', 'fact-mismatch'], ['ESPが下がっている。', 'fact-mismatch'], ['売上高は前期比で10%増えていた。', 'fact-mismatch'],
+    ['自己資本比率は45%。', 'fact-mismatch'], ['PERは25倍。', 'fact-mismatch'], ['営業利益は前期比20%増。', 'fact-mismatch'],
+  ]
+  check('W1 のあとも正例（11.92 対 11.6／ESP の向き／10% 対 16.6／45%／25倍／20%）は fact-mismatch に当たる', REVIEW_POS.every(([t, id]) => hitsNew(t).includes(id)), REVIEW_POS.filter(([t, id]) => !hitsNew(t).includes(id)).map(([t]) => t).join(' | '))
+
+  // 手本メモ（MEMO_FULL）と clean は 0 件のまま
+  check('7項目は手本メモ（MEMO_FULL）と clean のどちらにも当たらない', NEW6.every(id => !detectAll({ text: memoById('clean').text, memo: free(memoById('clean').text), data: LAB_9983 }).some(e => e.id === id)) && composeCritique(MEMO_FULL).check.hits.length === 0)
 }
 
 console.log('')

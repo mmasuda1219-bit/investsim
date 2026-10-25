@@ -1,0 +1,198 @@
+{
+  "memoId": "clean",
+  "run": 2,
+  "judgeModel": "claude-sonnet-5",
+  "startedAt": "2026-10-22T02:30:43.341Z",
+  "ms": 25302,
+  "usage": {
+    "inputTokens": 4684,
+    "outputTokens": 2297
+  },
+  "stopReason": "end_turn",
+  "raw": "```json\n{\n  \"A\": [],\n  \"A_dropped\": [],\n  \"B\": [],\n  \"D\": [\n    { \"finding\": 0, \"genuine\": true, \"reak\": \"原文の記述に基づき、純利益とEPS分子の定義差を確認する示唆であり、数字と矛盾しない\" },\n    { \"finding\": 0, \"genuine\": true, \"reason\": \"原文の記述に基づき、純利益とEPS分子の定義差を確認する示唆であり、数字と矛盾しない\" },\n    { \"finding\": 1, \"genuine\": true, \"reason\": \"PERの算出基準日の違いは公表データ（2026-10-09と2026年9月末）から読み取れる事実\" },\n    { \"finding\": 2, \"genuine\": true, \"reason\": \"構成比が『概数の目安』である旨は公表データに明記されており、原文はその注記なしに記載している\" },\n    { \"finding\": 3, \"genuine\": true, \"reason\": \"単純平均PER18.9倍は与えられたデータに存在し、原文に欠落している\" },\n    { \"finding\": 4, \"genuine\": true, \"reason\": \"他セグメントの構成比は与えられたデータに存在し、原文に欠落している\" }\n  ],\n  \"F\": [],\n  \"G\": [\n    { \"expectNotId\": \"invented-issue\", \"violated\": false, \"byFinding\": [], \"text\": \"\" }\n  ]\n}\n```",
+  "parsed": {
+    "A": [],
+    "A_dropped": [],
+    "B": [],
+    "D": [
+      {
+        "finding": 0,
+        "genuine": true
+      },
+      {
+        "finding": 0,
+        "genuine": true,
+        "reason": "原文の記述に基づき、純利益とEPS分子の定義差を確認する示唆であり、数字と矛盾しない"
+      },
+      {
+        "finding": 1,
+        "genuine": true,
+        "reason": "PERの算出基準日の違いは公表データ（2026-10-09と2026年9月末）から読み取れる事実"
+      },
+      {
+        "finding": 2,
+        "genuine": true,
+        "reason": "構成比が『概数の目安』である旨は公表データに明記されており、原文はその注記なしに記載している"
+      },
+      {
+        "finding": 3,
+        "genuine": true,
+        "reason": "単純平均PER18.9倍は与えられたデータに存在し、原文に欠落している"
+      },
+      {
+        "finding": 4,
+        "genuine": true,
+        "reason": "他セグメントの構成比は与えられたデータに存在し、原文に欠落している"
+      }
+    ],
+    "F": [],
+    "G": [
+      {
+        "expectNotId": "invented-issue",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      }
+    ]
+  },
+  "parseError": null,
+  "machine": {
+    "shapeOk": true,
+    "malformed": 0,
+    "C": {
+      "raw": 5,
+      "quoteOk": 5,
+      "nearMiss": 0
+    },
+    "B": {
+      "forbiddenFindings": 0,
+      "words": []
+    },
+    "D": {
+      "rawCount": 5,
+      "keptCount": 5,
+      "emptyRaw": false,
+      "emptyKept": false
+    },
+    "F": {
+      "tokens": [
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "memo"
+        },
+        {
+          "token": "5,425",
+          "value": 5425,
+          "cls": "memo"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "memo"
+        },
+        {
+          "token": "39.3",
+          "value": 39.3,
+          "cls": "memo"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "memo"
+        },
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "09",
+          "value": 9,
+          "cls": "memo"
+        },
+        {
+          "token": "2027",
+          "value": 2027,
+          "cls": "derived"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "memo"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "memo"
+        },
+        {
+          "token": "9",
+          "value": 9,
+          "cls": "memo"
+        },
+        {
+          "token": "40.6",
+          "value": 40.6,
+          "cls": "memo"
+        },
+        {
+          "token": "39.3",
+          "value": 39.3,
+          "cls": "memo"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "memo"
+        },
+        {
+          "token": "9,634",
+          "value": 9634,
+          "cls": "memo"
+        },
+        {
+          "token": "18.9",
+          "value": 18.9,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "memo"
+        },
+        {
+          "token": "9",
+          "value": 9,
+          "cls": "memo"
+        },
+        {
+          "token": "20.6",
+          "value": 20.6,
+          "cls": "memo"
+        },
+        {
+          "token": "18.9",
+          "value": 18.9,
+          "cls": "direct"
+        },
+        {
+          "token": "27",
+          "value": 27,
+          "cls": "derived"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "memo"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "memo"
+        }
+      ],
+      "unknown": []
+    }
+  }
+}

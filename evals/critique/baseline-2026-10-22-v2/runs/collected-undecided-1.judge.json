@@ -1,0 +1,318 @@
+{
+  "memoId": "collected-undecided",
+  "run": 1,
+  "judgeModel": "claude-sonnet-5",
+  "startedAt": "2026-10-22T12:53:31.068Z",
+  "ms": 38407,
+  "usage": {
+    "inputTokens": 5069,
+    "outputTokens": 3925
+  },
+  "stopReason": "end_turn",
+  "raw": "```json\n{\n  \"A\": [\n    { \"expectId\": \"roe-roa-diff\", \"found\": true, \"byFinding\": [0], \"note\": \"ROE/ROAの分母の違いとポイント表記を指摘\" },\n    { \"expectId\": \"roa-mismatch\", \"found\": true, \"byFinding\": [2], \"note\": \"ROA値と開示有無の不一致を指摘\" },\n    { \"expectId\": \"eps-mismatch\", \"found\": true, \"byFinding\": [1], \"note\": \"EPSが実際は増加している旨を指摘\" },\n    { \"expectId\": \"no-conclusion\", \"found\": true, \"byFinding\": [5], \"note\": \"結論欄が空欄である事実を指摘\" },\n    { \"expectId\": \"cf-profit-unchecked\", \"found\": false, \"byFinding\": [], \"note\": \"営業CFと純利益の整合性に触れた添削なし\" },\n    { \"expectId\": \"segment-impression\", \"found\": true, \"byFinding\": [4], \"note\": \"セグメント数値の未確認を指摘\" }\n  ],\n  \"A_dropped\": [\n    { \"expectId\": \"roe-roa-diff\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"roa-mismatch\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"eps-mismatch\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"no-conclusion\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"cf-profit-unchecked\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"segment-impression\", \"found\": false, \"byDropped\": [] }\n  ],\n  \"B\": [],\n  \"D\": [\n    { \"finding\": 0, \"genuine\": true, \"reason\": \"原文の記述と一致し数字と矛盾なし\" },\n    { \"finding\": 1, \"genuine\": true, \"reason\": \"原文のESP記述と公表値の整合を確認\" },\n    { \"finding\": 2, \"genuine\": true, \"reason\": \"原文の数値と公表値の対応を正しく指摘\" },\n    { \"finding\": 3, \"genuine\": true, \"reason\": \"原文の不明点に対応する自己資本比率情報を提示\" },\n    { \"finding\": 4, \"genuine\": true, \"reason\": \"原文の印象記述とセグメント数値の整合を確認\" },\n    { \"finding\": 5, \"genuine\": true, \"reason\": \"原文の結論欄空欄を正しく指摘\" }\n  ],\n  \"F\": [],\n  \"G\": [\n    { \"expectNotId\": \"self-aware-gaps\", \"violated\": false, \"byFinding\": [], \"text\": \"\" },\n    { \"expectNotId\": \"procedure-denied\", \"violated\": false, \"byFinding\": [], \"text\": \"\" }\n  ]\n}\n```",
+  "parsed": {
+    "A": [
+      {
+        "expectId": "roe-roa-diff",
+        "found": true,
+        "byFinding": [
+          0
+        ],
+        "note": "ROE/ROAの分母の違いとポイント表記を指摘"
+      },
+      {
+        "expectId": "roa-mismatch",
+        "found": true,
+        "byFinding": [
+          2
+        ],
+        "note": "ROA値と開示有無の不一致を指摘"
+      },
+      {
+        "expectId": "eps-mismatch",
+        "found": true,
+        "byFinding": [
+          1
+        ],
+        "note": "EPSが実際は増加している旨を指摘"
+      },
+      {
+        "expectId": "no-conclusion",
+        "found": true,
+        "byFinding": [
+          5
+        ],
+        "note": "結論欄が空欄である事実を指摘"
+      },
+      {
+        "expectId": "cf-profit-unchecked",
+        "found": false,
+        "byFinding": [],
+        "note": "営業CFと純利益の整合性に触れた添削なし"
+      },
+      {
+        "expectId": "segment-impression",
+        "found": true,
+        "byFinding": [
+          4
+        ],
+        "note": "セグメント数値の未確認を指摘"
+      }
+    ],
+    "A_dropped": [
+      {
+        "expectId": "roe-roa-diff",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "roa-mismatch",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "eps-mismatch",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "no-conclusion",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "cf-profit-unchecked",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "segment-impression",
+        "found": false,
+        "byDropped": []
+      }
+    ],
+    "B": [],
+    "D": [
+      {
+        "finding": 0,
+        "genuine": true,
+        "reason": "原文の記述と一致し数字と矛盾なし"
+      },
+      {
+        "finding": 1,
+        "genuine": true,
+        "reason": "原文のESP記述と公表値の整合を確認"
+      },
+      {
+        "finding": 2,
+        "genuine": true,
+        "reason": "原文の数値と公表値の対応を正しく指摘"
+      },
+      {
+        "finding": 3,
+        "genuine": true,
+        "reason": "原文の不明点に対応する自己資本比率情報を提示"
+      },
+      {
+        "finding": 4,
+        "genuine": true,
+        "reason": "原文の印象記述とセグメント数値の整合を確認"
+      },
+      {
+        "finding": 5,
+        "genuine": true,
+        "reason": "原文の結論欄空欄を正しく指摘"
+      }
+    ],
+    "F": [],
+    "G": [
+      {
+        "expectNotId": "self-aware-gaps",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      },
+      {
+        "expectNotId": "procedure-denied",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      }
+    ]
+  },
+  "parseError": null,
+  "machine": {
+    "shapeOk": true,
+    "malformed": 0,
+    "C": {
+      "raw": 6,
+      "quoteOk": 6,
+      "nearMiss": 0
+    },
+    "B": {
+      "forbiddenFindings": 0,
+      "words": []
+    },
+    "D": {
+      "rawCount": 6,
+      "keptCount": 6,
+      "emptyRaw": false,
+      "emptyKept": false
+    },
+    "F": {
+      "tokens": [
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "1,768.08",
+          "value": 1768.08,
+          "cls": "direct"
+        },
+        {
+          "token": "1,411.44",
+          "value": 1411.44,
+          "cls": "direct"
+        },
+        {
+          "token": "25.3",
+          "value": 25.3,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "5,425",
+          "value": 5425,
+          "cls": "direct"
+        },
+        {
+          "token": "4,330",
+          "value": 4330,
+          "cls": "direct"
+        },
+        {
+          "token": "11.92",
+          "value": 11.92,
+          "cls": "memo"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "2025",
+          "value": 2025,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "11.6",
+          "value": 11.6,
+          "cls": "direct"
+        },
+        {
+          "token": "21",
+          "value": 21,
+          "cls": "memo"
+        },
+        {
+          "token": "21.2",
+          "value": 21.2,
+          "cls": "direct"
+        },
+        {
+          "token": "20.2",
+          "value": 20.2,
+          "cls": "direct"
+        },
+        {
+          "token": "62.6",
+          "value": 62.6,
+          "cls": "direct"
+        },
+        {
+          "token": "58.9",
+          "value": 58.9,
+          "cls": "direct"
+        },
+        {
+          "token": "3.7",
+          "value": 3.7,
+          "cls": "derived"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "26.2",
+          "value": 26.2,
+          "cls": "direct"
+        },
+        {
+          "token": "61",
+          "value": 61,
+          "cls": "derived"
+        },
+        {
+          "token": "5.7",
+          "value": 5.7,
+          "cls": "direct"
+        },
+        {
+          "token": "27",
+          "value": 27,
+          "cls": "derived"
+        },
+        {
+          "token": "1.8",
+          "value": 1.8,
+          "cls": "direct"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "2.3",
+          "value": 2.3,
+          "cls": "direct"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "direct"
+        }
+      ],
+      "unknown": []
+    }
+  }
+}

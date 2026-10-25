@@ -1,0 +1,190 @@
+{
+  "memoId": "clean",
+  "run": 3,
+  "judgeModel": "claude-sonnet-5",
+  "startedAt": "2026-10-22T02:31:10.658Z",
+  "ms": 28598,
+  "usage": {
+    "inputTokens": 4637,
+    "outputTokens": 2614
+  },
+  "stopReason": "end_turn",
+  "raw": "```json\n{\n  \"A\": [],\n  \"A_dropped\": [],\n  \"B\": [],\n  \"D\": [\n    { \"finding\": 0, \"genuine\": true, \"reason\": \"原文に該当記述があり、基準日・利益ベースの違いは公表データと矛盾しない\" },\n    { \"finding\": 1, \"genuine\": true, \"reason\": \"原文の構成比記述は公表データの概数由来の注記に触れておらず、指摘は事実と一致する\" },\n    { \"finding\": 2, \"genuine\": true, \"reason\": \"原文の推論は実在し、期中平均株数と期末株数の違いという論点は公表データと矛盾しない\" },\n    { \"finding\": 3, \"genuine\": true, \"reason\": \"原文は市場全体の単純平均PERに触れておらず、公表データの18.9倍と一致する指摘\" },\n    { \"finding\": 4, \"genuine\": true, \"reason\": \"原文は前期の営業CF実額に触れておらず、公表データの5,806億円と一致する指摘\" }\n  ],\n  \"F\": [\n    { \"finding\": 0, \"number\": [], \"reason\": \"使用数値はすべて与えられたデータに一致\" },\n    { \"finding\": 1, \"number\": [], \"reason\": \"使用数値はすべて与えられたデータに一致\" },\n    { \"finding\": 2, \"number\": [], \"reason\": \"新たな数値は使用されていない\" },\n    { \"finding\": 3, \"number\": [], \"reason\": \"使用数値はすべて与えられたデータに一致\" },\n    { \"finding\": 4, \"number\": [], \"reason\": \"使用数値はすべて与えられたデータに一致\" }\n  ],\n  \"G\": [\n    { \"expectNotId\": \"invented-issue\", \"violated\": false, \"byFinding\": [], \"text\": \"\" }\n  ]\n}\n```",
+  "parsed": {
+    "A": [],
+    "A_dropped": [],
+    "B": [],
+    "D": [
+      {
+        "finding": 0,
+        "genuine": true,
+        "reason": "原文に該当記述があり、基準日・利益ベースの違いは公表データと矛盾しない"
+      },
+      {
+        "finding": 1,
+        "genuine": true,
+        "reason": "原文の構成比記述は公表データの概数由来の注記に触れておらず、指摘は事実と一致する"
+      },
+      {
+        "finding": 2,
+        "genuine": true,
+        "reason": "原文の推論は実在し、期中平均株数と期末株数の違いという論点は公表データと矛盾しない"
+      },
+      {
+        "finding": 3,
+        "genuine": true,
+        "reason": "原文は市場全体の単純平均PERに触れておらず、公表データの18.9倍と一致する指摘"
+      },
+      {
+        "finding": 4,
+        "genuine": true,
+        "reason": "原文は前期の営業CF実額に触れておらず、公表データの5,806億円と一致する指摘"
+      }
+    ],
+    "F": [
+      {
+        "finding": 0,
+        "number": "",
+        "reason": "使用数値はすべて与えられたデータに一致"
+      },
+      {
+        "finding": 1,
+        "number": "",
+        "reason": "使用数値はすべて与えられたデータに一致"
+      },
+      {
+        "finding": 2,
+        "number": "",
+        "reason": "新たな数値は使用されていない"
+      },
+      {
+        "finding": 3,
+        "number": "",
+        "reason": "使用数値はすべて与えられたデータに一致"
+      },
+      {
+        "finding": 4,
+        "number": "",
+        "reason": "使用数値はすべて与えられたデータに一致"
+      }
+    ],
+    "G": [
+      {
+        "expectNotId": "invented-issue",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      }
+    ]
+  },
+  "parseError": null,
+  "machine": {
+    "shapeOk": true,
+    "malformed": 0,
+    "C": {
+      "raw": 5,
+      "quoteOk": 5,
+      "nearMiss": 0
+    },
+    "B": {
+      "forbiddenFindings": 0,
+      "words": []
+    },
+    "D": {
+      "rawCount": 5,
+      "keptCount": 5,
+      "emptyRaw": false,
+      "emptyKept": false
+    },
+    "F": {
+      "tokens": [
+        {
+          "token": "39.3",
+          "value": 39.3,
+          "cls": "memo"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "memo"
+        },
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "09",
+          "value": 9,
+          "cls": "memo"
+        },
+        {
+          "token": "2027",
+          "value": 2027,
+          "cls": "derived"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "memo"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "memo"
+        },
+        {
+          "token": "9",
+          "value": 9,
+          "cls": "memo"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "memo"
+        },
+        {
+          "token": "9,634",
+          "value": 9634,
+          "cls": "memo"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "memo"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "memo"
+        },
+        {
+          "token": "18.9",
+          "value": 18.9,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "memo"
+        },
+        {
+          "token": "9",
+          "value": 9,
+          "cls": "memo"
+        },
+        {
+          "token": "5,806",
+          "value": 5806,
+          "cls": "direct"
+        },
+        {
+          "token": "8,932",
+          "value": 8932,
+          "cls": "memo"
+        }
+      ],
+      "unknown": []
+    }
+  }
+}

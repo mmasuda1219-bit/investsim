@@ -1,0 +1,678 @@
+{
+  "memoId": "collected-undecided",
+  "run": 2,
+  "judgeModel": "claude-sonnet-5",
+  "startedAt": "2026-10-22T02:32:14.133Z",
+  "ms": 39905,
+  "usage": {
+    "inputTokens": 6488,
+    "outputTokens": 4405
+  },
+  "stopReason": "end_turn",
+  "raw": "```json\n{\n  \"A\": [\n    { \"expectId\": \"roe-roa-diff\", \"found\": true, \"byFinding\": [0], \"note\": \"分母の違いとポイント表記を指摘\" },\n    { \"expectId\": \"roa-mismatch\", \"found\": true, \"byFinding\": [1], \"note\": \"2025年8月期11.6%との不一致を指摘\" },\n    { \"expectId\": \"eps-mismatch\", \"found\": true, \"byFinding\": [2], \"note\": \"増加方向への訂正を指摘\" },\n    { \"expectId\": \"no-conclusion\", \"found\": true, \"byFinding\": [11], \"note\": \"結論欄未記入の事実を指摘\" },\n    { \"expectId\": \"cf-profit-unchecked\", \"found\": false, \"byFinding\": [], \"note\": \"CFと純利益の整合チェックには触れず、金額の未記載のみ指摘\" },\n    { \"expectId\": \"segment-impression\", \"found\": true, \"byFinding\": [9], \"note\": \"海外ユニクロの具体的数値を提示\" }\n  ],\n  \"A_dropped\": [\n    { \"expectId\": \"roe-roa-diff\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"roa-mismatch\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"eps-mismatch\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"no-conclusion\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"cf-profit-unchecked\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"segment-impression\", \"found\": false, \"byDropped\": [] }\n  ],\n  \"B\": [],\n  \"D\": [\n    { \"finding\": 0, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 1, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 2, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 3, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 4, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 5, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 6, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 7, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 8, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 9, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 10, \"genuine\": true, \"reason\": \"原文の記述・数字と整合\" },\n    { \"finding\": 11, \"genuine\": true, \"reason\": \"原文の記述と一致\" }\n  ],\n  \"F\": [],\n  \"G\": [\n    { \"expectNotId\": \"self-aware-gaps\", \"violated\": false, \"byFinding\": [], \"text\": \"\" },\n    { \"expectNotId\": \"procedure-denied\", \"violated\": false, \"byFinding\": [], \"text\": \"\" }\n  ]\n}\n```",
+  "parsed": {
+    "A": [
+      {
+        "expectId": "roe-roa-diff",
+        "found": true,
+        "byFinding": [
+          0
+        ],
+        "note": "分母の違いとポイント表記を指摘"
+      },
+      {
+        "expectId": "roa-mismatch",
+        "found": true,
+        "byFinding": [
+          1
+        ],
+        "note": "2025年8月期11.6%との不一致を指摘"
+      },
+      {
+        "expectId": "eps-mismatch",
+        "found": true,
+        "byFinding": [
+          2
+        ],
+        "note": "増加方向への訂正を指摘"
+      },
+      {
+        "expectId": "no-conclusion",
+        "found": true,
+        "byFinding": [
+          11
+        ],
+        "note": "結論欄未記入の事実を指摘"
+      },
+      {
+        "expectId": "cf-profit-unchecked",
+        "found": false,
+        "byFinding": [],
+        "note": "CFと純利益の整合チェックには触れず、金額の未記載のみ指摘"
+      },
+      {
+        "expectId": "segment-impression",
+        "found": true,
+        "byFinding": [
+          9
+        ],
+        "note": "海外ユニクロの具体的数値を提示"
+      }
+    ],
+    "A_dropped": [
+      {
+        "expectId": "roe-roa-diff",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "roa-mismatch",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "eps-mismatch",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "no-conclusion",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "cf-profit-unchecked",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "segment-impression",
+        "found": false,
+        "byDropped": []
+      }
+    ],
+    "B": [],
+    "D": [
+      {
+        "finding": 0,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 1,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 2,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 3,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 4,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 5,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 6,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 7,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 8,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 9,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 10,
+        "genuine": true,
+        "reason": "原文の記述・数字と整合"
+      },
+      {
+        "finding": 11,
+        "genuine": true,
+        "reason": "原文の記述と一致"
+      }
+    ],
+    "F": [],
+    "G": [
+      {
+        "expectNotId": "self-aware-gaps",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      },
+      {
+        "expectNotId": "procedure-denied",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      }
+    ]
+  },
+  "parseError": null,
+  "machine": {
+    "shapeOk": true,
+    "malformed": 0,
+    "C": {
+      "raw": 12,
+      "quoteOk": 12,
+      "nearMiss": 0
+    },
+    "B": {
+      "forbiddenFindings": 0,
+      "words": []
+    },
+    "D": {
+      "rawCount": 12,
+      "keptCount": 12,
+      "emptyRaw": false,
+      "emptyKept": false
+    },
+    "F": {
+      "tokens": [
+        {
+          "token": "62.6",
+          "value": 62.6,
+          "cls": "direct"
+        },
+        {
+          "token": "58.9",
+          "value": 58.9,
+          "cls": "direct"
+        },
+        {
+          "token": "3.7",
+          "value": 3.7,
+          "cls": "derived"
+        },
+        {
+          "token": "11.92",
+          "value": 11.92,
+          "cls": "memo"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "2025",
+          "value": 2025,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "11.6",
+          "value": 11.6,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "21.2",
+          "value": 21.2,
+          "cls": "direct"
+        },
+        {
+          "token": "20.2",
+          "value": 20.2,
+          "cls": "direct"
+        },
+        {
+          "token": "2",
+          "value": 2,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "1,768.08",
+          "value": 1768.08,
+          "cls": "direct"
+        },
+        {
+          "token": "1,411.44",
+          "value": 1411.44,
+          "cls": "direct"
+        },
+        {
+          "token": "25.3",
+          "value": 25.3,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "40.6",
+          "value": 40.6,
+          "cls": "direct"
+        },
+        {
+          "token": "40.6",
+          "value": 40.6,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "39.3",
+          "value": 39.3,
+          "cls": "direct"
+        },
+        {
+          "token": "2027",
+          "value": 2027,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "27.7",
+          "value": 27.7,
+          "cls": "direct"
+        },
+        {
+          "token": "22.5",
+          "value": 22.5,
+          "cls": "direct"
+        },
+        {
+          "token": "20.6",
+          "value": 20.6,
+          "cls": "direct"
+        },
+        {
+          "token": "18.9",
+          "value": 18.9,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "9",
+          "value": 9,
+          "cls": "direct"
+        },
+        {
+          "token": "7.73",
+          "value": 7.73,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "09",
+          "value": 9,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "71,780",
+          "value": 71780,
+          "cls": "direct"
+        },
+        {
+          "token": "3,020",
+          "value": 3020,
+          "cls": "direct"
+        },
+        {
+          "token": "4.04",
+          "value": 4.04,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "09",
+          "value": 9,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "08",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "direct"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "direct"
+        },
+        {
+          "token": "9,634",
+          "value": 9634,
+          "cls": "direct"
+        },
+        {
+          "token": "16.6",
+          "value": 16.6,
+          "cls": "direct"
+        },
+        {
+          "token": "7,431",
+          "value": 7431,
+          "cls": "direct"
+        },
+        {
+          "token": "31.7",
+          "value": 31.7,
+          "cls": "direct"
+        },
+        {
+          "token": "5,425",
+          "value": 5425,
+          "cls": "direct"
+        },
+        {
+          "token": "25.3",
+          "value": 25.3,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "10",
+          "value": 10,
+          "cls": "memo"
+        },
+        {
+          "token": "08",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "2027",
+          "value": 2027,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "4",
+          "value": 4,
+          "cls": "direct"
+        },
+        {
+          "token": "4,500",
+          "value": 4500,
+          "cls": "direct"
+        },
+        {
+          "token": "12.3",
+          "value": 12.3,
+          "cls": "direct"
+        },
+        {
+          "token": "5,600",
+          "value": 5600,
+          "cls": "direct"
+        },
+        {
+          "token": "3.2",
+          "value": 3.2,
+          "cls": "direct"
+        },
+        {
+          "token": "39.3",
+          "value": 39.3,
+          "cls": "direct"
+        },
+        {
+          "token": "850",
+          "value": 850,
+          "cls": "direct"
+        },
+        {
+          "token": "500",
+          "value": 500,
+          "cls": "direct"
+        },
+        {
+          "token": "640",
+          "value": 640,
+          "cls": "direct"
+        },
+        {
+          "token": "850",
+          "value": 850,
+          "cls": "direct"
+        },
+        {
+          "token": "48.1",
+          "value": 48.1,
+          "cls": "direct"
+        },
+        {
+          "token": "35.4",
+          "value": 35.4,
+          "cls": "direct"
+        },
+        {
+          "token": "1.25",
+          "value": 1.25,
+          "cls": "direct"
+        },
+        {
+          "token": "2027",
+          "value": 2027,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "900",
+          "value": 900,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "5.7",
+          "value": 5.7,
+          "cls": "direct"
+        },
+        {
+          "token": "27",
+          "value": 27,
+          "cls": "derived"
+        },
+        {
+          "token": "26.2",
+          "value": 26.2,
+          "cls": "direct"
+        },
+        {
+          "token": "61",
+          "value": 61,
+          "cls": "derived"
+        },
+        {
+          "token": "1.8",
+          "value": 1.8,
+          "cls": "direct"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "2.3",
+          "value": 2.3,
+          "cls": "direct"
+        },
+        {
+          "token": "3",
+          "value": 3,
+          "cls": "direct"
+        },
+        {
+          "token": "7,886",
+          "value": 7886,
+          "cls": "direct"
+        },
+        {
+          "token": "5,806",
+          "value": 5806,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "76",
+          "value": 76,
+          "cls": "direct"
+        },
+        {
+          "token": "8,932",
+          "value": 8932,
+          "cls": "direct"
+        }
+      ],
+      "unknown": []
+    }
+  }
+}

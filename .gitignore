@@ -54,3 +54,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/knowledge.json
+
+# フェーズAの測定: 走らせるたびに上書きされる出力。記録は evals/critique/baseline-*/ に手で写す
+evals/critique/runs/
+evals/critique/report.md

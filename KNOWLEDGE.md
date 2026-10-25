@@ -327,3 +327,46 @@
   - strategist: 各投資家モデルに"主バリュエーション手法"を割り当てると人格が濃くなる。バフェット/グレアム＝DCF（オーナー利益/内在価値）＋安全域、リンチ＝PEG（成長調整マルチプル）、インカム型＝DDM、金融株＝RIM/PBR×ROE、コングロ＝SOTP。判断根拠に「なぜこの手法を選んだか」を1行明記させる。
   - /report・screen: 銘柄の性質（配当有無・FCF安定性・事業数・業種）から「推奨バリュエーション手法」を自動サジェストし、選んだ理由を教育的に説明。単一のPER表示から「手法を使い分ける型」へ格上げ（builder/data-engineer/designer）。RIM/DDMは実データ（簿価・ROE・配当）から近似計算可能で、既存のオーナー利益/FCFの土台と並べられる。
   - 教育の核: 「PERだけ見る」初心者から「対象に合わせて手法を選ぶ」中級へ引き上げる練習場コンテンツ。手法ごとの長所短所と適所を対比で見せるUIは、リターン保証を避けつつ"分析の質"を訴求するピボットの直球。
+
+## 2026-10-24: HKUDS/Vibe-Trading（オープンソースのAI売買研究エージェント）— 4機能の仕組みと、investsimに取り込める線・取り込めない線
+- 出典（README・ソースは WebFetch で読んだだけ。インストール・クローン・実行はしていない）:
+  - README: https://github.com/HKUDS/Vibe-Trading （raw: https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/README.md ・日本語版 README_ja.md）
+  - 行動診断: https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/tools/trade_journal_tool.py （関数 `pair_trades_fifo` `_compute_profile` `_compute_behavior` `_disposition_effect` `_overtrading` `_chasing_momentum` `_anchoring` `_severity`）
+  - Shadow Account: https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/tools/shadow_account_tool.py / https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/shadow_account/extractor.py （`extract_shadow_profile` `_cluster_to_rule` `_translate_rule`）/ https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/shadow_account/backtester.py （`_compute_attribution` `_overtrading_pnl`）
+  - 記憶・skills: https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/memory/persistent.py / https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/tools/skill_writer_tool.py
+  - チーム: https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/swarm/presets/investment_committee.yaml / https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/swarm/grounding.py
+  - データ・検証: https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/backtest/loaders/registry.py / https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/backtest/run_card.py / https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/backtest/validation.py / https://raw.githubusercontent.com/HKUDS/Vibe-Trading/main/agent/src/agent/grounding/figures.py
+  - 行番号: WebFetch の取得結果に行番号が付かず、**行は特定できていない**。出典は「ファイル＋関数名」で示す。
+- 要点① 自己改善型エージェント（記憶＋編集できる skills）:
+  - 記憶（`persistent.py`）: 種類は4つだけ `user / feedback / project / reference`。1件=1ファイル（frontmatter に `quality_score` 初期0.5・`access_count`・`last_accessed`・`importance`）。目次 `MEMORY.md` を最大200行までプロンプトに入れる。想起は全文検索（FTS5）か語の一致（題・説明・キーワードの一致は重み2.0、本文は1）。
+  - 忘却曲線（既定は OFF）: 重要度 = quality ×（exp(−ln2/14 × 経過日数) ＋ min(0.3, 参照回数×0.1)）。半減期14日、使われた記憶ほど残る。
+  - skills（`skill_writer_tool.py`）: `SKILL.md`（frontmatter 付き）＋ `references/ templates/ examples/ assets/`。`save_skill` は「うまくいった手順・戦略の型」を再利用できる形で保存、`patch_skill` は1か所だけの置換（同梱 skill はユーザー側へ写してから直す＝元は壊さない）、`delete_skill` はユーザー作成分だけ。README では 9分類90個の金融 skill を同梱。
+- 要点② マルチエージェントのチーム（swarm・30種のプリセット）:
+  - 例 `investment_committee.yaml`: 強気担当と弱気担当が並行で調べる → リスク担当が両方の論点を1〜5で信頼度採点し盲点を指摘 → PM（運用責任者）が「買い／売り／待つ／ヘッジ」と目標価格・損切り・確信度0〜100%を出す（多数決ではなく論点の強さで決めると指示）。弱気担当は「データ源の無い DCF 値を出すな」と禁止されている。
+  - grounding（`swarm/grounding.py`）: 実行の最初に対象銘柄（最大8）の直近30日の日足を取得し、見出し「Ground Truth — Recent Market Data」で直近5行の表＋最新終値（日付つき）をプロンプトに差し込む。指示は「これがこの実行の正の値」「学習データの株価・倍率・リターンを使うな」「株価を言うときは表の日付を添えよ」。取得に失敗した銘柄は黙って落とす（失敗時の振る舞いは未定義）。
+  - 数字の検問（`grounding/figures.py`）: モデルは回答中の数字を `値 | 役割 | 注 | 参照` の表で宣言する。役割は5つ `observed（観測）/ derived（計算）/ proposed（提案）/ cited（引用）/ count（個数）`。本文の数字のうち小数・%・通貨記号つきを「測った値」として宣言と照合。一致の条件は「書かれた桁で正しく丸めた値」かつ相対差0.5%以内（`ROUNDED_BAND = 0.005`）。整数で書かれた値は完全一致のみ。宣言漏れは「検査されなかった数字」として不正扱い。
+- 要点③ 市場をまたぐデータ＋バックテスト:
+  - 代替経路（`registry.py` の `FALLBACK_CHAINS`）: 市場ごとに取得元を順に試す（例 米国株 yahoo→stooq→…→local）。並べ替えは環境変数 `MARKET_DATA_ORDER_*` で可能だが「既定の並びの**並べ替えだけ**」（足す・抜く・重複は無効）。明示指定した一部の取得元は黙って別の元に落ちずに失敗させる（`_NO_NETWORK_FALLBACK_SOURCES`）。
+  - 価格の口径ラベル: 銘柄ごとに（取得元, 調整の種類）を記録。種類は `split_dividend`（分割・配当調整）/ `split` / `raw`（未調整）/ `unknown` 等。口径の違う価格が混ざると `mixed_caliber_warning`。
+  - PIT（point-in-time＝その日に知り得た情報だけ）: 決算数値は**発表日**で効かせ、訂正された行は重複を除く（README 2026-07-08・07-23 の記載）。Shadow の売買時点の RSI・直前5日の騰落も「買った日より前の足だけ」で計算。
+  - run card（`run_card.py`）: バックテスト1回ごとに `run_card.json/.md`。中身は設定のハッシュ・戦略ファイルのハッシュ・成果物ごとの sha256・データの取得元一覧・使ったモデルと**学習の締め日**・指標・警告。**検証期間がモデルの学習締め日より前に終わると警告**（AIが結果を「知っている」可能性＝先読み）。指標は `metrics.csv` の値と一致したときだけ引用として載せる。
+  - 検証（`validation.py`）: モンテカルロ（取引の順番を1000回入れ替え、実際の順序が偶然より良いかの p 値）・ブートストラップ（シャープ比の95%区間）・ウォークフォワード（期間を5つに切り、何区間で勝ったか）。合否の閾値は持たず数字だけ返す。
+  - 対応市場: 中国A株・香港・米国・カナダ・ブラジル・英国・インド・韓国・暗号資産・先物・為替。**日本株の取得経路と口径の定義は無い**（registry に日本の項目なし）。
+- 要点④ Shadow Account（取引日誌の行動診断）:
+  - 入力: 証券会社の取引履歴CSV/Excel（同花順・東方財富・富途・汎用）。買いと売りを銘柄ごとに **FIFO（先に買った分から順に売ったとみなす）** で組にし、1往復ごとに保有日数・損益・損益率を出す（`pair_trades_fifo`）。
+  - 成績の要約（`_compute_profile`）: 取引頻度＝取引数÷期間日数×7（週あたり）／勝率＝損益>0の往復の割合／平均保有日数／損益比＝平均利益÷|平均損失|（通貨ごと）／最大ドローダウン＝確定損益の累積の、ゼロを起点にした最高点からの最大の落ち込み。
+  - 行動診断4種（`_compute_behavior`。重さは `_severity`: 値が中閾値以上で medium、高閾値以上で high）:
+    - 気質効果 disposition effect（`_disposition_effect`）: 負けた往復の平均保有日数 ÷ 勝った往復の平均保有日数。閾値 1.2 / 1.5（＝損は長く持ち、益は早く売る形）。**損益で勝ち負けを分けてから測る**。
+    - 過剰取引 overtrading（`_overtrading`）: 取引日が4日以上必要。1日の取引数が上位25%の「忙しい日」と下位25%の「静かな日」で、往復の平均損益を比べる。差 =（静かな日の平均−忙しい日の平均）÷|静かな日の平均|、閾値 0.3 / 1.0。**損益で測る**。
+    - 追いかけ買い chasing momentum（`_chasing_momentum`）: 同じ銘柄の買いを時刻順に並べ、**3回前の自分の買値より3%超高く買った**ら「追いかけ」。割合の閾値 0.4 / 0.6。市場の株価ではなく本人の約定価格だけで測る（docstring の「直近3取引」と実装の「3回前の買い」が食い違っている）。
+    - アンカリング anchoring（`_anchoring`）: 売買が5回以上ある銘柄で、約定価格の変動係数（標準偏差÷平均）が 0.05 未満なら「同じ値段に固執」。該当銘柄の割合の閾値 0.33 / 0.66。
+  - ルール抽出（`extractor.py`）: **利益が出た往復だけ**（5件未満なら中止）を、保有日数・損益率・買った時刻・曜日・買った日の RSI14・直前5日の騰落で k-means（k=2〜5 をシルエット値で選ぶ）に分け、各群の10〜90パーセンタイルを「入る条件／保有日数の範囲」にした規則を最大5本作る（3件未満の群は捨てる）。文章化は LLM 任意、80字まで。ヘッダの「決定木を使う」は未実装で、文書と実装が食い違っている。
+  - Shadow 比較と帰属（`backtester.py` の `_compute_attribution`）: 抽出した規則を4市場で過去1年に当てて「影の口座」の損益を出し、実際の損益との差 `delta_pnl` を分解する。保有日数が規則の範囲より短い勝ち＝早すぎた手仕舞い `early_exit`、範囲より長い負け＝遅すぎた手仕舞い `late_exit`、それ以外の範囲外＝規則違反 `rule_violation`、想定（中央値保有日数×2 ごとに1回）を超えた取引の分＝`overtrading_pnl`、残り＝見逃した合図 `missed_signals_pnl`（差の残差なので式の上で必ず辻褄が合う）。影響の大きい5件を「もし規則通りなら」の取引として出す。
+  - 報告: 8節の HTML/PDF（規則違反・早すぎた手仕舞い・見逃した合図・反実仮想の取引）。「今日の合図」走査は「研究用・売買推奨ではない」の免責つき。
+- investsimに取り込めるもの／取り込めないもの:
+  - **取り込めない**: (1) 気質効果・過剰取引の定義そのもの＝**損益で勝ち負けを分けて測る**（「損益にもとづく判断の良し悪し」に当たる）。(2) Shadow のルール抽出＝**儲かった取引だけから規則を作り**、影の損益と比べる＝損益で評価し、さらに「この規則なら儲かった」は事実上の推奨。(3) 「今日の合図」走査・PM の目標価格／損切り／確信度・リスク担当の1〜5点＝推奨・目標株価・点数。(4) 証券会社の取引履歴の取り込み＝investsimは実口座と繋がない（原則10）。(5) 取得経路・口径表をそのまま使う＝**日本株の経路が無い**。(6) 勝率・損益比・最大ドローダウンを判断の評価として出すこと。
+  - **取り込める（形を変えて）**: (a) 行動を**損益でなく形で**数える考え方（追いかけ買いは「本人の買値の並び」、アンカリングは「約定価格のばらつき」で測っており、損益を使っていない）。(b) 「自分が決めた規則からのずれ」を名前で分ける考え方（早すぎ／遅すぎ／範囲外）。investsimでは比べる相手を「利益の出た取引から作った規則」ではなく**本人が /trade に書いた【降りる条件】【注目】**にすれば、損益を使わずに成立する。(c) grounding の差し込み方（正の値の表＋日付を添えさせる＋学習データの数字を使うなの指示）と、数字の宣言・照合（書かれた桁で丸めて0.5%以内）。(d) run card の「出典・口径・学習締め日の警告・ハッシュ」を検証の記録として残す考え方。(e) skills の「うまくいった手順を名前つきで保存し、元を壊さず写して直す」形。(f) 文書と実装の食い違い（追いかけ買い・決定木）が実在した＝定義は検査スクリプトで固定すべき、という反面教師。
+- investsimへの示唆:
+  - /review: 1件のふりかえりに「あなたが書いた降りる条件」と「その後の値動きがその条件に触れた日」を並べ、触れた後も持っていれば「書いた条件を過ぎて持った」という**事実の名前**だけを出す（良し悪しは言わない）。追いかけ買いは「買う前の◯営業日で株価が◯%動いていた」と「【見立て】に値動きを理由にした文がある」の重なりで名づける。
+  - 添削: Vibe の数字照合（丸め桁＋0.5%）は investsim の `approxEqual`（0.5%）・review-2026-10-22-W1（書かれた桁で幅を決める）と同じ発想で、方向が正しいことの外部の裏づけになる。AI添削の出力にも「数字の役割宣言（観測／計算／引用）」を持たせれば、AIが作った数字を機械で弾ける。
+  - /learn: AIレポートに run card 相当（取得元・価格の口径・取得日・モデルの学習締め日より前の期間なら「AIが結果を知っている可能性」の注記）を付ける。

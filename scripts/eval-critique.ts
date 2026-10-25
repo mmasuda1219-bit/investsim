@@ -43,7 +43,7 @@ async function main() {
       const file = runFile(memo.id, n)
       if (resume && fs.existsSync(file)) {
         const prev = JSON.parse(fs.readFileSync(file, 'utf8')) as RunRecord
-        if (!prev.error) { console.log(`  #${n}: 既にある（--resume）→ 飛ばす`); continue }
+        if (!prev.error && prev.parse?.ok) { console.log(`  #${n}: 既にある（--resume）→ 飛ばす`); continue }
       }
       const record: RunRecord = {
         memoId: memo.id, memoTitle: memo.title, source: memo.source, run: n, model,
@@ -52,7 +52,7 @@ async function main() {
         catalogueBaseline: baseline, expect: memo.expect, expectNot: memo.expectNot, error: null,
       }
       try {
-        const call = await callCritique(input, { model, apiKey, maxTokens: 2500 })
+        const call = await callCritique(input, { model, apiKey, maxTokens: 16000, timeoutMs: 600_000 }) // 2026-10-22: 2500 だと Opus 5 の既定の思考（thinking）が枠を食い、JSON が途中で切れた（8/9 回が max_tokens）。思考は既定のまま、出力の枠だけ広げる
         calls++
         totalMs += call.ms
         record.model = call.model

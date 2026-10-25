@@ -93,6 +93,13 @@ export function CritiqueView({ critique }: { critique: Critique }) {
                     {h.title} <span className="font-normal text-caption text-muted">（{KIND_LABEL[h.kind]}）</span>
                   </p>
                   <p className="text-body text-ink-2 max-w-[42rem] tabular-nums"><Pieces pieces={h.bodyPieces} /></p>
+                  {h.details.length > 0 && (
+                    <ul className="list-disc pl-5 space-y-0.5" data-catalogue-details={h.id}>
+                      {h.details.map((d, i) => (
+                        <li key={i} className="text-body text-ink-2 max-w-[42rem] tabular-nums"><Pieces pieces={d.pieces} /></li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>

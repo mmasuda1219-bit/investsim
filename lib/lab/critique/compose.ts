@@ -33,6 +33,8 @@ export interface CheckHit {
   body: string
   /** body と同じ文のかけら（数字に出典の番号。用語は囲まない） */
   bodyPieces: Piece[]
+  /** 本文の下に並べる行（fact-mismatch の「メモ／公表値」。無ければ空）。text と pieces は同じ文 */
+  details: { text: string; pieces: Piece[] }[]
 }
 
 const TOKENS = termTokens()
@@ -184,6 +186,13 @@ export function composeCritique(memo: LabMemo, data: LabData = LAB_9983): Critiq
     id: e.id, kind: e.kind, title: e.title,
     body: fill(e.body, vars),
     bodyPieces: richPieces(e.body, entries, cite, null, new Set()),
+    details: (e.details?.({ text, memo, data }) ?? []).map(d => {
+      const all = { ...entries, ...d.vars }
+      return {
+        text: fill(d.template, Object.fromEntries(Object.entries(all).map(([k, v]) => [k, v.text]))),
+        pieces: richPieces(d.template, all, cite, null, new Set()),
+      }
+    }),
   }))
 
   // §4 画面2の項目のうち言及の無いもの

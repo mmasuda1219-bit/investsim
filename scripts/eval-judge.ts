@@ -353,7 +353,7 @@ async function main() {
     if (noAi) { judges.push({ ...base, parseError: '--no-ai' }); console.log(`  ${run.memoId} #${run.run}: 機械の部分だけ（C ${machine.C.quoteOk}/${machine.C.raw}・F 不明 ${machine.F.unknown.length}）`); continue }
     apiKey ??= requireApiKey()
     try {
-      const call = await callMessages({ system: JUDGE_SYSTEM, user: judgeUser(run), model, apiKey, maxTokens: 3000, temperature: 0 })
+      const call = await callMessages({ system: JUDGE_SYSTEM, user: judgeUser(run), model, apiKey, maxTokens: 16000, timeoutMs: 600_000 }) // 2026-10-22: temperature は Sonnet 5 で 400（送れない）。思考が枠を食うので maxTokens も 3000 → 16000
       calls++
       const json = extractJson(call.raw, '{')
       let parsed: JudgeParsed | null = null

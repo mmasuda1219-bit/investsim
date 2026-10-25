@@ -1,0 +1,291 @@
+{
+  "memoId": "collected-undecided",
+  "run": 2,
+  "judgeModel": "claude-sonnet-5",
+  "startedAt": "2026-10-22T12:54:11.495Z",
+  "ms": 44757,
+  "usage": {
+    "inputTokens": 4738,
+    "outputTokens": 4737
+  },
+  "stopReason": "end_turn",
+  "raw": "```json\n{\n  \"A\": [\n    { \"expectId\": \"roe-roa-diff\", \"found\": true, \"byFinding\": [1], \"note\": \"ROEとROAの分母の違いと差の単位（ポイント）を指摘している\" },\n    { \"expectId\": \"roa-mismatch\", \"found\": true, \"byFinding\": [2], \"note\": \"メモのROA値と会社開示値（2025年度11.6%、2026年度非開示）の食い違いを指摘している\" },\n    { \"expectId\": \"eps-mismatch\", \"found\": true, \"byFinding\": [0], \"note\": \"EPSが実際には増加していることを示している\" },\n    { \"expectId\": \"no-conclusion\", \"found\": true, \"byFinding\": [5], \"note\": \"結論欄が空である事実を指摘している\" },\n    { \"expectId\": \"cf-profit-unchecked\", \"found\": false, \"byFinding\": [], \"note\": \"営業CFと純利益の整合性に触れた添削が見当たらない\" },\n    { \"expectId\": \"segment-impression\", \"found\": false, \"byFinding\": [], \"note\": \"セグメントの印象論を数字で指摘した添削が見当たらない\" }\n  ],\n  \"A_dropped\": [\n    { \"expectId\": \"roe-roa-diff\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"roa-mismatch\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"eps-mismatch\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"no-conclusion\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"cf-profit-unchecked\", \"found\": false, \"byDropped\": [] },\n    { \"expectId\": \"segment-impression\", \"found\": false, \"byDropped\": [] }\n  ],\n  \"B\": [],\n  \"D\": [\n    { \"finding\": 0, \"genuine\": true, \"reason\": \"原文の「ESPが下がっている」に対応し、公表値のEPS増加と整合して指摘している\" },\n    { \"finding\": 1, \"genuine\": true, \"reason\": \"原文の「差が約10%あるので負債が大きい」に対応し、分母の違いという事実に基づく\" },\n    { \"finding\": 2, \"genuine\": true, \"reason\": \"原文の「ROAは11.92%」に対応し、公表値との食い違いを正しく示している\" },\n    { \"finding\": 3, \"genuine\": true, \"reason\": \"原文の「10%が大きいのか小さいのか分からない」に対応し、自己資本比率の公表値を事実として添えている\" },\n    { \"finding\": 4, \"genuine\": true, \"reason\": \"原文の「PERの意味が分からなかった」「株価は何とも言えない」に対応し、公表されたPER・PBR・平均値を事実として示している\" },\n    { \"finding\": 5, \"genuine\": true, \"reason\": \"原文の【結論】（未記入）という記載そのものを指している\" }\n  ],\n  \"F\": [],\n  \"G\": [\n    { \"expectNotId\": \"self-aware-gaps\", \"violated\": false, \"byFinding\": [], \"text\": \"\" },\n    { \"expectNotId\": \"procedure-denied\", \"violated\": false, \"byFinding\": [], \"text\": \"\" }\n  ]\n}\n```",
+  "parsed": {
+    "A": [
+      {
+        "expectId": "roe-roa-diff",
+        "found": true,
+        "byFinding": [
+          1
+        ],
+        "note": "ROEとROAの分母の違いと差の単位（ポイント）を指摘している"
+      },
+      {
+        "expectId": "roa-mismatch",
+        "found": true,
+        "byFinding": [
+          2
+        ],
+        "note": "メモのROA値と会社開示値（2025年度11.6%、2026年度非開示）の食い違いを指摘している"
+      },
+      {
+        "expectId": "eps-mismatch",
+        "found": true,
+        "byFinding": [
+          0
+        ],
+        "note": "EPSが実際には増加していることを示している"
+      },
+      {
+        "expectId": "no-conclusion",
+        "found": true,
+        "byFinding": [
+          5
+        ],
+        "note": "結論欄が空である事実を指摘している"
+      },
+      {
+        "expectId": "cf-profit-unchecked",
+        "found": false,
+        "byFinding": [],
+        "note": "営業CFと純利益の整合性に触れた添削が見当たらない"
+      },
+      {
+        "expectId": "segment-impression",
+        "found": false,
+        "byFinding": [],
+        "note": "セグメントの印象論を数字で指摘した添削が見当たらない"
+      }
+    ],
+    "A_dropped": [
+      {
+        "expectId": "roe-roa-diff",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "roa-mismatch",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "eps-mismatch",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "no-conclusion",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "cf-profit-unchecked",
+        "found": false,
+        "byDropped": []
+      },
+      {
+        "expectId": "segment-impression",
+        "found": false,
+        "byDropped": []
+      }
+    ],
+    "B": [],
+    "D": [
+      {
+        "finding": 0,
+        "genuine": true,
+        "reason": "原文の「ESPが下がっている」に対応し、公表値のEPS増加と整合して指摘している"
+      },
+      {
+        "finding": 1,
+        "genuine": true,
+        "reason": "原文の「差が約10%あるので負債が大きい」に対応し、分母の違いという事実に基づく"
+      },
+      {
+        "finding": 2,
+        "genuine": true,
+        "reason": "原文の「ROAは11.92%」に対応し、公表値との食い違いを正しく示している"
+      },
+      {
+        "finding": 3,
+        "genuine": true,
+        "reason": "原文の「10%が大きいのか小さいのか分からない」に対応し、自己資本比率の公表値を事実として添えている"
+      },
+      {
+        "finding": 4,
+        "genuine": true,
+        "reason": "原文の「PERの意味が分からなかった」「株価は何とも言えない」に対応し、公表されたPER・PBR・平均値を事実として示している"
+      },
+      {
+        "finding": 5,
+        "genuine": true,
+        "reason": "原文の【結論】（未記入）という記載そのものを指している"
+      }
+    ],
+    "F": [],
+    "G": [
+      {
+        "expectNotId": "self-aware-gaps",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      },
+      {
+        "expectNotId": "procedure-denied",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      }
+    ]
+  },
+  "parseError": null,
+  "machine": {
+    "shapeOk": true,
+    "malformed": 0,
+    "C": {
+      "raw": 6,
+      "quoteOk": 6,
+      "nearMiss": 0
+    },
+    "B": {
+      "forbiddenFindings": 0,
+      "words": []
+    },
+    "D": {
+      "rawCount": 6,
+      "keptCount": 6,
+      "emptyRaw": false,
+      "emptyKept": false
+    },
+    "F": {
+      "tokens": [
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "1,768.08",
+          "value": 1768.08,
+          "cls": "direct"
+        },
+        {
+          "token": "1,411.44",
+          "value": 1411.44,
+          "cls": "direct"
+        },
+        {
+          "token": "25.3",
+          "value": 25.3,
+          "cls": "direct"
+        },
+        {
+          "token": "1",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "2",
+          "value": 2,
+          "cls": "direct"
+        },
+        {
+          "token": "11.92",
+          "value": 11.92,
+          "cls": "memo"
+        },
+        {
+          "token": "2026",
+          "value": 2026,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "2025",
+          "value": 2025,
+          "cls": "year"
+        },
+        {
+          "token": "8",
+          "value": 8,
+          "cls": "direct"
+        },
+        {
+          "token": "11.6",
+          "value": 11.6,
+          "cls": "direct"
+        },
+        {
+          "token": "21",
+          "value": 21,
+          "cls": "memo"
+        },
+        {
+          "token": "21.2",
+          "value": 21.2,
+          "cls": "direct"
+        },
+        {
+          "token": "20.2",
+          "value": 20.2,
+          "cls": "direct"
+        },
+        {
+          "token": "1.0",
+          "value": 1,
+          "cls": "direct"
+        },
+        {
+          "token": "62.6",
+          "value": 62.6,
+          "cls": "direct"
+        },
+        {
+          "token": "58.9",
+          "value": 58.9,
+          "cls": "direct"
+        },
+        {
+          "token": "3.7",
+          "value": 3.7,
+          "cls": "derived"
+        },
+        {
+          "token": "40.6",
+          "value": 40.6,
+          "cls": "direct"
+        },
+        {
+          "token": "39.3",
+          "value": 39.3,
+          "cls": "direct"
+        },
+        {
+          "token": "7.73",
+          "value": 7.73,
+          "cls": "direct"
+        },
+        {
+          "token": "27.7",
+          "value": 27.7,
+          "cls": "direct"
+        },
+        {
+          "token": "22.5",
+          "value": 22.5,
+          "cls": "direct"
+        }
+      ],
+      "unknown": []
+    }
+  }
+}

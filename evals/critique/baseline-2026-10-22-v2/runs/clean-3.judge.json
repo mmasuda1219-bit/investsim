@@ -1,0 +1,52 @@
+{
+  "memoId": "clean",
+  "run": 3,
+  "judgeModel": "claude-sonnet-5",
+  "startedAt": "2026-10-22T12:53:26.189Z",
+  "ms": 2865,
+  "usage": {
+    "inputTokens": 3476,
+    "outputTokens": 91
+  },
+  "stopReason": "end_turn",
+  "raw": "{\n  \"A\": [],\n  \"A_dropped\": [],\n  \"B\": [],\n  \"D\": [],\n  \"F\": [],\n  \"G\": [\n    { \"expectNotId\": \"invented-issue\", \"violated\": false, \"byFinding\": [], \"text\": \"\" }\n  ]\n}",
+  "parsed": {
+    "A": [],
+    "A_dropped": [],
+    "B": [],
+    "D": [],
+    "F": [],
+    "G": [
+      {
+        "expectNotId": "invented-issue",
+        "violated": false,
+        "byFinding": [],
+        "text": ""
+      }
+    ]
+  },
+  "parseError": null,
+  "machine": {
+    "shapeOk": true,
+    "malformed": 0,
+    "C": {
+      "raw": 0,
+      "quoteOk": 0,
+      "nearMiss": 0
+    },
+    "B": {
+      "forbiddenFindings": 0,
+      "words": []
+    },
+    "D": {
+      "rawCount": 0,
+      "keptCount": 0,
+      "emptyRaw": true,
+      "emptyKept": true
+    },
+    "F": {
+      "tokens": [],
+      "unknown": []
+    }
+  }
+}
